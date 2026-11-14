@@ -132,9 +132,9 @@ The PC tool is released upstream, by nx2android; this repository's releases hold
 
 ## Saves
 
-**On the phone**: the library page → the drawer → **Saves**. **Export the saves** writes the save as a zip package into the download folder and hands it to the system share sheet; **Import the saves…** takes a package in from anywhere. The drawer also holds **Save packages** (the packages you shared) and **Backups** (the automatic backup of an import, which can be restored).
+**On the phone**: the library page → the drawer → **Saves**. **Export the saves** asks the system file manager where the package goes and writes the save there as a zip; **Import the saves…** takes a zip from anywhere the file manager can see.
 
-An import replaces the save the game has, so the app keeps that one first (a folder ending `-before-import`). A package carrying another game's title ID is refused, and the unpacked size is capped. The game has to be closed before its save is touched — the host writes it while it runs. Uninstalling the app deletes its saves and its exports: copy them out first.
+An import replaces the save the game has, so the app asks before it does it: the package's name, and the fact that the progress it replaces cannot be brought back. A package carrying another game's title ID is refused, and the unpacked size is capped. Uninstalling the app deletes its saves: copy them out first.
 
 **On a computer** (the desktop tool's **Saves** tab): the saves travel between the device and the PC over adb. An export is a folder in `Android/data/<package>/files/saves/` on the device, the save's files as a console's save tools copy them, so a save from a console imports the same way.
 
