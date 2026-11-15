@@ -1281,25 +1281,30 @@ def sarc_members(d):
 NV_STAGES = ['vs', 'ps', 'gs', 'hs', 'ds', 'cs']   # NVN stage order
 COMMON, TREES = None, {}   # Unity common strings and borrowed type trees (given when the pool starts)
 ZDICTS, _ZD = {}, {}       # zstd dictionaries by ID (given when the pool starts) and their digested form in this process
+_POOL_FN = None            # the work a pool child does (given when the pool starts: the pool sends it to the children as an argument, so it cannot be a local function)
+
+def _pool_run(item):
+    """One item's work in a pool child: what the child wrote goes to the spill file before the parent reads it"""
+    r = _POOL_FN(item)
+    spill_flush()
+    return r
 
 def pool_map(fn, items, J, initargs, chunksize=1):
     """The work in a pool of processes. A host without /dev/shm (Android has none) cannot make the POSIX semaphores the
     pool needs, so the children are forked instead (forkpool.py): the same work, in parallel, without semaphores"""
-    def run(item):
-        r = fn(item)
-        spill_flush()   # what the child wrote goes to disk before the parent reads it
-        return r
     spill_flush()   # what this process wrote goes to disk before the children are forked (they inherit its handle)
+    args = tuple(initargs) + (fn,)
     try:
-        with cf.ProcessPoolExecutor(J, initializer=_pool_init, initargs=initargs) as ex:
-            return list(ex.map(run, items, chunksize=chunksize))
+        with cf.ProcessPoolExecutor(J, initializer=_pool_init, initargs=args) as ex:
+            return list(ex.map(_pool_run, items, chunksize=chunksize))
     except (FileNotFoundError, OSError) as e:
         print(f'note: no process pool ({e.__class__.__name__}: {e}): the work runs in forked children', file=sys.stderr)
-        return fork_map(run, items, J, lambda: _pool_init(*initargs))
+        return fork_map(_pool_run, items, J, lambda: _pool_init(*args))
 
-def _pool_init(common, trees, zdicts={}):
-    global COMMON, TREES, ZDICTS
+def _pool_init(common, trees, zdicts={}, fn=None):
+    global COMMON, TREES, ZDICTS, _POOL_FN
     COMMON, TREES, ZDICTS = common, trees, zdicts
+    _POOL_FN = fn
 
 def zs_dicts(romfs):
     """Tears of the Kingdom compresses its RomFS files with zstd dictionaries (the frame header names one, ID 1 for the shader packages). They ship as Pack/ZsDic.pack.zs:
