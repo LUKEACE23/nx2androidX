@@ -187,6 +187,8 @@
     <string name="motion_raw_note">The game reads the measured direction, not the host\'s made-up waveform.</string>
     <string name="set_section_about">About</string>
     <string name="set_version">Version</string>
+    <string name="set_file_provider_title">File manager access</string>
+    <string name="set_file_provider_note">The app\'s own folders (the runtime, the saves, the logs) show up as one root in the system picker and in the file managers, so they can be looked at and fixed without a computer.</string>
     <string name="set_rerun_onboarding">Run the setup again</string>
     <string name="set_rerun_onboarding_hint">The parts that are done (the permission, the environment, the keys) are recognised and shown as done</string>
     <string name="set_run_onboarding">Run</string>

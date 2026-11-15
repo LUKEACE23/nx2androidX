@@ -186,6 +186,8 @@
     <string name="motion_raw_note">游戏读实测的方向，不用宿主生成的波形。</string>
     <string name="set_section_about">关于</string>
     <string name="set_version">版本</string>
+    <string name="set_file_provider_title">文件管理器访问</string>
+    <string name="set_file_provider_note">App 自己的目录（运行时、存档、日志）会在系统选择器和文件管理器里显示为一个根，不用电脑也能查看和处理。</string>
     <string name="set_rerun_onboarding">重新运行引导</string>
     <string name="set_rerun_onboarding_hint">已完成的部分（权限、环境、keys）会被认出来，直接呈现为完成</string>
     <string name="set_run_onboarding">运行</string>

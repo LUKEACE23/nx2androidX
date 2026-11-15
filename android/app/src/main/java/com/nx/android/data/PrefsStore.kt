@@ -60,6 +60,8 @@ class PrefsStore @Inject constructor(@ApplicationContext ctx: Context) {
         const val HUD_TEMP_F = "hud.temp.f"
         // the external display: the game goes to a wired display and the phone becomes the gamepad
         const val EXTERNAL_DISPLAY = "display.external"
+        // the file provider: the app's own folders are handed to the file managers (on by default)
+        const val FILE_PROVIDER = "file.provider"
     }
 
     val prefs: SharedPreferences = ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE)
