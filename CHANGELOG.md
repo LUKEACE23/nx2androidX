@@ -8,6 +8,45 @@ players on the released version are not pushed onto an alpha.
 
 The release page has the APK and the full notes: <https://github.com/zFitness/nx2androidX/releases>.
 
+## v0.3.0-alpha13 - 2026-11-15
+
+### Before you update
+
+- The player API moved to revision 6 (the game's mode), so a data pack made with an older one is marked as needing a runtime update. "Update runtime" in the library rebuilds it in place: the game does not have to be ported again, and your saves are kept.
+- The host itself changed with this release (the upstream line's work), so the update brings the new engine fixes and the new tools with it. A pack that is not updated keeps running on the host it was built with.
+
+### New
+
+- The file managers see the app's own folders: the runtime rootfs, the tools, the hosts, the saves, the drivers and the logs show up as one root, and the player can read, create, rename, move and delete there without a computer. The switch is in Settings, About ("File manager access"), on by default; it takes effect at once, without a restart.
+- The system's game mode reaches the host: with the performance game mode on, the game keeps its own period and the device maker's interventions step aside. The app asks the system on every resume, so a mode changed while the game sits in the background is picked up. The games the host draws itself (the NVN and the Vulkan ones) are the ones it applies to.
+- A profile can compress its RomFS on the device (`romfs zstd`): the files that shrink are stored packed and read back on the device. Cardfight!! Vanguard Dear Days 2 uses it: 30.6 GB of extracted RomFS against 21 GB of XCI and update, 19.7 GB on the device.
+- The Legend of Zelda: Breath of the Wild turns the GPU's turbo on by default: the frame rate holds 60 where the GPU's governor would have lowered the clock. The cost is heat; `DM_GPU_TURBO=0` in env.txt turns it off.
+
+### Fixed
+
+- The GPU's clock control goes back to the phone when the game is paused or ends. It stayed at the highest clock after the game was backgrounded, which is hot and draws power.
+- The shader split does not read Unreal's modern paks whole: a modern Unreal game keeps its shaders in the shader code archives, which the split was reading whole to look for shader records and finding nothing. FINAL FANTASY RESONANCE's split took the process tree to 15.7 GB of memory on a 24 GB phone, and a phone with 11 GB was killed by the system mid-scan with no error line in the log. The same split now peaks at 810 MB and takes 8 s instead of 40 s, and the package is the same.
+- The shader split works on the desktop: it died with a pickling error as soon as the RomFS had a file to scan.
+- Pokémon Mystery Dungeon Rescue Team DX runs at 30 fps, as on the Switch; 60 fps with the porter's `--fps60`.
+- Mega Man Battle Network Legacy Collection Vol. 2 is playable: Battle Network 4, 5 and 6, with saving, loading, battles and the gallery.
+- Xenoblade Chronicles: Definitive Edition is tested to Colony 9, with the pause menu and saving; the later maps are not checked yet.
+
+### Engine (the upstream sync, 19 commits)
+
+- A batch of Vulkan and NVN fixes: the 32 separate sampler bindings a stage answers with, the shared linear and sRGB texture families, a compressed image drawn into through a block-size view keeps the view's format, the alpha coverage across the perspective variants, and an opt-in scratch target for an empty colour slot 0 (`DM_VK_SLOT0_FILL`, off by default).
+- The AVC video's frame layout and its crop, and the fatal allocation errors are kept in the log instead of being swallowed.
+- The performance work: the deferred uniform updates read from ordinary memory, the pool lookup cache is wider, and the game keeps its own period in the performance game mode.
+- The build fix: the NVN dirty message compiles under gcc's `-Werror`.
+
+### Community ports
+
+- **@rospec14** - the RomFS compression on the device, the 30 fps fix for Pokémon Mystery Dungeon Rescue Team DX, and the Xenoblade test with the Mega Man's status (through the upstream #371, #396, #395).
+- **@DeathKhan** - the 32 sampler bindings, the scratch target for the empty colour slot 0 and the compressed image's view format (through the upstream #256, #257, #393).
+- **@StepwiseCord804** - the deferred uniform updates with the wider pool lookup cache, Breath of the Wild's GPU turbo and the build fix (through the upstream #267, #382, #398).
+- **@thehobbit85** - the performance game mode for the NVN ports, the AVC frame layout and the shared texture families (through the upstream #300, #358, #363).
+- **@lianghx123** - the alpha coverage across the perspective variants (through the upstream #316).
+- No pull request was merged into this repository itself; all of it came in with the upstream sync. Everyone in this release's history is in the repository's contributor list.
+
 ## v0.3.0-alpha12 - 2026-11-15
 
 ### Before you update
