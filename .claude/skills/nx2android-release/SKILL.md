@@ -120,3 +120,4 @@ The name in the tag keeps its alpha; the next pre-release does not take that pla
 ## After the release
 
 - The device check of the release itself (the APK installed over the last one, the version in the settings) is still open until a phone is connected.
+- The APK goes to the Quark Drive folder **我的/nx2AndroidX**, and the older versions there are cleared: [nx2android-quark-upload](nx2android-quark-upload/SKILL.md).
