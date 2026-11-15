@@ -947,7 +947,7 @@ class UnrealShaders(unittest.TestCase):
             self.oodle_where = 'here'
             self.answers, self.asked = answers, []   # answers: the raw bytes each stream decodes to (missing: the decoder fails)
             for d in (self.dirs['v1'] / 'RomFS', self.dirs['v1'] / 'ExeFS', self.work / 'tmp', self.logs): d.mkdir(parents=True, exist_ok=True)
-        def oodle_job(self, job, out, bnsh=False):
+        def device_oodle_job(self, job, out, bnsh=False):
             """the game's own Oodle decoder: the job's streams, decoded (a stream it fails on comes back with no bytes)"""
             b = job.read_bytes(); n = struct.unpack_from('<I', b, 4)[0]; o = 8; recs = []
             for _ in range(n):
@@ -959,8 +959,8 @@ class UnrealShaders(unittest.TestCase):
                 got = self.answers.get(comp, b'')
                 ans += struct.pack('<I', len(got)) + got
             out.write_bytes(ans)
-        def device_oodle_job(self, job, out, bnsh=False):   # the same decoder, run on the device (upstream's pipeline.py calls it by this name)
-            return self.oodle_job(job, out, bnsh)
+        def oodle_job(self, job, out, bnsh=False):   # this line's name for it: the same decoder (upstream's pipeline calls it by that name)
+            return self.device_oodle_job(job, out, bnsh)
 
     def uepak_job(self, rounds):
         """what uepak.job does: it asks its decoder for the streams of this round (rounds: a list of stream lists, one per round) and it lists the archives"""
@@ -980,6 +980,7 @@ class UnrealShaders(unittest.TestCase):
     def port(self, rounds, answers, stamp_size=None, root=None):
         """a port with the fake decoder and the fake archives"""
         root = root or Path(tempfile.mkdtemp(prefix='nx2a_test_ue_'))
+        self.addCleanup(shutil.rmtree, root, True)
         p = self.FakePort(root, answers)
         p.root = root
         (p.dirs['v1'] / 'RomFS' / 'Content').mkdir(parents=True, exist_ok=True)

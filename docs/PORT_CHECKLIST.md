@@ -6,7 +6,7 @@ Left out because they have an official Android release: Unpacking (ported here a
 
 "Profile here": `nxnative/dm/games/<title ID>/` has the game's profile from nxnative. "Upstream profile": only seedds/nxnative has one, to read as a reference or starter, not to pull. "60 fps with X" is upstream's note: they run that update at 60 fps (30 on the Switch).
 
-**56 / 110 ported**
+**58 / 110 ported**
 
 **Credit.** A ported game names the person who brought it up (`ported by @handle`), taken from the commit that added its profile. The ports from before this was written down are credited to the author of the commit that introduced them.
 
@@ -111,6 +111,7 @@ Left out because they have an official Android release: Unpacking (ported here a
 - [x] The Legend of Zelda: Tears of the Kingdom · `0100F2C0115B6000` · ported by @shirai91
 - [x] The World Ends with You -Final Remix- · `0100C1500B82E000`
 - [x] Tomodachi Life: Living the Dream · `010051F0207B2000`
+- [x] Ultra Kaiju Monster Rancher · `01008E0019388000` · AYN Odin 2 / Turnip; tested through the tutorials and battles
 - [x] UNDER NIGHT IN-BIRTH Exe:Late[cl-r] · `010038C00EC34000` · ported by @shirai91
 - [x] UNDER NIGHT IN-BIRTH II Sys:Celes · `0100BD401D18A000` · ported by @shirai91
 - [x] Unicorn Overlord · `010069401ADB8000` · boots; saving and a full battle not tested yet · ported by @shirai91
@@ -118,5 +119,5 @@ Left out because they have an official Android release: Unpacking (ported here a
 - [x] Viractal: Will You Trust Your Party? · `0100FD501F95A000` · ported by @shirai91
 - [ ] Xenoblade Chronicles 2 · `0100E95004038000` · upstream profile
 - [x] Xenoblade Chronicles 3 · `010074F013262000` · work in progress: some effects and models don't draw yet · ported by @shirai91
-- [ ] Xenoblade Chronicles: Definitive Edition · `0100FF500E34A000` · upstream profile
+- [x] Xenoblade Chronicles: Definitive Edition · `0100FF500E34A000` · 30 fps; boots rarely crash (1 in ~35), saving and later maps not tested yet
 - [ ] Yoshi's Crafted World · `01006000040C2000` · upstream profile
