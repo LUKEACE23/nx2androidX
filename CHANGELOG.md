@@ -8,6 +8,50 @@ players on the released version are not pushed onto an alpha.
 
 The release page has the APK and the full notes: <https://github.com/zFitness/nx2androidX/releases>.
 
+## v0.3.0-alpha12 - 2026-11-15
+
+### Before you update
+
+- "Update runtime" is more forgiving: the upstream sync changed the profile fingerprints, so an older data pack met a refusal where the player was pushed back to a full re-port. The app asks now instead of ending the road: "continue with the current profile" rebuilds the runtime in place, so the game does not have to be ported again and your saves are kept.
+- The external display needs the new runtime: the row in the drawer shows up after "update runtime" rebuilt the pack's host. Nothing else changes.
+- This release carries the upstream line's work: the engine's own fixes and three more games that play on Android.
+
+### New games
+
+- Xenoblade Chronicles: Definitive Edition (30 fps; it rarely crashes on boot - about 1 in 35 - and saving and the later maps are not tested yet)
+- Ultra Kaiju Monster Rancher
+- OCTOPATH TRAVELER 0 (Chinese release) - for the Simplified Chinese text, port with Game language: Chinese (Simplified)
+- Pokémon Sword and Pokémon Shield install under their own names now (org.nx2a.pokemonsword, org.nx2a.pokemonshield); the Wild Area and the battles are checked
+
+### New
+
+- The game goes to a wired display: plug an HDMI monitor into the phone's USB-C and the game fills the screen while the phone keeps the gamepad. The switch is in the drawer (Controls, Picture, External display), off by default.
+- The saves travel through the system file manager: exporting asks where the package goes, importing takes a zip from anywhere the file manager sees and unpacks it in the cache first, so a broken package never touches the save.
+- The in-game drawer fills the screen, and its tabs follow WinNative's: an icon above the label, a sliding bar under the chosen one, and a sideways scroll when the six tabs do not fit.
+- The gamepad center is new: a physical controller is a controller. See it, test its buttons, rebind a key, calibrate the dead zone and the trigger threshold, and choose whether the face buttons follow their position or their label. The settings belong to the controller, not to the game.
+- The gamepad center says which player a controller plays, and the rumble goes to the player it belongs to. The library page can be driven with a gamepad.
+- OCTOPATH TRAVELER 0 has a gamepad theme of its own.
+- The runtime update's dialog offers continue and retry only.
+
+### Fixed
+
+- The player's language choice stands for the Chinese releases: OCTOPATH TRAVELER 0 (Chinese release) and FINAL FANTASY RESONANCE (Asian release) no longer force Simplified Chinese on a Korean or Traditional Chinese player.
+- A pack made before a profile key that was added (and is off) still runs on the new host: no porting again.
+- The on-screen controls keep their spacing when they are grown, and stay on the screen.
+- A controller that goes away leaves nothing pressed, a key's scan code always reaches the host, and the host logs what every controller key became.
+
+### Engine (the upstream sync, 38 commits)
+
+- A batch of Vulkan and NVN fixes: the occlusion addresses, the descriptor readiness the GPU produces, the sampler limits that now match Android, the vertex attribute divisor, the defaults of a disabled vertex attribute, the descriptor cache keys, a pool remap that fails partway, the command segments the guest owns, and the games wound against the front-face rule (DM_VK_FRONT).
+- The pipeline cache is saved after a burst of new pipelines, and the pools the GPU never uses stay in cached memory where the hardware buffers can read them.
+
+### Community ports
+
+- **@rospec14** - Xenoblade Chronicles: Definitive Edition and Ultra Kaiju Monster Rancher, and Pokémon Shield's package name (through the upstream #386, #391, #384).
+- **@intermission88** - the fix that lets an older pack run on the new host (through the upstream #387).
+- **@DeathKhan, @hjcoggan, @lianghx123** - engine fixes from upstream (#263, #275, #350).
+- No pull request was merged into this repository itself; all of it came in with the upstream sync. Everyone in this release's history is named in the README's contributors table.
+
 ## v0.3.0-alpha11 - 2026-11-14
 
 ### Before you update

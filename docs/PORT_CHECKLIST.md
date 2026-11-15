@@ -84,8 +84,8 @@ Left out because they have an official Android release: Unpacking (ported here a
 - [x] Pokémon Legends: Z-A · `0100F43008C44000` · ported by @shirai91
 - [x] Pokémon Mystery Dungeon Rescue Team DX · `01003D200BAA2000`
 - [x] Pokémon Scarlet · `0100A3D008C5C000`
-- [x] Pokémon Shield · `01008DB008C2C000`
-- [x] Pokémon Sword · `0100ABF008968000`
+- [x] Pokémon Shield · `01008DB008C2C000` · ported by @rospec14
+- [x] Pokémon Sword · `0100ABF008968000` · ported by @rospec14
 - [ ] Portal · `01007BB017812000` · upstream profile · Android only on NVIDIA Shield TV
 - [ ] Return of the Obra Dinn · `010032E00E6E2000` · upstream profile
 - [x] Rhythm Heaven Groove · `0100D9F01D474000`
@@ -111,7 +111,7 @@ Left out because they have an official Android release: Unpacking (ported here a
 - [x] The Legend of Zelda: Tears of the Kingdom · `0100F2C0115B6000` · ported by @shirai91
 - [x] The World Ends with You -Final Remix- · `0100C1500B82E000`
 - [x] Tomodachi Life: Living the Dream · `010051F0207B2000`
-- [x] Ultra Kaiju Monster Rancher · `01008E0019388000` · AYN Odin 2 / Turnip; tested through the tutorials and battles
+- [x] Ultra Kaiju Monster Rancher · `01008E0019388000` · AYN Odin 2 / Turnip; tested through the tutorials and battles · ported by @rospec14
 - [x] UNDER NIGHT IN-BIRTH Exe:Late[cl-r] · `010038C00EC34000` · ported by @shirai91
 - [x] UNDER NIGHT IN-BIRTH II Sys:Celes · `0100BD401D18A000` · ported by @shirai91
 - [x] Unicorn Overlord · `010069401ADB8000` · boots; saving and a full battle not tested yet · ported by @shirai91
@@ -119,5 +119,5 @@ Left out because they have an official Android release: Unpacking (ported here a
 - [x] Viractal: Will You Trust Your Party? · `0100FD501F95A000` · ported by @shirai91
 - [ ] Xenoblade Chronicles 2 · `0100E95004038000` · upstream profile
 - [x] Xenoblade Chronicles 3 · `010074F013262000` · work in progress: some effects and models don't draw yet · ported by @shirai91
-- [x] Xenoblade Chronicles: Definitive Edition · `0100FF500E34A000` · 30 fps; boots rarely crash (1 in ~35), saving and later maps not tested yet
+- [x] Xenoblade Chronicles: Definitive Edition · `0100FF500E34A000` · 30 fps; boots rarely crash (1 in ~35), saving and later maps not tested yet · ported by @rospec14
 - [ ] Yoshi's Crafted World · `01006000040C2000` · upstream profile
