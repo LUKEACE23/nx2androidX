@@ -37,6 +37,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Info
@@ -157,6 +158,10 @@ fun GameDrawer(
     onPlayers: (PadAssignment) -> Unit,
     onLayoutEditor: () -> Unit,
     onResetPadLayout: () -> Unit,
+    externalSupported: () -> Boolean,
+    externalOn: () -> Boolean,
+    externalAvailable: () -> Boolean,
+    onExternal: (Boolean) -> Unit,
     onPauseGame: () -> Unit,
     onResumeGame: () -> Unit,
     onExit: () -> Unit,
@@ -188,6 +193,8 @@ fun GameDrawer(
                 var audioDevices by remember { mutableStateOf(emptyList<AudioOutput>()) }
                 // 手柄：插上拔下要看得见（玩家页指着它们指派）
                 var pads by remember { mutableStateOf(emptyList<GamepadScan.Info>()) }
+                // 外接屏：插上拔下也要看得见（开着这个模式却没有屏，要告诉玩家）
+                var extAvailable by remember { mutableStateOf(externalAvailable()) }
                 var tick by remember { mutableIntStateOf(0) }
                 LaunchedEffect(open) {   // 打开期间 2 Hz 轮询宿主的状态串与帧率档位
                     while (open) {
@@ -200,6 +207,8 @@ fun GameDrawer(
                         if (audioSupported && tick % 4 == 0) runCatching { audioDevices = audioOutputDevices(context) }
                         // 手柄列表：每次都读（插上手柄要立刻看得见）
                         runCatching { pads = pads() }
+                        // 外接屏：每次都读（插上显示器要立刻看得见）
+                        if (externalSupported()) runCatching { extAvailable = externalAvailable() }
                         tick++
                         delay(500)
                     }
@@ -240,6 +249,10 @@ fun GameDrawer(
                                             // 即时反馈：开关的显示别等下一轮轮询（宿主的 env 已经改了）
                                             motionState = (if (on) 1 else 0) or (if (raw) 2 else 0)
                                         },
+                                        externalSupported = { externalSupported() },
+                                        externalOn = { externalOn() },
+                                        externalAvailable = { extAvailable },
+                                        onExternal = onExternal,
                                         )
                                     // 音频页：声音走哪个设备（宿主换了流，即时出声）
                                     DrawerTab.AUDIO -> AudioRows(audioSupported, audioId, audioDevices,
@@ -566,6 +579,10 @@ private fun ControlRows(
     motion: () -> Int,
     motionHasGyro: Boolean,
     onMotion: (Boolean, Boolean) -> Unit,
+    externalSupported: () -> Boolean,
+    externalOn: () -> Boolean,
+    externalAvailable: () -> Boolean,
+    onExternal: (Boolean) -> Unit,
 ) {
     var shown by remember { mutableStateOf(padShown()) }
     var opacity by remember { mutableStateOf(padOpacity()) }
@@ -605,6 +622,20 @@ private fun ControlRows(
         }
         ToggleRow(Icons.Filled.TouchApp, stringResource(R.string.motion_raw), stringResource(R.string.motion_raw_note), raw) {
             onMotion(on, !raw)
+        }
+    }
+    // 外接屏：游戏到大屏上，手机当手柄。老运行库没有这个能力（宿主接不了第二个窗口），整组不显示
+    if (externalSupported()) {
+        Spacer(Modifier.height(4.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        GroupLabel(stringResource(R.string.drawer_group_display))
+        var ext by remember { mutableStateOf(externalOn()) }
+        // 没接上显示器时说清楚：开关开着也没有屏可去
+        val hint = if (externalAvailable()) stringResource(R.string.drawer_external_hint)
+                   else stringResource(R.string.drawer_external_no_display)
+        ToggleRow(Icons.Filled.Cast, stringResource(R.string.drawer_external_display), hint, ext) {
+            ext = !ext
+            onExternal(ext)
         }
     }
 }

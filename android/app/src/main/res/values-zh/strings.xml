@@ -245,6 +245,10 @@
     <string name="drawer_docked_hint">开启后按电视的分辨率渲染，画面更清晰，也更耗电；关闭后帧率更高。</string>
     <string name="drawer_group_pad">手柄</string>
     <string name="drawer_group_motion">体感</string>
+    <string name="drawer_group_display">画面</string>
+    <string name="drawer_external_display">外接屏</string>
+    <string name="drawer_external_hint">游戏画到接上的显示器上，手机当手柄。</string>
+    <string name="drawer_external_no_display">没有接上显示器 —— 插一个到 USB-C 上。</string>
     <string name="drawer_group_clock">时钟</string>
     <string name="drawer_gpu_turbo">GPU 提频</string>
     <string name="drawer_gpu_turbo_off">关</string>

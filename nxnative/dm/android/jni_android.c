@@ -58,6 +58,19 @@ Java_com_nx_android_game_Native_setSurface(JNIEnv *E, jclass c, jobject surface)
     ANativeWindow_release(w);
 }
 
+// The external display (a wired one: the tablet's USB-C in DP alt mode, a dock). The app's presentation hands
+// over its Surface: the game is drawn there and the phone becomes the gamepad. A null Surface means the display
+// is gone: the game goes back to the phone's window.
+JNIEXPORT void JNICALL
+Java_com_nx_android_game_Native_externalSurface(JNIEnv *E, jclass c, jobject surface) {
+    (void)c;
+    if (!surface) { dm_external_window_set(NULL); return; }
+    ANativeWindow *w = ANativeWindow_fromSurface(E, surface);
+    if (!w) { if ((*E)->ExceptionCheck(E)) (*E)->ExceptionClear(E); dm_external_window_set(NULL); return; }
+    dm_external_window_set(w);
+    ANativeWindow_release(w);
+}
+
 // a motion snapshot: every pointer of the MotionEvent, and the ten axes from a controller (jni_android.h).
 // Java sends only touchscreen and joystick/gamepad sources, as the NativeActivity queue would
 JNIEXPORT jboolean JNICALL

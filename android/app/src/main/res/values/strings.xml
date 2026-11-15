@@ -246,6 +246,10 @@
     <string name="drawer_docked_hint">Docked mode renders at the TV\'s resolution: a sharper picture that costs more power. Turn it off for a higher frame rate.</string>
     <string name="drawer_group_pad">Gamepad</string>
     <string name="drawer_group_motion">Motion</string>
+    <string name="drawer_group_display">Display</string>
+    <string name="drawer_external_display">External display</string>
+    <string name="drawer_external_hint">The game goes to the wired display; this phone becomes the gamepad.</string>
+    <string name="drawer_external_no_display">No wired display is attached - plug one into the USB-C port.</string>
     <string name="drawer_group_clock">Clock</string>
     <string name="drawer_gpu_turbo">GPU boost</string>
     <string name="drawer_gpu_turbo_off">Off</string>
