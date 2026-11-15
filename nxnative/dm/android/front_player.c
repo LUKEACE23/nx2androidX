@@ -164,9 +164,11 @@ static void shake_sensor(int on);   // the accelerometer, off in the background 
 static void go_background(void) { if (!atomic_load(&g_running) || atomic_exchange(&g_bg, 1)) return; dm_focus_set(2); dm_focus_set(3);   // through OutOfFocus, as a game sees HOME and then the suspension
     hold_sync(); dm_gfx_suspend(1); shake_sensor(0); }
 static void go_foreground(void) { if (!atomic_load(&g_running) || !atomic_exchange(&g_bg, 0)) return; dm_gfx_suspend(0); hold_sync(); dm_focus_set(2); shake_sensor(1); }
+void dm_perf_gpu_release(void);   // perf_android.c: the GPU's clock control back to its governor (DM_GPU_TURBO)
 // the player's lifecycle (jni_android.h): the same dance
 void dm_java_lifecycle(int ev) {
-    if (ev == 0) go_background();
+    // the clock control goes back after go_background: its dm_gfx_suspend waits for the presents in progress, and one of them could otherwise set the GPU's power control again
+    if (ev == 0) { go_background(); dm_perf_gpu_release(); }
     else if (ev == 1) go_foreground();
     else if (atomic_load(&g_running) && !atomic_load(&g_bg)) dm_focus_set(ev == 2 ? 1 : 2);   // 2 focus, 3 unfocus
 }
@@ -687,6 +689,7 @@ static void *host_thread(void *a) {
     atomic_store(&g_running, 1);
     int rc = main(2, argv);
     LOG("host returned %d", rc);
+    dm_perf_gpu_release();   // the game ended itself: the device-wide KGSL property outlives the process (perf_android.c)
     _exit(rc);
 }
 static void env_file(const char *path) {   // KEY=VALUE per line (# comments): switches without rebuilding, as the iOS app's Documents/env.txt
