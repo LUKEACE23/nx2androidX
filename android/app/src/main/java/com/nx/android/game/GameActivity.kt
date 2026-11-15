@@ -655,6 +655,32 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             padController.reload()
             pushPadMapping()
         }
+        pushGameMode()
+    }
+
+    /**
+     * Android 的游戏模式：系统给的档位（性能 / 标准）推给宿主，宿主据此换节奏策略
+     * （性能档里游戏自己的周期说话）。每次 resume 都问一遍 —— 玩家在游戏页时可以在系统里改模式
+     * （上游的 #294：游戏在后台时模式可能变）。
+     */
+    private fun pushGameMode() {
+        val mode = GameMode.forward(systemGameMode(), packGraphics())
+        runCatching { Native.perfGameMode(mode) }
+    }
+
+    /** 系统现在给的档位（2 = 性能，1 = 标准，-1 = 不支持；没有那个服务就是 0） */
+    private fun systemGameMode(): Int {
+        if (Build.VERSION.SDK_INT < 31) return 0   // GameManager is Android 12 and later
+        val gm = getSystemService(android.app.GameManager::class.java) ?: return 0
+        return runCatching { gm.gameMode }.getOrDefault(0)
+    }
+
+    /** 这个游戏的图形接口（包的清单里的 graphics）：宿主自己画的那些才归宿主的节奏策略管 */
+    private fun packGraphics(): String {
+        val pack = packPath ?: return ""
+        return runCatching {
+            com.nx.android.data.library.LibraryFileScanner.portFromPack(java.io.File(pack))?.graphics ?: ""
+        }.getOrDefault("")
     }
 
     /** The phone's language changed (configChanges holds it): the app's words are read again */

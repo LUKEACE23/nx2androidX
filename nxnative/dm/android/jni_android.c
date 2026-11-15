@@ -343,6 +343,15 @@ Java_com_nx_android_game_Native_perfPinGet(JNIEnv *E, jclass c) {
     return v == 60 || v == 40 || v == 30 ? v : 0;   // any other value lets the rate adapt again (fps_pin's rule)
 }
 
+// The Android game mode (the system's GameManager: 2 = performance, 1 = standard, -1 = unsupported). The host's
+// pacing policy then lets the game keep its own period (perf_android.c's game mode policy, upstream's #294).
+// The app asks on every resume: the mode can change while the game sits in the background.
+JNIEXPORT void JNICALL
+Java_com_nx_android_game_Native_perfGameMode(JNIEnv *E, jclass c, jint mode) {
+    (void)E; (void)c;
+    dm_perf_game_mode(mode);
+}
+
 // The drawer's audio output: the device the game plays through (a Bluetooth headset, a USB dongle). The shared
 // audio backend moves the running streams over at once (hle_audio.c's dm_audio_route_device: it stops the units
 // and restarts them on the new device), so the change is heard without restarting the game.

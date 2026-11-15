@@ -26,6 +26,13 @@ object Native {
      * 传 null 表示那块屏没了：游戏回到手机自己的画面。
      */
     @JvmStatic external fun externalSurface(surface: Surface?)
+
+    /**
+     * Android 的游戏模式（系统的 GameManager）：2 = 性能档，1 = 标准，0 = 不知道。
+     * 宿主那边（perf_android.c）据此换节奏策略：性能档里游戏自己的周期说话，系统的干预退场
+     * （上游 #294 的原生策略）。
+     */
+    @JvmStatic external fun perfGameMode(mode: Int)
     @JvmStatic external fun motion(source: Int, device: Int, action: Int, ids: IntArray, xs: FloatArray, ys: FloatArray, axis: FloatArray): Boolean
     @JvmStatic external fun key(device: Int, source: Int, code: Int, action: Int, meta: Int, repeat: Int): Boolean
 

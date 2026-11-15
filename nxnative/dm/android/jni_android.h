@@ -37,6 +37,8 @@ void dm_external_window_set(ANativeWindow *w);   // the external display's Surfa
                                                  // display): the game goes there and the phone becomes the gamepad.
                                                  // NULL: the display is gone, the game goes back to the phone's window
 void dm_java_lifecycle(int ev);                 // 0 pause, 1 resume, 2 window focus, 3 window unfocus
+void dm_perf_game_mode(int mode);                // the Android game mode (2 = performance): the pacing policy lets the
+                                                 // game keep its own period (perf_android.c; upstream's #294)
 int dm_java_start(const char *pack, const char *internal, const char *title_id, int dpi, JNIEnv *E, jobject ctx);
                                                 // the pack folder, the app's internal folder, the game's title id
                                                 // (saves, logs and temp go under it), the display density, the call's
