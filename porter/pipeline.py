@@ -161,6 +161,26 @@ def alias_headroom(tsv, gb=None):
     return alias, alias + add
 
 
+def pick_language(asked, preferred, have):
+    """The language to pack: the one that was asked for (--language / the settings: a demand, the build stops when the game lacks it), else the phone's own language when the game has
+    it (a wish: the port never fails for it), else the game's first language. have: the game's languages (empty: unknown).
+    → (code, notes): the notes say what became of a wish that went nowhere, so the player sees why the phone's language did not follow"""
+    notes = []
+    if asked:
+        want = nsp.language_code(asked)
+        if not want: raise BuildError(f'unknown game language {asked!r}')
+        return nsp.game_language(want, True, have), notes
+    want = nsp.language_code(preferred) if preferred else None
+    if not want:
+        lang = nsp.game_language('en-US', False, have)
+        if preferred: notes.append(f"the phone's language {preferred!r} is not a language code the porter knows: the pack keeps {lang}")
+        return lang, notes
+    lang = nsp.game_language(want, False, have)
+    if have and want not in have and nsp.LANG_NEAR.get(want) not in have:
+        notes.append(f'the game has no {want} ({dict(nacp.LANGUAGES)[want]}): the pack keeps {lang}')
+    return lang, notes
+
+
 def registered_patches():
     """{build ID: (the file, [the reason of each patch])} of the files the rewriter loads (patch_nso.py "Registered patches": dm/tools/sdk_patches.py and the profiles' patches.py;
     CUTS and OBS by their reasons, FRAME_STEP as its stubs)"""
@@ -583,11 +603,10 @@ class Port:
         # The language the phone is set to is a wish, not a demand: the pack follows it when the game has it, and the
         # port never fails for it (a Chinese phone and a Chinese game: without this the pack fell back to the game's
         # first language, which is Korean in the Asian releases)
-        want = nsp.language_code(lang_in) if lang_in else (nsp.language_code(o.language_preferred) or 'en-US')
-        if not want: raise BuildError(f'unknown game language {lang_in!r}')
         have = nacp.languages(self.game / 'control.nacp') or nacp.languages(self.base / 'control.nacp')
         self.langs = have or ['en-US']
-        self.lang = nsp.game_language(want, bool(lang_in), have)
+        self.lang, notes = pick_language(lang_in, o.language_preferred, have)
+        for n in notes: say(n)
         say(f'app: {self.app_name} {self.display} ({self.package}), game language {self.lang}')
 
     def mem_profile(self):
