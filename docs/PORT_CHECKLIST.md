@@ -6,11 +6,12 @@ Left out because they have an official Android release: Unpacking (ported here a
 
 "Profile here": `nxnative/dm/games/<title ID>/` has the game's profile from nxnative. "Upstream profile": only seedds/nxnative has one, to read as a reference or starter, not to pull. "60 fps with X" is upstream's note: they run that update at 60 fps (30 on the Switch).
 
-**58 / 111 ported**
+**59 / 112 ported**
 
 **Credit.** A ported game names the person who brought it up (`ported by @handle`), taken from the commit that added its profile. The ports from before this was written down are credited to the author of the commit that introduced them.
 
 - [x] 13 Sentinels: Aegis Rim · `01003FC01670C000` · ported by @shirai91
+- [x] 13 Sentinels: Aegis Rim (Asia) · `01008D7016438000` · the Chinese release; tested on the Xiaomi 23117RK66C (Android 16) · ported by @zfitness
 - [ ] Ace Attorney Investigations Collection · `010005501E68C000` · profile here
 - [x] Advance Wars 1+2: Re-Boot Camp · `0100300012F2A000` · ported by @shirai91
 - [ ] AI: THE SOMNIUM FILES · `010089B00D09C000` · profile here
