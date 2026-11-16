@@ -216,6 +216,8 @@ class MainActivity : ComponentActivity() {
         // 固件：整机级的一份，导入 zip 解到 App 的私有目录（可选项）
         firmware = { firmwareRepo.imported },
         onImportFirmware = { zip -> importFirmware(zip) },
+        // 游戏档案：玩家导入的档案包（App 不带档案），导入的是 App 私有目录里的那一份
+        onImportProfiles = { zip -> importProfiles(zip) },
         onClearFirmware = {
             firmwareRepo.clear()
             envCheck.refresh()   // the chip's colour follows it at once
@@ -285,6 +287,19 @@ class MainActivity : ComponentActivity() {
             }
             n.onSuccess { toast(locale.str(R.string.fw_imported, zip.name, it)); envCheck.refresh() }   // the chip's colour follows it at once
                 .onFailure { toast(locale.str(R.string.fw_import_failed, zip.name)) }
+        }
+    }
+
+    /**
+     * 导入游戏档案包：App 不带档案（几百 MB 的着色器表），玩家导入一份，移植器在自己的目录里找到它们。
+     * 导入是移植器做的（它知道档案包的格式），App 只把包放进自己的目录（客机进程看不见手机的存储）。
+     */
+    private fun importProfiles(zip: File) {
+        if (!zip.isFile) { toast(locale.str(R.string.profiles_import_failed, zip.name)); return }
+        envCheck.importProfiles(zip) { ok, message ->
+            if (ok) toast(locale.str(R.string.profiles_imported_toast, envCheck.profilesCount))
+            else toast(locale.str(R.string.profiles_import_failed, message.ifBlank { zip.name }))
+            envCheck.refresh()
         }
     }
 

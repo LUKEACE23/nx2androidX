@@ -24,6 +24,10 @@ data class EnvironmentCheckUiState(
     val noOutput: Boolean = false,
     val phantom: PhantomCheck.Status = PhantomCheck.Status.UNKNOWN,
     val phantomKnown: Boolean = false,
+    val profilesCount: Int = 0,
+    val profilesLabel: String = "",
+    val profilesDiffer: Boolean = false,
+    val importingProfiles: Boolean = false,
 )
 
 @HiltViewModel
@@ -43,6 +47,10 @@ class EnvironmentCheckViewModel @Inject constructor(
             noOutput = checks.noOutput,
             phantom = checks.phantom,
             phantomKnown = checks.phantomKnown,
+            profilesCount = checks.profilesCount,
+            profilesLabel = checks.profilesLabel,
+            profilesDiffer = checks.profilesDiffer,
+            importingProfiles = checks.importingProfiles,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EnvironmentCheckUiState())
 

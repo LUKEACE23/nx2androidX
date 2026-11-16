@@ -100,7 +100,20 @@ class PortRunner(
         return t
     }
 
-    private fun start(args: List<String>, onEnd: () -> Unit, extra: Map<String, String> = emptyMap()): Thread {
+    /**
+     * Imports a package of game profiles into the player's own folder (porter profiles import).
+     *
+     * The package has to be in the app's own folder: the guest sees the app's files, not the phone's storage, so a package
+     * picked on the SD card is copied into the app's folder before it is handed over. The exit code says whether the
+     * import worked; the porter's own lines say why it did not.
+     */
+    fun importProfiles(packageFile: String, onEnd: (Int) -> Unit): Thread {
+        val args = mutableListOf("-m", "porter", "profiles", "import", packageFile)
+        return start(args, { onEnd(0) }, onExit = onEnd)
+    }
+
+    private fun start(args: List<String>, onEnd: () -> Unit, extra: Map<String, String> = emptyMap(),
+                      onExit: ((Int) -> Unit)? = null): Thread {
         val t = Thread {
             try {
                 if (cancelled) return@Thread
@@ -114,6 +127,7 @@ class PortRunner(
                 val code = runCatching { p.waitFor() }.getOrDefault(-1)
                 if (code != 0) onLine(exitLine(code))
                 statusFile?.let { writeStatus(it, code) }
+                onExit?.invoke(code)
             } catch (e: Exception) {
                 onLine("[RED] ${e.message}")
             } finally {

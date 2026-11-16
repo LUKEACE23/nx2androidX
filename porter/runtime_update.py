@@ -10,7 +10,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from porter import config, toolchain
+from porter import config, profiles_layer, toolchain
 from porter.paths import DM
 from porter.revision import PLAYER_API_REVISION
 
@@ -23,10 +23,12 @@ class ProfileDrift(ValueError):
 
 def profile_candidates(title_id):
     """Where the profile this pack was built with may live: the workspace's own copies first (the headroom copy,
-    the derived one, the provisional one), then the payload's registered profile."""
+    the derived one, the provisional one), then the player's own profiles (the package they imported), then the
+    payload's registered profile."""
     build = Path(os.environ.get('NX2A_WORK') or tempfile.gettempdir()) / f'{title_id}_build'
     for name in ('profile-mem', 'profile-derived', 'profile'):
         yield build / name / title_id
+    yield profiles_layer.layer_dir() / title_id
     yield DM / 'games' / title_id
 
 

@@ -7,7 +7,7 @@ import hashlib, importlib.util, json, mmap, os, re, shutil, socket, struct, subp
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from porter import config, datapack, dumps, fpslocker, install, paths, product_cache, profiles, romfs_pack, toolchain
+from porter import config, datapack, dumps, fpslocker, install, paths, product_cache, profiles, profiles_layer, romfs_pack, toolchain
 from porter.revision import PLAYER_API_REVISION
 from porter.adb import NO_ADB, Adb, AdbError
 from porter.paths import DM, NXNATIVE
@@ -405,6 +405,9 @@ class Port:
         os.environ['DOTNET_ROOT'] = str(toolchain.dotnet_root(self.tools['dotnet']))   # where nx_extract.exe's apphost looks for the runtime (else the system's, which may lack .NET 10)
         # PYTHONUTF8: the engine's tools write their tables with open() and no encoding, which is the ANSI code page on Windows (shader_split.py's "→" failed)
         self.env = dict(os.environ, J=str(o.jobs), PYTHONIOENCODING='utf-8', PYTHONUTF8='1', DOTNET_CLI_TELEMETRY_OPTOUT='1')
+        # The player's own game profiles (the package they imported) join DM_GAMES_DIR: game.py finds them there, and so does every tool the
+        # port starts (the shader tools, the host build), which take the variable from this environment.
+        profiles_layer.activate(self.env)
         # The build tools' own libraries (the toolchain's libshaderc for glslc): the tools are run with the environment the
         # guest has, whose library path holds the rootfs's libraries only, and the tools' own RPATH may point elsewhere
         if tc := Path(os.environ.get('NX2A_REPO', '')) / 'toolchain':

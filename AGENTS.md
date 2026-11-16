@@ -78,7 +78,9 @@ README 的 "For players" 一节讲桌面工具，那仍是真实存在的玩家�
   名单用 `python3 devtools/release_contributors.py` 取（上个 tag 之后合并的 PR 与作者），粘进 notes；
   游戏级别的署名同时落在 `docs/PORT_CHECKLIST.md` 的那一行（`ported by @handle`）
 - app 的 `versionName` 在 `android/app/build.gradle.kts`（当前 `0.3.0-alpha12`），与 tag 去掉 `v` 一致
-- **一次发布只带手机的 APK，别无其它**。桌面 workflow（`release-windows.yml` / `release-macos.yml`）不发版，
+- **一次发布带手机的 APK 和游戏档案包，别无其它**。App 不带游戏档案（几百 MB 的着色器表），玩家自己导入：
+  release 的第二个附件 `nx2a-profiles-r<版本>-<commit>.zip`（CI 切，`devtools/profiles_zip.py`），夸克网盘里
+  同样放一份。桌面 workflow（`release-windows.yml` / `release-macos.yml`）不发版，
   只在需要时手动触发（Actions → 该 workflow → Run workflow），产物留在该次运行的 artifact 里
 - 每个 `gh` 命令都要带 `--repo zFitness/nx2androidX`（本机 gh 默认指向另一个仓库）
 - hook `.claude/hooks/release_guard.py`（`.claude/settings.json`）会拦截不合规的 `gh release create|upload|edit`
@@ -135,4 +137,6 @@ README 的 "For players" 一节讲桌面工具，那仍是真实存在的玩家�
 | 分层与契约、目录职责 | `docs/ARCHITECTURE.md` |
 | 从仓库运行、构建、测试、提交信息 | `docs/DEVELOPMENT_GUIDE.md` |
 | 游戏进度清单 | `docs/PORT_CHECKLIST.md`、`docs/PORT_STATUS.md` |
+| 同步进来的上游档案（未移植的档案、来源、已知缺口） | `docs/UPSTREAM_PROFILES.md` |
+| 档案包（App 不带档案，玩家导入；发版时它也是 release 的附件） | `docs/UPSTREAM_PROFILES.md`、`porter/profiles_layer.py`、`devtools/profiles_zip.py` |
 | 上游引擎（Apple 路线）的档案格式与调查手册 | `nxnative/AGENTS.md`、`nxnative/docs/agents/` |

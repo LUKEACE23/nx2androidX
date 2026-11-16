@@ -66,6 +66,7 @@ fun EnvChecklistDialog(
     onPickKeys: () -> Unit,
     firmware: String,
     onImportFirmware: () -> Unit,
+    onImportProfiles: () -> Unit,
     onRunOnboarding: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -127,6 +128,26 @@ fun EnvChecklistDialog(
                     )
                     // 这一行下面说明它是干什么的：光写「没导入」，玩家不知道要不要管它
                     if (firmware.isBlank()) FirmwareHint()
+                    // 游戏档案：App 不带档案（几百 MB 的着色器表），玩家自己导入一份
+                    CheckLine(
+                        stringResource(R.string.profiles_title),
+                        when {
+                            state.profilesCount > 0 && !state.profilesDiffer -> EnvCheck.Level.OK
+                            state.profilesCount > 0 -> EnvCheck.Level.HINT
+                            else -> EnvCheck.Level.HINT
+                        },
+                        when {
+                            state.profilesCount == 0 -> stringResource(R.string.profiles_not_imported)
+                            state.profilesDiffer -> stringResource(R.string.profiles_other_package, state.profilesCount, state.profilesLabel)
+                            else -> stringResource(R.string.profiles_imported, state.profilesCount, state.profilesLabel)
+                        },
+                        action = when {
+                            state.importingProfiles -> null
+                            state.profilesCount > 0 -> stringResource(R.string.profiles_import_again)
+                            else -> stringResource(R.string.profiles_import)
+                        },
+                        onAction = onImportProfiles,
+                    )
                     // 子进程限制：Android 会停掉本应用的子进程，移植器就是其中之一（它是活最久的那个）
                     PhantomLine(state, viewModel::refreshPhantom) { phantomOpen = true }
 

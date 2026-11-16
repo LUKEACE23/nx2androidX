@@ -344,6 +344,15 @@
     <string name="fw_imported">%1$s imported (%2$d files)</string>
     <string name="fw_import_failed">The firmware could not be imported: %1$s</string>
     <string name="fw_cleared">The firmware was removed</string>
+    <string name="profiles_title">Game profiles</string>
+    <string name="profiles_not_imported">not imported: a game that is not ported yet needs a profile</string>
+    <string name="profiles_imported">%1$d profile(s) imported (%2$s)</string>
+    <string name="profiles_other_package">%1$d profile(s) imported (%2$s), not this build\'s package</string>
+    <string name="profiles_import">Import zip</string>
+    <string name="profiles_import_again">Import again</string>
+    <string name="profiles_pick">Choose the game profiles package (zip)</string>
+    <string name="profiles_imported_toast">%1$d game profile(s) imported</string>
+    <string name="profiles_import_failed">The profiles could not be imported: %1$s</string>
     <string name="builds_shared_font">System font</string>
     <string name="builds_shared_font_default">the app\'s own</string>
     <string name="builds_shared_font_short">Font %1$s</string>

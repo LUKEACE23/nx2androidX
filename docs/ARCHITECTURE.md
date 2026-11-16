@@ -121,7 +121,7 @@ The shader translator's existing native-perspective compensation rule accepts ei
 
 ## Game profiles on Android
 
-A profile is offered for Android when it has an `android.tsv`; the profiles without one (52 of the 54 today, upstream's iOS games) show as "ios only": an experimental port can still try them. `android.tsv` holds, one `key<TAB>value` row each:
+A profile is offered for Android when it has an `android.tsv`; the profiles without one (upstream's games, synced in bulk) show as "not ported": an experimental port can still try them ([UPSTREAM_PROFILES.md](UPSTREAM_PROFILES.md)). The app does not carry the profiles - they are half a gigabyte of shader tables - so the player imports a package of them into their own folder (the environment check has the button), and the porter finds them there (DM_GAMES_DIR). `android.tsv` holds, one `key<TAB>value` row each:
 
 | Key | Meaning |
 |---|---|

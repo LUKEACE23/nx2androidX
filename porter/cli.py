@@ -8,6 +8,8 @@ def _parser():
     sub = ap.add_subparsers(dest='cmd', required=True)
     d = sub.add_parser('doctor', help='check the tools a port needs'); d.add_argument('--json', action='store_true'); d.add_argument('-k', '--keys')
     p = sub.add_parser('profiles', help='list the games the tool can port'); p.add_argument('--all', action='store_true', help='also the iOS profiles not ported to Android'); p.add_argument('--json', action='store_true')
+    p.add_argument('action', nargs='?', choices=('list', 'import'), default='list', help='list the profiles, or import a package of them')
+    p.add_argument('package', nargs='?', help='the profiles package to import (a zip of the game profile folders), with "import"')
     i = sub.add_parser('inspect', help='what a game holds and whether it can be ported'); i.add_argument('folder', help='the game file (NSP / XCI / NSZ / XCZ) or the folder with it'); i.add_argument('--json', action='store_true')
     i.add_argument('-k', '--keys', help='prod.keys (default: the configured one): reads the title ID of a dump with no [title ID] in its name')
     po = sub.add_parser('port', help='make the data pack (the phone app runs the game)')
@@ -132,7 +134,17 @@ def cmd_doctor(a):
 
 
 def cmd_profiles(a):
-    from porter import profiles
+    from porter import profiles, profiles_layer
+    if a.action == 'import':
+        if not a.package:
+            print('porter profiles import <package.zip>', file=sys.stderr); return 2
+        try:
+            rec = profiles_layer.import_zip(a.package)
+        except profiles_layer.LayerError as e:
+            print(f'[RED] {e}', file=sys.stderr); return 2
+        print(f'imported {rec["count"]} game profile(s) (r{rec["revision"]}, {str(rec["commit"])[:8]}) into {profiles_layer.layer_dir()}')
+        return 0
+    profiles_layer.activate()
     rows = profiles.all_entries(android_only=not a.all)
     if a.json: _print_json([r.as_dict() for r in rows]); return 0
     for r in rows: print(f'{r.id}  {r.status:12} {r.name}' + (f'  ({r.tested})' if r.tested else ''))
@@ -330,4 +342,7 @@ def cmd_driver(a):   # porter driver and porter host: the installed APK rebuilt 
 def main(argv):
     if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8', errors='replace')   # game names and progress bars on a Windows console
     a = _parser().parse_args(argv)
+    # The player's own game profiles (the package they imported) are found by every command that reads a profile
+    from porter import profiles_layer
+    profiles_layer.activate()
     return {'doctor': cmd_doctor, 'profiles': cmd_profiles, 'inspect': cmd_inspect, 'port': cmd_port, 'rebuild-runtime': cmd_rebuild_runtime, 'install': cmd_install, 'devices': cmd_devices, 'tools': cmd_tools, 'config': cmd_config, 'saves': cmd_saves, 'driver': cmd_driver, 'host': cmd_driver}[a.cmd](a)

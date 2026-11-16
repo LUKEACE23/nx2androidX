@@ -181,6 +181,8 @@ def build_content(tag, bullets, links=True):
     if links:
         lines.append(f'GitHub: https://github.com/zFitness/nx2androidX/releases/tag/{tag}')
         lines.append(f'夸克网盘「{QUARK_NAME}」{QUARK_LINK} 提取码 {QUARK_CODE}')
+        # 游戏档案包：App 不带档案（几百 MB 的着色器表），移植还没移植的游戏时在「环境检查」里导入
+        lines.append('游戏档案包（可选，移植未移植的游戏时在环境检查里导入）：见 release 附件 nx2a-profiles-*.zip')
     else:
         lines.append('下载方式见群公告。')
     content = '\n'.join(lines)

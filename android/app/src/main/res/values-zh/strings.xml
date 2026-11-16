@@ -343,6 +343,15 @@
     <string name="fw_imported">已导入 %1$s（%2$d 个文件）</string>
     <string name="fw_import_failed">固件导入失败：%1$s</string>
     <string name="fw_cleared">固件已清除</string>
+    <string name="profiles_title">游戏档案</string>
+    <string name="profiles_not_imported">没导入：还没移植的游戏需要档案</string>
+    <string name="profiles_imported">已导入 %1$d 个档案（%2$s）</string>
+    <string name="profiles_other_package">已导入 %1$d 个档案（%2$s），不是这个版本的档案包</string>
+    <string name="profiles_import">导入 zip</string>
+    <string name="profiles_import_again">再导入</string>
+    <string name="profiles_pick">选游戏档案包（zip）</string>
+    <string name="profiles_imported_toast">已导入 %1$d 个游戏档案</string>
+    <string name="profiles_import_failed">档案导入失败：%1$s</string>
     <string name="builds_shared_font">系统字体</string>
     <string name="builds_shared_font_default">App 自带</string>
     <string name="builds_shared_font_short">字体 %1$s</string>

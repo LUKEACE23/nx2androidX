@@ -16,11 +16,13 @@ import com.nx.android.domain.EnvCheck
 import com.nx.android.domain.PhantomCheck
 import com.nx.android.domain.environment.EnvironmentSetup
 import com.nx.android.domain.environment.GuestProcessLauncher
+import com.nx.android.core.storage.AppPaths
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import java.io.File
 import kotlin.concurrent.thread
+import org.json.JSONObject
 
 /**
  * The environment's state: the two cheap facts the top bar's chip shows, and the doctor's rows.
@@ -39,6 +41,7 @@ class EnvCheckState @Inject constructor(
     private val guestLauncher: GuestProcessLauncher,
     private val prefs: PrefsStore,
     private val locale: AppLocale,
+    private val paths: AppPaths,
     @ApplicationContext private val app: Context,
 ) {
 
@@ -91,6 +94,32 @@ class EnvCheckState @Inject constructor(
     /** The limit's state has been read: before that, the row says nothing */
     var phantomKnown by mutableStateOf(false); private set
 
+    /**
+     * The game profiles the player imported.
+     *
+     * The app does not carry them (they are half a gigabyte of shader tables): the player imports a package into their own
+     * folder, and the porter finds them there. The count and the package's revision come from the receipt the import wrote.
+     *
+     * The app carries the manifest of the package this build made (its name, its digest), so it can say whether the player
+     * imported that one: the digests are compared, not the versions - a package that is not this build's is not wrong, it is
+     * just another one, and the row says so without nagging.
+     */
+    var profilesCount by mutableStateOf(0); private set
+    var profilesLabel by mutableStateOf(""); private set
+
+    /** The package this build made: its name, its digest and its revision (empty when the app carries none) */
+    var profilesExpected by mutableStateOf(""); private set
+    var profilesExpectedName by mutableStateOf(""); private set
+
+    /** The player's package is not this build's: there is a newer one (or an older one) */
+    var profilesDiffer by mutableStateOf(false); private set
+
+    /** A package is being imported */
+    var importingProfiles by mutableStateOf(false); private set
+
+    /** The last import's own line: what went wrong, when it did */
+    var profilesMessage by mutableStateOf(""); private set
+
     /** A read of the limit is running: another one does not start */
     @Volatile private var phantomReading = false
 
@@ -101,7 +130,84 @@ class EnvCheckState @Inject constructor(
         keysOk = keysPath.isNotBlank() && File(keysPath).isFile()
         firmwareImported = prefs.str(PrefsStore.FIRMWARE).isNotBlank()
         known = true
+        readExpectedProfiles()
+        readProfiles()
         refreshPhantom()
+    }
+
+    /**
+     * The imported profiles, read from the receipt the import wrote.
+     *
+     * The receipt is the porter's own manifest.json: {revision, commit, count, ids, sha256}. The app reads the file itself - the
+     * layer is in the app's own folder, which the guest sees under the same path.
+     */
+    private fun readProfiles() {
+        profilesCount = 0
+        profilesLabel = ""
+        profilesDiffer = false
+        val receipt = File(paths.nxHome, "profiles/manifest.json")
+        if (!receipt.isFile) return
+        val text = runCatching { receipt.readText() }.getOrNull() ?: return
+        val json = runCatching { JSONObject(text) }.getOrNull() ?: return
+        profilesCount = json.optInt("count", 0)
+        profilesLabel = "r${json.optInt("revision", 0)}"
+        // the digests: the player's package against this build's. A different one is not wrong, it is another one.
+        val theirs = json.optString("sha256", "")
+        profilesDiffer = profilesExpected.isNotEmpty() && theirs.isNotEmpty() && theirs != profilesExpected
+    }
+
+    /**
+     * The package this build made, read from the app's own assets (profiles.json: the name, the digest, the revision).
+     *
+     * The app does not carry the package itself - only this, a few hundred bytes - so the player can be told whether the
+     * package they imported is the one of this build.
+     */
+    private fun readExpectedProfiles() {
+        profilesExpected = ""
+        profilesExpectedName = ""
+        val text = runCatching {
+            app.assets.open("profiles.json").use { it.readBytes().toString(Charsets.UTF_8) }
+        }.getOrNull() ?: return
+        val json = runCatching { JSONObject(text) }.getOrNull() ?: return
+        profilesExpected = json.optString("sha256", "")
+        profilesExpectedName = json.optString("name", "")
+    }
+
+    /**
+     * Imports a package of game profiles.
+     *
+     * The package is copied into the app's own folder first: the guest sees the app's files, not the phone's storage, so a
+     * package picked on the SD card has to be copied before the porter can read it. The porter does the import (it knows the
+     * package's layout), and its own lines say what went wrong.
+     */
+    fun importProfiles(packageFile: File, onDone: (Boolean, String) -> Unit) {
+        if (importingProfiles) return
+        importingProfiles = true
+        profilesMessage = ""
+        Thread {
+            val copied = runCatching {
+                val dir = File(paths.files, "import")
+                dir.mkdirs()
+                val dst = File(dir, "profiles.zip")
+                packageFile.inputStream().use { i -> dst.outputStream().use { o -> i.copyTo(o) } }
+                dst
+            }.getOrNull()
+            if (copied == null) {
+                importingProfiles = false
+                profilesMessage = "the package could not be read"
+                onDone(false, profilesMessage)
+                return@Thread
+            }
+            val buf = StringBuilder()
+            PortRunner(env, guestLauncher, locale) { line -> buf.appendLine(line); AppLog.line(line) }
+                .importProfiles(copied.absolutePath) { code ->
+                    importingProfiles = false
+                    readProfiles()
+                    val ok = code == 0
+                    profilesMessage = if (ok) "" else buf.toString().trim().lines().lastOrNull { it.isNotBlank() } ?: ""
+                    onDone(ok, profilesMessage)
+                }
+        }.start()
     }
 
     /**

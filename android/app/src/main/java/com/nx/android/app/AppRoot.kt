@@ -164,6 +164,8 @@ data class AppActions(
     val firmware: () -> String = { "" },
     val onImportFirmware: (File) -> Unit = {},
     val onClearFirmware: () -> Unit = {},
+    // the game profiles: the app does not carry them, the player imports a package into their own folder
+    val onImportProfiles: (File) -> Unit = {},
     // the file provider: the app's own folders are visible to the file managers (on by default)
     val fileProvider: () -> Boolean = { true },
     val onSetFileProvider: (Boolean) -> Unit = {},
@@ -295,6 +297,12 @@ fun AppRoot(
                         pickerReq = PickerRequest(PickerMode.FILE, setOf("zip"), null,
                             locale.str(R.string.fw_pick),
                             onPicked = { f -> actions.onImportFirmware(f) })
+                    },
+                    onImportProfiles = {
+                        envCheckOpen = false
+                        pickerReq = PickerRequest(PickerMode.FILE, setOf("zip"), null,
+                            locale.str(R.string.profiles_pick),
+                            onPicked = { f -> actions.onImportProfiles(f) })
                     },
                     onRunOnboarding = {
                         // the checklist first: it is drawn over the setup and would hide it

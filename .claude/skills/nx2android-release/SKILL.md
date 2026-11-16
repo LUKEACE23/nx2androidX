@@ -46,7 +46,8 @@ gh release create v0.3.0-alpha07 --verify-tag --prerelease \
 
 - **Only a tag builds** (`.github/workflows/android-apk.yml`): a push of the branch builds nothing, and the build that the tag starts comes from the tag's own commit. It waits for the release to appear and attaches `nx2android-<tag>.apk` to it (a release that never appears leaves the APK in the run's artifact).
 - **A pre-release is published with `--prerelease`** so it does not become the repository's "Latest" release; the app's update check reads "Latest".
-- **No zip by hand**: the release carries the APK only. The desktop bundles are built by hand when they are wanted (Actions → the workflow → Run workflow).
+- **The release carries the APK and the game profiles package**: the app does not carry the profiles (half a gigabyte of shader tables), so the player imports the package into their own folder (the app's environment check has the button). The same build cuts it (`devtools/profiles_zip.py`) and attaches `nx2a-profiles-r<revision>-<commit>.zip` to the release; the Quark Drive folder holds it beside the APK.
+- **No desktop bundle by hand**: the desktop bundles are built by hand when they are wanted (Actions → the workflow → Run workflow).
 - Every `gh` command takes `--repo zFitness/nx2androidX`: `gh` in this checkout defaults to another repository.
 
 ## The QQ group's announcement
