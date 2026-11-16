@@ -3,6 +3,7 @@ release's own notes, the announcement stays short, and the links have a way out.
 import os
 import sys
 import unittest
+import unittest.mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'devtools'))
 import qq_release_announce as ann   # noqa: E402
@@ -138,6 +139,21 @@ class Content(unittest.TestCase):
         self.assertLessEqual(len([ln for ln in content.splitlines() if ln.startswith('•')]), ann.MAX_BULLETS)
 
 
+class Groups(unittest.TestCase):
+    """the groups the announcement goes to"""
+
+    def test_the_secret_holds_several_groups(self):
+        self.assertEqual(ann.group_openids('A,B'), ['A', 'B'])
+        self.assertEqual(ann.group_openids('A, B'), ['A', 'B'])
+        self.assertEqual(ann.group_openids('A\nB'), ['A', 'B'])
+        self.assertEqual(ann.group_openids('A, B, C'), ['A', 'B', 'C'])
+
+    def test_an_empty_secret_gives_no_group(self):
+        self.assertEqual(ann.group_openids(''), [])
+        self.assertEqual(ann.group_openids(None), [])
+        self.assertEqual(ann.group_openids(' , '), [])
+
+
 class Sending(unittest.TestCase):
     """the call itself"""
 
@@ -194,6 +210,63 @@ class Sending(unittest.TestCase):
             ann.http = original
         self.assertFalse(sent)
         self.assertIn('40054010', detail)
+
+
+class Announce(unittest.TestCase):
+    """the whole announcement, with the calls mocked"""
+
+    def _args(self, tag='v0.3.0-alpha14'):
+        class Args:
+            pass
+        args = Args()
+        args.tag = tag
+        args.repo = 'zFitness/nx2androidX'
+        args.dry_run = False
+        args.sandbox = False
+        return args
+
+    def _fake_http(self, sent_to):
+        def fake(method, url, headers=None, body=None, timeout=ann.TIMEOUT):
+            if 'releases/tags' in url:
+                return 200, {'id': 42, 'body': '## 更新日志\n\n### 新增\n\n- 一条中文更新\n'}
+            if 'getAppAccessToken' in url:
+                return 200, {'access_token': 'TOKEN', 'expires_in': 7200}
+            if '/messages' in url:
+                sent_to.append(url)
+                if 'GOOD' not in url:
+                    return 400, {'code': 40054003, 'message': '机器人非群成员'}
+                return 200, {'id': 'ROBOT1.0_x'}
+            return 200, {}
+        return fake
+
+    def test_one_group_that_refuses_does_not_hold_the_other_back(self):
+        sent_to = []
+        original = ann.http
+        ann.http = self._fake_http(sent_to)
+        env = {'QQBOT_APP_ID': '1', 'QQBOT_APP_SECRET': '2', 'QQBOT_GROUP_OPENID': 'GOOD,BAD',
+               'GH_TOKEN': 'TOKEN'}
+        try:
+            with unittest.mock.patch.dict(os.environ, env, clear=False):
+                code = ann.announce(self._args())
+        finally:
+            ann.http = original
+        self.assertEqual(code, 0)
+        self.assertEqual(len(sent_to), 2)
+        self.assertTrue(any('GOOD' in u for u in sent_to))
+        self.assertTrue(any('BAD' in u for u in sent_to))
+
+    def test_without_the_groups_nothing_is_sent(self):
+        sent_to = []
+        original = ann.http
+        ann.http = self._fake_http(sent_to)
+        env = {'QQBOT_APP_ID': '1', 'QQBOT_APP_SECRET': '2', 'QQBOT_GROUP_OPENID': '', 'GH_TOKEN': 'TOKEN'}
+        try:
+            with unittest.mock.patch.dict(os.environ, env, clear=False):
+                code = ann.announce(self._args())
+        finally:
+            ann.http = original
+        self.assertEqual(code, 1)
+        self.assertEqual(sent_to, [])
 
 
 if __name__ == '__main__':

@@ -55,7 +55,8 @@ The tag's build tells the QQ group about the release, after the APK is attached 
 
 - **It is an extra**: that step is `continue-on-error`, so a refused token, a group that took the bot out or a link the platform refuses never fails the release's build. The announcement's failure is a line in the run's log, nothing more.
 - **The bot's tickets are the repository's secrets**: `QQBOT_APP_ID`, `QQBOT_APP_SECRET`, `QQBOT_GROUP_OPENID`. Without them there is no announcement and the release goes out as it always did.
-- **The group's id is found once, by hand**: `python3 devtools/qq_release_announce.py listen` (it needs the QQ bot SDK locally: `pip install qq-botpy`), then @ the bot in the group and read the id it prints.
+- **The groups**: `QQBOT_GROUP_OPENID` holds one group or several, separated by commas. The announcement goes to each of them, one by one: a group that refuses it (the bot is not a member any more) does not hold the others back.
+- **The group's id is found once, by hand**: `python3 devtools/qq_release_announce.py listen` (it needs the QQ bot SDK locally: `pip install qq-botpy`), then add the bot to the group or @ it there and read the id it prints.
 - **The announcement is short by design**: at most four lines of the changelog, each cut to 42 characters.
 - To see what it would say: `python3 devtools/qq_release_announce.py announce --tag <tag> --dry-run`.
 - The release's notes carry a `<!-- qq-announced -->` marker afterwards, so a rebuilt tag does not announce the same version twice.

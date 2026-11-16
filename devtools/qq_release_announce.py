@@ -202,6 +202,11 @@ def send_group_message(openid, token, content, base=API):
     return False, (f'{status}: {code} {message}'.strip() if code else f'{status}: {message}')
 
 
+def group_openids(raw):
+    """the groups the announcement goes to: the secret holds them separated by commas (or lines, or spaces)"""
+    return [g for g in re.split(r'[,\s;]+', raw or '') if g]
+
+
 def announce(args):
     tag = args.tag
     repo = args.repo
@@ -234,9 +239,9 @@ def announce(args):
 
     app_id = os.environ.get('QQBOT_APP_ID', '')
     app_secret = os.environ.get('QQBOT_APP_SECRET', '')
-    openid = os.environ.get('QQBOT_GROUP_OPENID', '')
+    openids = group_openids(os.environ.get('QQBOT_GROUP_OPENID', ''))
     missing = [n for n, v in (('QQBOT_APP_ID', app_id), ('QQBOT_APP_SECRET', app_secret),
-                              ('QQBOT_GROUP_OPENID', openid)) if not v]
+                              ('QQBOT_GROUP_OPENID', openids)) if not v]
     if missing:
         say(f'{tag}: the secrets are missing ({", ".join(missing)}): nothing was announced')
         return 1
@@ -246,24 +251,33 @@ def announce(args):
         say(f'{tag}: {err}: nothing was announced')
         return 1
 
-    sent, detail = send_group_message(openid, token, content, base)
-    if not sent and ('40054010' in detail or 'URL' in detail):      # the bot may not send a URL: the announcement goes without it
-        say(f'{tag}: the group refused the links ({detail}): the announcement goes without them')
-        sent, detail = send_group_message(openid, token, build_content(tag, bullets, links=False), base)
-    if not sent:
-        say(f'{tag}: the announcement did not go through ({detail})')
+    told = []
+    for openid in openids:
+        sent, detail = send_group_message(openid, token, content, base)
+        if not sent and ('40054010' in detail or 'URL' in detail):
+            # the bot may not send a URL: the announcement goes without it, so the group still hears of it
+            say(f'{tag}: {openid}: the group refused the links ({detail}): the announcement goes without them')
+            sent, detail = send_group_message(openid, token, build_content(tag, bullets, links=False), base)
+        if sent:
+            told.append(openid)
+            say(f'{tag}: {openid}: the group was told ({detail})')
+        else:
+            # a group that does not take the message does not hold the other groups back
+            say(f'{tag}: {openid}: the announcement did not go through ({detail})')
+    if not told:
+        say(f'{tag}: no group took the announcement')
         return 1
-    say(f'{tag}: the group was told ({detail})')
+    say(f'{tag}: {len(told)} of {len(openids)} group(s) were told')
     if body and not mark_announced(repo, release_id, body, gh_token):
         say(f'{tag}: the marker could not be written into the release (the build is fine)')
     return 0
 
 
 def listen(args):
-    """the group's id: the bot is @-ed in the group and the event carries it"""
+    """the group's id: the bot is @-ed in the group (or is added to it) and the event carries it"""
     try:
         import asyncio
-        from botpy import Client, Intents
+        import botpy
     except ImportError:
         say('the QQ bot SDK is missing: pip install qq-botpy (the announcement itself needs no SDK)')
         return 1
@@ -274,20 +288,20 @@ def listen(args):
         say('QQBOT_APP_ID and QQBOT_APP_SECRET must be in the environment')
         return 1
 
-    intents = Intents(public_guild_messages=True, group_at_message_create=True, group_message_create=True)
-    client = Client(intents=intents)
+    # Python 3.10 and later have no implicit event loop, and the SDK asks for one
+    asyncio.set_event_loop(asyncio.new_event_loop())
 
-    @client.event
-    async def on_group_at_message_create(message):
-        say(f'group_openid: {message.group_openid}')
-        say('put it in the repository secret QQBOT_GROUP_OPENID')
+    class Listen(botpy.Client):
+        async def on_group_at_message_create(self, message):
+            say(f'group_openid: {message.group_openid}')
+            say('put it in the repository secret QQBOT_GROUP_OPENID')
 
-    @client.event
-    async def on_group_message_create(message):
-        say(f'group_openid: {message.group_openid}')
+        async def on_group_add_robot(self, event):
+            say(f'group_openid (the bot was added): {event.group_openid}')
+            say('put it in the repository secret QQBOT_GROUP_OPENID')
 
-    say('@ the bot in the group: the id is printed here')
-    client.run(app_id, app_secret)
+    say('add the bot to the group, or @ it there: the id is printed here')
+    Listen(intents=botpy.Intents(public_messages=True)).run(app_id, app_secret)
     return 0
 
 

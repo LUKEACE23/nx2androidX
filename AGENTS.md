@@ -54,6 +54,7 @@ README 的 "For players" 一节讲桌面工具，那仍是真实存在的玩家�
   `devtools/qq_release_announce.py`，把版本号、release 说明里的中文更新日志、release 链接和夸克网盘链接发到群里。
   机器人的票据是仓库 secrets（`QQBOT_APP_ID` / `QQBOT_APP_SECRET` / `QQBOT_GROUP_OPENID`），**不配就只是没有公告，
   发版照常**；**公告失败不算流水线失败**（那一步是 `continue-on-error`），群里的公告漏了不影响发版本身。
+  `QQBOT_GROUP_OPENID` 可以写多个群（逗号分隔），**逐群发送、逐群容错**：一个群拒收不影响其它群。
   公告里带链接；平台若拒收链接（`40054010`），脚本自动去掉链接再发一次，公告不会因此丢掉
 
 - 预发布用 GitHub **pre-release**（`--prerelease`）；app 的更新检查读 "Latest"，所以正式版玩家不会被推上 alpha。
