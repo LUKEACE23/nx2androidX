@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -66,6 +68,8 @@ import com.nx.android.core.ui.components.FirmwareRow
 import com.nx.android.core.ui.components.Hint
 import com.nx.android.feature.filepicker.PickerMode
 import com.nx.android.feature.filepicker.PickerRequest
+import com.nx.android.feature.environment.EnvironmentCheckViewModel
+import com.nx.android.feature.environment.GameProfilesDialog
 import com.nx.android.core.ui.components.PickRow
 import com.nx.android.core.ui.components.QuietButton
 import com.nx.android.core.ui.components.Section
@@ -87,11 +91,15 @@ private fun sourceMatchesTarget(target: File, candidate: File): Boolean {
  * 游戏库里点「▶ 构建」把游戏带进来（buildsTarget）；开始按钮在这里，前提的检查与说明也在这里。
  */
 @Composable
-fun BuildsRoute(viewModel: BuildsViewModel, keys: String, envReady: Boolean,
+fun BuildsRoute(viewModel: BuildsViewModel, envCheckViewModel: EnvironmentCheckViewModel, keys: String, envReady: Boolean,
                 actions: AppActions, onRequest: (PickerRequest) -> Unit, onLog: (String) -> Unit) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val locale = LocalAppLocale.current
     LaunchedEffect(uiState.running) { if (uiState.running) viewModel.buildStarted() }
+    // 档案：玩家可能刚导入过，进页面时读一次回执
+    LaunchedEffect(Unit) { viewModel.refreshProfiles() }
+    // 档案的处理弹窗：在线更新还是本地导入
+    var profilesDialog by remember { mutableStateOf(false) }
     // 页面自己要说的话（没有档案的游戏被勾上了实验性移植）：屏幕把它念出来
     LaunchedEffect(viewModel.noticeSeq) {
         when (viewModel.notice) {
@@ -102,13 +110,30 @@ fun BuildsRoute(viewModel: BuildsViewModel, keys: String, envReady: Boolean,
             null -> Unit
         }
     }
-    BuildsScreen(viewModel.library, viewModel, uiState, keys, envReady, actions, onRequest, onLog)
+    Box(Modifier.fillMaxSize()) {
+        BuildsScreen(viewModel.library, viewModel, uiState, keys, envReady, actions, onRequest, onLog,
+            onImportProfiles = { profilesDialog = true })
+        // 档案的处理弹窗：盖在构建页上（环境检查里的那个，同一个）
+        if (profilesDialog) GameProfilesDialog(
+            viewModel = envCheckViewModel,
+            onLocalImport = {
+                profilesDialog = false
+                onRequest(PickerRequest(PickerMode.FILE, setOf("zip"), null, locale.str(R.string.profiles_pick),
+                    onPicked = { f -> actions.onImportProfiles(f) }))
+            },
+            onUpdated = { ok ->
+                if (ok) actions.onToast(locale.str(R.string.profiles_imported_toast, viewModel.profilesCount))
+            },
+            onDismiss = { profilesDialog = false },
+        )
+    }
 }
 
 @Composable
 private fun BuildsScreen(lib: LibraryState, viewModel: BuildsViewModel, uiState: BuildsUiState,
                          keys: String, envReady: Boolean, actions: AppActions,
-                         onRequest: (PickerRequest) -> Unit, onLog: (String) -> Unit) {
+                         onRequest: (PickerRequest) -> Unit, onLog: (String) -> Unit,
+                         onImportProfiles: () -> Unit) {
     val locale = LocalAppLocale.current
     val running = uiState.running
     val target = uiState.target?.let(::File) ?: uiState.gameFile.takeIf { running }?.let { File(it) }
@@ -131,6 +156,25 @@ private fun BuildsScreen(lib: LibraryState, viewModel: BuildsViewModel, uiState:
             else -> {
                 Section(stringResource(R.string.builds_start_title)) {
                     Text(stringResource(R.string.builds_start_hint), style = MaterialTheme.typography.bodyMedium)
+                    // 档案：App 不带档案，玩家自己导入一份。没有档案的时候，移植只能盲猜
+                    val profiles = viewModel.profilesCount
+                    if (profiles > 0) {
+                        Hint(stringResource(R.string.builds_profiles_ready, profiles), size = 11.sp)
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(stringResource(R.string.builds_profiles_missing), style = MaterialTheme.typography.bodySmall,
+                                color = NxPalette.Building)
+                            TextButton(
+                                onClick = onImportProfiles,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                modifier = Modifier.heightIn(min = 30.dp),
+                            ) {
+                                Text(stringResource(R.string.builds_profiles_import),
+                                    style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                     CapsuleButton(stringResource(R.string.builds_choose_game_file), onClick = {
                         onRequest(PickerRequest(PickerMode.FILE, GAME_FILE_EXTENSIONS, File("/storage"),
                             locale.str(R.string.builds_choose_game_file), onPicked = { viewModel.setTarget(it) }))

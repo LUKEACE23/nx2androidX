@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nx.android.domain.EnvCheck
 import com.nx.android.domain.PhantomCheck
+import com.nx.android.domain.ProfilesPackage
 import com.nx.android.appstate.EnvCheckState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -28,6 +29,7 @@ data class EnvironmentCheckUiState(
     val profilesLabel: String = "",
     val profilesDiffer: Boolean = false,
     val importingProfiles: Boolean = false,
+    val packageUpdate: ProfilesPackage.Update = ProfilesPackage.Update.Idle,
 )
 
 @HiltViewModel
@@ -51,10 +53,17 @@ class EnvironmentCheckViewModel @Inject constructor(
             profilesLabel = checks.profilesLabel,
             profilesDiffer = checks.profilesDiffer,
             importingProfiles = checks.importingProfiles,
+            packageUpdate = checks.packageUpdate,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EnvironmentCheckUiState())
 
     fun refresh() = checks.refresh()
     fun runDoctor() = checks.runDoctor()
     fun refreshPhantom() = checks.refreshPhantom()
+
+    /** Fetches the package of this build over the network and imports it */
+    fun updateProfiles(onDone: (Boolean) -> Unit) = checks.updateProfiles(onDone)
+
+    /** Calls the download off */
+    fun cancelPackageUpdate() = checks.cancelPackageUpdate()
 }

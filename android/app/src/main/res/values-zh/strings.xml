@@ -324,6 +324,9 @@
     <string name="builds_start_title">开始一次移植</string>
     <string name="builds_start_hint">选择一个游戏文件开始移植；同目录的更新与 DLC 会自动带上。构建完成后它会在游戏库里出现。</string>
     <string name="builds_choose_game_file">选择游戏文件</string>
+    <string name="builds_profiles_ready">已有 %1$d 个游戏档案</string>
+    <string name="builds_profiles_missing">尚未导入游戏档案</string>
+    <string name="builds_profiles_import">去导入</string>
     <string name="builds_target">目标</string>
     <string name="builds_source">来源：%1$s</string>
     <string name="builds_options_title">构建选项</string>
@@ -349,6 +352,13 @@
     <string name="profiles_other_package">已导入 %1$d 个档案（%2$s），不是这个版本的档案包</string>
     <string name="profiles_import">导入 zip</string>
     <string name="profiles_import_again">再导入</string>
+    <string name="profiles_manage">处理</string>
+    <string name="profiles_update_title">在线更新</string>
+    <string name="profiles_update_hint">从这个版本的发布页下载档案包（约 90 MB）</string>
+    <string name="profiles_local_title">本地导入</string>
+    <string name="profiles_local_hint">从手机存储里选一个档案包（zip）</string>
+    <string name="profiles_downloading">下载中 %1$d%%</string>
+    <string name="profiles_update_failed">下载失败：%1$s</string>
     <string name="profiles_pick">选游戏档案包（zip）</string>
     <string name="profiles_imported_toast">已导入 %1$d 个游戏档案</string>
     <string name="profiles_import_failed">档案导入失败：%1$s</string>

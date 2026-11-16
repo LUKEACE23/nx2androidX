@@ -325,6 +325,9 @@
     <string name="builds_start_title">Start a port</string>
     <string name="builds_start_hint">Pick a game file to start a port; the updates and the DLC next to it are taken along. It appears in the library when the build is done.</string>
     <string name="builds_choose_game_file">Choose a game file</string>
+    <string name="builds_profiles_ready">%1$d game profile(s) imported</string>
+    <string name="builds_profiles_missing">No game profiles imported</string>
+    <string name="builds_profiles_import">Import</string>
     <string name="builds_target">Target</string>
     <string name="builds_source">Source: %1$s</string>
     <string name="builds_options_title">Build options</string>
@@ -350,6 +353,13 @@
     <string name="profiles_other_package">%1$d profile(s) imported (%2$s), not this build\'s package</string>
     <string name="profiles_import">Import zip</string>
     <string name="profiles_import_again">Import again</string>
+    <string name="profiles_manage">Manage</string>
+    <string name="profiles_update_title">Update online</string>
+    <string name="profiles_update_hint">Download this build\'s package from its release (~90 MB)</string>
+    <string name="profiles_local_title">Import from the phone</string>
+    <string name="profiles_local_hint">Pick a package (zip) from the phone\'s storage</string>
+    <string name="profiles_downloading">Downloading %1$d%%</string>
+    <string name="profiles_update_failed">The download failed: %1$s</string>
     <string name="profiles_pick">Choose the game profiles package (zip)</string>
     <string name="profiles_imported_toast">%1$d game profile(s) imported</string>
     <string name="profiles_import_failed">The profiles could not be imported: %1$s</string>

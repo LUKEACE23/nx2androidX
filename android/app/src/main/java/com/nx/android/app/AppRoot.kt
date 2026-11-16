@@ -232,7 +232,8 @@ fun AppRoot(
                     onDrivers = { driversOpen = true },
                     onLog = { id -> buildLogId = id },
                     onDiagnosticLog = { logOpen = true },
-                    onEnvCheck = { envCheckOpen = true })
+                    onEnvCheck = { envCheckOpen = true },
+                    envCheckViewModel = environmentCheckViewModel)
             }
             val volumes = remember(ctx, locale.mode) { StorageVolumes.list(ctx, locale) }
             pickerReq?.let { req ->
@@ -303,6 +304,10 @@ fun AppRoot(
                         pickerReq = PickerRequest(PickerMode.FILE, setOf("zip"), null,
                             locale.str(R.string.profiles_pick),
                             onPicked = { f -> actions.onImportProfiles(f) })
+                    },
+                    // 在线更新导入完了：档案行自己会变，这里只是说一声
+                    onProfilesUpdated = { ok ->
+                        if (ok) actions.onToast(locale.str(R.string.profiles_imported_toast, environmentCheckViewModel.checks.profilesCount))
                     },
                     onRunOnboarding = {
                         // the checklist first: it is drawn over the setup and would hide it
@@ -389,7 +394,8 @@ fun MainScreen(prefs: PrefsStore, locale: AppLocale, port: PortState, library: L
                onDrivers: () -> Unit,
                onLog: (String) -> Unit,
                onDiagnosticLog: () -> Unit,
-               onEnvCheck: () -> Unit) {
+               onEnvCheck: () -> Unit,
+               envCheckViewModel: EnvironmentCheckViewModel) {
     var tab by rememberSaveable { mutableIntStateOf(startTab) }
     // 设置是一整页，盖住顶栏与下面的页面：从顶栏的设置图标进来，关掉才回到底下的页面
     var settingsOpen by remember { mutableStateOf(false) }
@@ -460,7 +466,7 @@ fun MainScreen(prefs: PrefsStore, locale: AppLocale, port: PortState, library: L
                 Tab.LIBRARY -> LibraryRoute(libraryViewModel, port, player, actions,
                     onGoBuilds = { buildsViewModel.setTarget(lib.buildsTarget); tab = Tab.BUILDS.ordinal }, onRequest = onRequest,
                     navActive = navHost == NavHost.LIBRARY)
-                Tab.BUILDS -> BuildsRoute(buildsViewModel, prefs.keys, environmentSetup.ready, actions, onRequest, onLog)
+                Tab.BUILDS -> BuildsRoute(buildsViewModel, envCheckViewModel, prefs.keys, environmentSetup.ready, actions, onRequest, onLog)
             }
         }
         if (port.running || buildsViewModel.gameInfo.reading) {
