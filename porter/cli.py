@@ -16,6 +16,9 @@ def _parser():
     po.add_argument('-o', '--out', help='folder for the data pack (default: the game folder)')
     po.add_argument('-p', '--version', default='', help='version to pack, v<N> (default: the newest in the folder)')
     po.add_argument('-l', '--language', default='', help='game language, a code or a name (default: English)')
+    po.add_argument('--language-preferred', default='',
+                    help="the language the device is set to (zh-CN, ko, ...): the pack follows it when the game has it. A wish, not a demand: "
+                         "the port never fails for it, and the game's own first language is packed when it does not have it")
     po.add_argument('--app-name', default='', help='the app\'s name on the device (default: the game\'s name)')
     mode = po.add_mutually_exclusive_group()
     mode.add_argument('--app', action='store_true', dest='app',
@@ -193,6 +196,7 @@ def cmd_port(a):
         try: install.romfs_target(a.romfs_at)   # a folder the app cannot read fails now, not after the shaders
         except BuildError as e: print(e, file=sys.stderr); return 2
     opts = pipeline.Options(folder=Path(a.folder), keys=Path(a.keys) if a.keys else None, firmware=Path(a.firmware) if a.firmware else None, out=Path(a.out) if a.out else None, version=a.version, language=a.language,
+                                language_preferred=a.language_preferred,
                                 app_name=a.app_name, app=a.app, install=a.install, device=a.device, replace_signer=a.replace_signer, debug=a.debug, experimental=a.experimental, package=a.package, fps60=a.fps60, touch=a.touch, mt_replay=a.mt_replay, vulkan_driver=a.vulkan_driver,
                                 vulkan_driver_dir=a.vulkan_driver_dir, shared_font=a.shared_font,
                                 vercode_offset=offset, alias_headroom=a.alias_headroom, romfs_at=a.romfs_at, romfs_push=a.romfs_push, external_display=a.external_display, native_keyboard=a.native_keyboard, jobs=a.jobs, no_lsfg=a.no_lsfg)

@@ -38,6 +38,7 @@ class Options:
     out: Path = None                   # where the APK and the data pack go (default: the game folder)
     version: str = ''                  # v<N> to pack (default: the newest in the folder)
     language: str = ''                 # a code or a name (default: English)
+    language_preferred: str = ''       # the language the device is set to: the pack follows it when the game has it (a wish, not a demand)
     app_name: str = ''                 # the launcher label (default: the game's name in its control data)
     app: bool = False                  # the nx2android app's mode: no APK and no install — the pack carries the host (libdmplay.so), the drivers and the icon; the app runs the game itself
     install: bool = False              # install on the device after packing
@@ -579,7 +580,10 @@ class Port:
         self.app_name = o.app_name or nacp.name(self.base / 'control.nacp') or self.g.get('name', self.g.id)
         self.display = nacp.version(self.game / 'control.nacp') or nacp.version(self.base / 'control.nacp') or '1.0'
         lang_in = o.language or self.cfg.get('language')
-        want = nsp.language_code(lang_in) if lang_in else 'en-US'
+        # The language the phone is set to is a wish, not a demand: the pack follows it when the game has it, and the
+        # port never fails for it (a Chinese phone and a Chinese game: without this the pack fell back to the game's
+        # first language, which is Korean in the Asian releases)
+        want = nsp.language_code(lang_in) if lang_in else (nsp.language_code(o.language_preferred) or 'en-US')
         if not want: raise BuildError(f'unknown game language {lang_in!r}')
         have = nacp.languages(self.game / 'control.nacp') or nacp.languages(self.base / 'control.nacp')
         self.langs = have or ['en-US']
