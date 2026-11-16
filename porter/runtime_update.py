@@ -1,4 +1,4 @@
-"""Rebuild only a pack's player runtime. An atomic manifest switch activates the complete component set."""
+"""Rebuild only a pack's player runtime. The fresh components go back into the pack's own places."""
 import hashlib
 import json
 import os
@@ -15,6 +15,28 @@ from porter.paths import DM
 from porter.revision import PLAYER_API_REVISION
 
 HOOKS = ('libhook_impl.so', 'libmain_hook.so', 'libfile_redirect_hook.so', 'libgsl_alloc_hook.so')
+
+# Where the runtime lives in a pack: the host in its own folder, the managed hooks beside the drivers.
+HOST = 'host/libdmplay.so'
+HOOK_DIR = 'drivers'
+
+# The files a runtime update owns and replaces in place.
+RUNTIME_FILES = (HOST,) + tuple(f'{HOOK_DIR}/{name}' for name in HOOKS)
+
+
+def install(source: Path, target: Path):
+    """Put a staged component in its place. The rename is one atomic step: the file is never half there."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.replace(source, target)
+    except OSError:
+        # Another filesystem (a drivers folder on another volume): copy it in and rename it over.
+        pending = target.with_name(target.name + '.part')
+        with source.open('rb') as src, pending.open('wb') as dst:
+            shutil.copyfileobj(src, dst)
+            dst.flush()
+            os.fsync(dst.fileno())
+        os.replace(pending, target)
 
 
 class ProfileDrift(ValueError):
@@ -129,11 +151,16 @@ def rebuild(pack, *, no_lsfg=False, jobs=None, allow_profile_drift=False, emit=p
                     shutil.copyfileobj(src, dst)
                     dst.flush()
                     os.fsync(dst.fileno())
-            manifest['host'] = f'{stage.name}/libdmplay.so'
+            # The runtime lives in the pack's own places: the components go back where they came from and
+            # the manifest keeps naming them. The hooks go in first and the host last (the host is the one
+            # that loads them); each one is a single rename, so a file is never half in place.
+            for name in HOOKS:
+                install(stage / name, pack / HOOK_DIR / name)
+            install(stage / 'libdmplay.so', pack / HOST)
+            manifest['host'] = HOST
             manifest['player_api_revision'] = PLAYER_API_REVISION
             manifest['profile_h'] = chosen   # the profile this runtime was built from (a pack without one gets it now)
             manifest.pop('host_front', None)
-            # The manifest is the commit point. Before it changes the old component set remains active.
             pending = stage / 'manifest.json'
             with pending.open('w', encoding='utf-8') as stream:
                 json.dump(manifest, stream, indent=2)
@@ -141,14 +168,12 @@ def rebuild(pack, *, no_lsfg=False, jobs=None, allow_profile_drift=False, emit=p
                 os.fsync(stream.fileno())
             os.replace(pending, manifest_path)
             activated = True
+            # The staged copy and the folders older packs kept their runtime in are dead now: only the
+            # manifest activates a runtime, and it names the pack's own layout.
+            for old in pack.glob('.runtime-*'):
+                if old.is_dir(): shutil.rmtree(old, ignore_errors=True)
+                else: old.unlink(missing_ok=True)
         return {'data': str(pack), 'title_id': title_id, 'name': manifest.get('name', title_id)}
     finally:
         if stage is not None and not activated:
-            # Cancellation can arrive just after replace() committed but before the assignment above.
-            # Never remove a generation the manifest already names; an unreadable manifest is inconclusive.
-            try:
-                active = json.loads(manifest_path.read_text(encoding='utf-8')).get('host')
-            except (OSError, ValueError):
-                active = f'{stage.name}/libdmplay.so'
-            if active != f'{stage.name}/libdmplay.so':
-                shutil.rmtree(stage, ignore_errors=True)
+            shutil.rmtree(stage, ignore_errors=True)
