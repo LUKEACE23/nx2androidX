@@ -13,6 +13,10 @@
 #
 # Only a tag builds: a push of the branch builds nothing. The tag is pushed right before the release is made,
 # and the build waits for that release to appear before it attaches the APK to it.
+#
+# A tag's build also tells the QQ group: the announcement (the version, the release's Chinese changelog, the
+# release's page and the netdisk link) goes out once the APK is attached. It is an extra: it never fails the
+# build. The bot's tickets are the repository's secrets (QQBOT_APP_ID, QQBOT_APP_SECRET, QQBOT_GROUP_OPENID).
 name: Android app
 
 on:
@@ -119,3 +123,16 @@ jobs:
           gh release upload "${{ github.ref_name }}" "android/app/build/outputs/apk/release/${{ steps.apk.outputs.name }}" --clobber
         env:
           GH_TOKEN: ${{ github.token }}
+      - if: startsWith(github.ref, 'refs/tags/')
+        name: the QQ group's announcement
+        # The announcement is an extra: a refused token, a group that took the bot out, a link the platform
+        # refuses - none of it may fail the release's build.
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          python devtools/qq_release_announce.py announce --tag "${{ github.ref_name }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QQBOT_APP_ID: ${{ secrets.QQBOT_APP_ID }}
+          QQBOT_APP_SECRET: ${{ secrets.QQBOT_APP_SECRET }}
+          QQBOT_GROUP_OPENID: ${{ secrets.QQBOT_GROUP_OPENID }}
