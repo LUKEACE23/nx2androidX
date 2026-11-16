@@ -66,6 +66,7 @@
     <string name="runner_interpreter_patched">The interpreter paths are rewritten</string>
     <string name="runner_interpreter_patch_failed">[RED] the interpreter paths could not be rewritten: %1$s</string>
     <string name="runner_exit_code">[RED] exit %1$s</string>
+    <string name="runner_cloud_folder">The game file is in a netdisk folder (%1$s): a file that is not downloaded yet is read in pieces, and the port reads it as a broken file. Download it to the phone\'s own storage and start the port again.</string>
     <string name="runner_killed">[RED] the port was killed by signal %1$s (the system took the memory: free some and start it again)</string>
     <string name="onb_step_of">Step %1$s of %2$s</string>
     <string name="onb_later">Later</string>

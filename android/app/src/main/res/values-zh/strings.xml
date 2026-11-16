@@ -65,6 +65,7 @@
     <string name="runner_interpreter_patched">改写解释器路径完成</string>
     <string name="runner_interpreter_patch_failed">[RED] 改写解释器路径失败：%1$s</string>
     <string name="runner_exit_code">[RED] 退出 %1$s</string>
+    <string name="runner_cloud_folder">游戏文件在网盘目录里（%1$s）：没下载完整的文件会被读成一段一段，移植会当成文件损坏。请先把文件下载到手机本地存储，再重新发起移植。</string>
     <string name="runner_killed">[RED] 移植被信号 %1$s 杀死（多半是系统把内存收走了：清出内存再发起一次）</string>
     <string name="onb_step_of">第 %1$s 步，共 %2$s 步</string>
     <string name="onb_later">稍后再说</string>
