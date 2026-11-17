@@ -72,6 +72,10 @@
         "a": "The gamepad icon in the top bar → Gamepad center: there you see how many are connected, rebind, calibrate, and open the Bluetooth settings. How the gamepad behaves inside a game is set in the drawer → Controls."
       },
       {
+        "q": "How do I export a game as a folder?",
+        "a": "Game details → \"Manage\" → \"Export this game as a folder\", then pick a folder to export into. The app writes that port into the folder (named after the game): the data pack and the game's plain files both go in. The export changes nothing in the app - the game keeps working. Writing to a card is slow, so do not pull the card out while it runs. The exported folder can be copied to someone else; another phone takes it in with the plus sign in the top bar → \"Import a data pack someone else exported\"."
+      },
+      {
         "q": "What is coming next?",
         "a": "On the list: screen resolution, cheats, mods, online play and upscaling. They are all still being worked on - please wait for a later release. Everything that works today is written down in the other entries on this page."
       }

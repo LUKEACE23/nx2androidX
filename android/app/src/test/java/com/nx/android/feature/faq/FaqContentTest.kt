@@ -22,9 +22,9 @@ class FaqContentTest {
     }
 
     @Test
-    fun fifteenQuestionsInAll() {
-        assertEquals(15, FaqContent.parse(zhJson()).sumOf { it.entries.size })
-        assertEquals(15, FaqContent.parse(enJson()).sumOf { it.entries.size })
+    fun sixteenQuestionsInAll() {
+        assertEquals(16, FaqContent.parse(zhJson()).sumOf { it.entries.size })
+        assertEquals(16, FaqContent.parse(enJson()).sumOf { it.entries.size })
     }
 
     @Test
