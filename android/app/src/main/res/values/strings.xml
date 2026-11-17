@@ -321,7 +321,6 @@
     <string name="game_no_game_to_run">No game to run</string>
     <string name="game_cannot_load_host">The game program could not be loaded: %1$s</string>
     <string name="game_needs_report">Update this game’s runtime from the library before playing.</string>
-    <string name="lib_needs_report">Runtime update required</string>
     <string name="lib_report_again">Port again</string>
     <string name="builds_start_title">Start a port</string>
     <string name="builds_start_hint">Pick a game file to start a port; the updates and the DLC next to it are taken along. It appears in the library when the build is done.</string>
@@ -444,7 +443,7 @@
     <string name="lib_needs_status_boots">boots only</string>
     <string name="lib_needs_status_experimental">experimental port</string>
     <string name="lib_experimental">Experimental port</string>
-    <string name="lib_close_current_game">Close the game that is running (%1$s) before running this one</string>
+    <string name="lib_game_still_running">“%1$s” is running — its picture is back in front; nothing was started</string>
     <string name="lib_empty_title">The library is empty</string>
     <string name="lib_empty_hint">Pick a game file on the build page; it shows up here right away.</string>
     <string name="lib_view_builds">See the build</string>
@@ -480,6 +479,11 @@
     <string name="lib_remove_item_pack_saves">Data pack, with the saves that live in it</string>
     <string name="lib_remove_item_workspace">Build work folder (the unpacked game)</string>
     <string name="lib_remove_item_partial">Half-made data pack</string>
+    <string name="lib_remove_item_runtime">The game\'s runtime in the app\'s folder</string>
+    <string name="lib_pin_shortcut">Send to home screen</string>
+    <string name="shortcut_added">Sent to the home screen.</string>
+    <string name="shortcut_unsupported">This device\'s home screen does not support adding shortcuts.</string>
+    <string name="shortcut_disabled">This game is not in the library any more.</string>
     <string name="lib_remove_done">Deleted from the library</string>
     <string name="lib_remove_cache_done">The build cache is cleared</string>
     <string name="lib_remove_workspace_unknown">Deleted from the library (the build work folder was not found: the file name carries no title ID)</string>
@@ -551,7 +555,9 @@
     <string name="update_up_to_date">You are on the newest version.</string>
     <string name="update_failed">The check failed: no network, or the release page could not be reached.</string>
     <string name="update_download">Get it</string>
-    <string name="runtime_update">Update runtime</string>
+    <string name="runtime_rebuilding">Rebuilding the game\'s runtime. This takes about a minute.</string>
+    <string name="runtime_rebuild_hint">If the game crashes or misbehaves after this rebuild, port it again from its original files.</string>
+    <string name="runtime_promoting">Copying the pack\'s runtime into the app\'s folder.</string>
     <string name="runtime_update_failed">The runtime could not be updated. Retry, or port the game again from its original files in the game\'s details. Your saves are kept.</string>
     <string name="runtime_play_failed">The game could not run correctly. You can try porting it again from its original files in game details. Your saves are kept.</string>
     <string name="runtime_busy">Close the running game or wait for the current build to finish.</string>
@@ -559,7 +565,6 @@
     <string name="runtime_updated">Runtime updated. If the game misbehaves afterwards, port it again from its original files in the game\'s details.</string>
     <string name="runtime_update_hint">If the game misbehaves after this update, port it again from its original files in the game\'s details.</string>
     <string name="runtime_retry">Retry</string>
-    <string name="runtime_profile_drift_hint">The profile this game was ported with has changed since then. Rebuilding with the profile the game has now is the same as porting it again, but the game may behave differently than it did when it was ported.</string>
     <string name="runtime_interrupted">The runtime update was interrupted. Retry, or port the game again from its original files in the game\'s details. Your game data is kept.</string>
 
     <!-- 手柄中心（实体手柄）：手柄中心面板与抽屉里的那一组 -->

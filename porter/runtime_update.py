@@ -1,4 +1,7 @@
-"""Rebuild only a pack's player runtime. The fresh components go back into the pack's own places."""
+"""Rebuild only a game's player runtime. The fresh components go into the app's private runtimes folder
+(NX2A_RUNTIMES, one folder per title ID, with a build.json marker beside them) — or, when that is not
+set, back into the pack's own places as before (the desktop tool and the upstream engine keep that
+layout)."""
 import hashlib
 import json
 import os
@@ -37,6 +40,31 @@ def install(source: Path, target: Path):
             dst.flush()
             os.fsync(dst.fileno())
         os.replace(pending, target)
+
+
+def runtimes_root():
+    """The app's private runtimes folder (NX2A_RUNTIMES), or None when the caller did not give one:
+    without it the runtime goes back into the pack, as the desktop tool's layout has it."""
+    given = os.environ.get('NX2A_RUNTIMES', '').strip()
+    return Path(given) if given else None
+
+
+def build_marker(profile_h, no_lsfg):
+    """The build fingerprint the runtime was made with: the player interface it speaks, the profile it was
+    built from (the game_profile.h's hash — the alias headroom is in there), and the lsfg switch. The app
+    compares this against what it expects before it loads the runtime."""
+    return {'player_api_revision': PLAYER_API_REVISION, 'profile_h': profile_h or '', 'no_lsfg': bool(no_lsfg)}
+
+
+def write_marker(target: Path, marker: dict):
+    """The build marker goes in last: a runtime without its marker is rebuilt, never loaded half-known."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    pending = target.with_name(target.name + '.part')
+    with pending.open('w', encoding='utf-8') as stream:
+        json.dump(marker, stream, indent=2)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(pending, target)
 
 
 class ProfileDrift(ValueError):
@@ -151,16 +179,35 @@ def rebuild(pack, *, no_lsfg=False, jobs=None, allow_profile_drift=False, emit=p
                     shutil.copyfileobj(src, dst)
                     dst.flush()
                     os.fsync(dst.fileno())
-            # The runtime lives in the pack's own places: the components go back where they came from and
-            # the manifest keeps naming them. The hooks go in first and the host last (the host is the one
-            # that loads them); each one is a single rename, so a file is never half in place.
-            for name in HOOKS:
-                install(stage / name, pack / HOOK_DIR / name)
-            install(stage / 'libdmplay.so', pack / HOST)
-            manifest['host'] = HOST
-            manifest['player_api_revision'] = PLAYER_API_REVISION
-            manifest['profile_h'] = chosen   # the profile this runtime was built from (a pack without one gets it now)
-            manifest.pop('host_front', None)
+            target_root = runtimes_root()
+            if target_root is not None:
+                # The runtime goes to the app's private folder, one folder per title ID, with its build
+                # marker beside it (the marker is written last: a runtime without one is rebuilt, never
+                # loaded half-known). The pack keeps only its game data; the manifest's 'host' key goes
+                # (a pack without it reads as the new layout — the runtime is the folder's, not the pack's).
+                # The manifest's own management fields (the profile this was built from, the interface
+                # revision) still come back, so the pairing check keeps working the way it always has.
+                target = target_root / title_id.lower()
+                for name in HOOKS:
+                    install(stage / name, target / name)
+                install(stage / 'libdmplay.so', target / 'libdmplay.so')
+                write_marker(target / 'build.json', build_marker(chosen, no_lsfg))
+                manifest.pop('host', None)
+                manifest.pop('host_front', None)
+                manifest['player_api_revision'] = PLAYER_API_REVISION
+                manifest['profile_h'] = chosen
+            else:
+                # No runtimes folder given (the desktop tool, the upstream engine): the runtime lives in
+                # the pack's own places, the way it always has. The hooks go in first and the host last
+                # (the host is the one that loads them); each one is a single rename, so a file is never
+                # half in place.
+                for name in HOOKS:
+                    install(stage / name, pack / HOOK_DIR / name)
+                install(stage / 'libdmplay.so', pack / HOST)
+                manifest['host'] = HOST
+                manifest['player_api_revision'] = PLAYER_API_REVISION
+                manifest['profile_h'] = chosen   # the profile this runtime was built from (a pack without one gets it now)
+                manifest.pop('host_front', None)
             pending = stage / 'manifest.json'
             with pending.open('w', encoding='utf-8') as stream:
                 json.dump(manifest, stream, indent=2)
@@ -169,7 +216,7 @@ def rebuild(pack, *, no_lsfg=False, jobs=None, allow_profile_drift=False, emit=p
             os.replace(pending, manifest_path)
             activated = True
             # The staged copy and the folders older packs kept their runtime in are dead now: only the
-            # manifest activates a runtime, and it names the pack's own layout.
+            # manifest (or, in the new layout, the runtimes folder's marker) activates a runtime.
             for old in pack.glob('.runtime-*'):
                 if old.is_dir(): shutil.rmtree(old, ignore_errors=True)
                 else: old.unlink(missing_ok=True)

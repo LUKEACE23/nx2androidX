@@ -320,7 +320,6 @@
     <string name="game_no_game_to_run">没有要运行的游戏</string>
     <string name="game_cannot_load_host">无法载入游戏程序：%1$s</string>
     <string name="game_needs_report">请先在游戏库更新此游戏的运行库，再尝试运行。</string>
-    <string name="lib_needs_report">需要更新运行库</string>
     <string name="lib_report_again">重新移植</string>
     <string name="builds_start_title">开始一次移植</string>
     <string name="builds_start_hint">选择一个游戏文件开始移植；同目录的更新与 DLC 会自动带上。构建完成后它会在游戏库里出现。</string>
@@ -443,7 +442,7 @@
     <string name="lib_needs_status_boots">只能开机</string>
     <string name="lib_needs_status_experimental">实验性移植</string>
     <string name="lib_experimental">实验性移植</string>
-    <string name="lib_close_current_game">先退出当前游戏（%1$s）再运行这个</string>
+    <string name="lib_game_still_running">《%1$s》正在运行——它的画面已带回前台，没有启动新游戏</string>
     <string name="lib_empty_title">游戏库是空的</string>
     <string name="lib_empty_hint">去构建页选一个游戏文件，它会立刻出现在这里。</string>
     <string name="lib_view_builds">查看构建</string>
@@ -479,6 +478,11 @@
     <string name="lib_remove_item_pack_saves">数据包（含里面的存档）</string>
     <string name="lib_remove_item_workspace">构建工作区（解包出来的游戏）</string>
     <string name="lib_remove_item_partial">半成品数据包</string>
+    <string name="lib_remove_item_runtime">App 私有目录里的运行库</string>
+    <string name="lib_pin_shortcut">发送到桌面</string>
+    <string name="shortcut_added">已发送到桌面。</string>
+    <string name="shortcut_unsupported">这个设备的桌面不支持添加快捷方式。</string>
+    <string name="shortcut_disabled">这个游戏已不在游戏库里。</string>
     <string name="lib_remove_done">已从游戏库删除</string>
     <string name="lib_remove_cache_done">构建缓存已清除</string>
     <string name="lib_remove_workspace_unknown">已从游戏库删除（没找到构建工作区：文件名里没有 title ID）</string>
@@ -550,7 +554,9 @@
     <string name="update_up_to_date">已经是最新版本了。</string>
     <string name="update_failed">检查失败：没有网络，或者够不着 release 页。</string>
     <string name="update_download">去下载</string>
-    <string name="runtime_update">更新运行库</string>
+    <string name="runtime_rebuilding">正在重建这个游戏的运行库，大约需要 1 分钟。</string>
+    <string name="runtime_rebuild_hint">若重建运行库后游戏闪退或异常，请使用原始游戏文件重新移植。</string>
+    <string name="runtime_promoting">正在把这个包的运行库拷进 App 的私有目录。</string>
     <string name="runtime_update_failed">运行库更新失败。可重试，或在游戏详情里使用原始游戏文件重新移植；存档会保留。</string>
     <string name="runtime_play_failed">游戏未能正常运行。可在游戏详情中使用原始游戏文件完整重新移植；存档会保留。</string>
     <string name="runtime_busy">请先关闭正在运行的游戏，或等待当前构建完成。</string>
@@ -558,7 +564,6 @@
     <string name="runtime_updated">运行库已更新。若升级后游戏有问题，请在游戏详情里使用原始游戏文件重新移植。</string>
     <string name="runtime_update_hint">若升级后游戏有问题，请在游戏详情里使用原始游戏文件重新移植。</string>
     <string name="runtime_retry">重试</string>
-    <string name="runtime_profile_drift_hint">这个游戏上次移植用的档案在之后被改过。用当前档案重建等同于重新移植，但游戏的运行表现可能与移植时不同。</string>
     <string name="runtime_interrupted">运行库更新已中断。可重试，或在游戏详情里使用原始游戏文件重新移植；游戏数据会保留。</string>
 
     <!-- 手柄中心（实体手柄）：手柄中心面板与抽屉里的那一组 -->

@@ -1159,16 +1159,36 @@ class Port:
             # With the RomFS compressed (android.tsv romfs zstd) it points at the packed folder in the build workspace, which is where the packer wrote it.
             if romfs.is_dir():
                 romfs_at, romfs = str(romfs), None
-            host = 'host/libdmplay.so'
-            files[host] = self.so
+            # The runtime does not go into the pack when the app gave a runtimes folder (NX2A_RUNTIMES):
+            # the host and the loader's hooks go to the app's private folder instead, one folder per title
+            # ID (the build options are compiled into the host, so every game carries its own), with the
+            # build marker (build.json) beside them. The pack keeps the game's data and the icon and the
+            # gamepad's theme; a manifest without a 'host' key reads as this layout. Without the folder
+            # (the desktop tool, the upstream engine) the runtime stays in the pack, as before.
+            runtimes = os.environ.get('NX2A_RUNTIMES', '').strip()
+            if runtimes:
+                from porter.runtime_update import HOOKS, build_marker, install, write_marker
+                target = Path(runtimes) / self.g.id.lower()
+                install(self.so, target / 'libdmplay.so')
+                for lib in self.loader_libs():   # the loader's four hooks, the only managed parts beside the host
+                    install(lib, target / lib.name)
+                if self.o.vulkan_driver:   # a driver the player picked for this port loads from the same folder
+                    install(self.o.vulkan_driver, target / driver_lib_name(self.o.vulkan_driver))
+                write_marker(target / 'build.json', build_marker(getattr(self, 'profile_h', None), self.o.no_lsfg))
+            else:
+                host = 'host/libdmplay.so'
+                files[host] = self.so
+                for d in self.loader_libs(): files[f'drivers/{d.name}'] = d
+                drivers = sorted({f'drivers/{d.name}' for d in self.loader_libs()})
             if theme := self.theme_files(): files.update(theme)
             if src := self.icon_png(): icon = 'icon.png'; files[icon] = src
-            for d in self.drivers() + self.loader_libs(): files[f'drivers/{d.name}'] = d
-            drivers = sorted({f'drivers/{d.name}' for d in self.drivers() + self.loader_libs()})
+            for d in self.drivers(): files[f'drivers/{d.name}'] = d
+            if self.drivers(): drivers = sorted({f'drivers/{d.name}' for d in self.drivers()})
         man = datapack.build(dst, profile=self.ap, version=self.pkg_ver, display=self.display, patched=self.patched, romfs=romfs, romfs_at=romfs_at, shaders=self.dmsv,
                              aoc=self.aoc, sysdata=self.sysdata, language=self.lang, package=self.package, env=self.fps_env + font_env + zenv + (['DM_VK_MT_REPLAY=1'] if self.o.mt_replay else [])
                              + ([f'DM_VK_DRIVER={driver_lib_name(self.o.vulkan_driver)}'] if self.o.vulkan_driver else []), settings=TOUCH_SETTINGS if self.o.touch else None,
                              files=files, text=self.lists(), host=host, icon=icon, drivers=drivers, profile_h=getattr(self, 'profile_h', None),
+                             no_lsfg=self.o.no_lsfg,
                              pack_base=str(dst) if self.o.app else None,   # the app's mode: the pack lives in the app's own folder, not in the app's files folder
                              progress=lambda what: PROG.set(step=f'linking {what}'))
         self.data_path = dst; self.result['data'] = str(dst)

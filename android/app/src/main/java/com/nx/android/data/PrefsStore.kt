@@ -48,8 +48,11 @@ class PrefsStore @Inject constructor(@ApplicationContext ctx: Context) {
         const val OSS_NOTICE_SHOWN = "oss.notice.shown"
         // the port: the interruption marker and the history
         const val PORT_RUNNING = "port.running"
-        const val RUNTIME_PENDING_PACK = "runtime.pendingPack"
         const val PLAYER_LAST_START = "player.lastStart"
+        // the running game's identity: the ledger reads it back on a cold start (PLAYER_LAST_START is
+        // the crash detection's own marker and is not touched by the ledger)
+        const val PLAYER_TITLE_ID = "player.titleId"
+        const val PLAYER_NAME = "player.name"
         const val PORT_STARTED_AT = "port.startedAt"
         const val PORT_HISTORY = "port.history"
         const val PORT_COMPLETED = "port.completed"

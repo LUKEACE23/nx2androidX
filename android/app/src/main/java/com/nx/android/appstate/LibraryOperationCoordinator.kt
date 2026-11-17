@@ -17,26 +17,13 @@ import javax.inject.Singleton
 @Singleton
 class LibraryOperationCoordinator @Inject constructor(
     private val port: PortState,
-    private val player: PlayerState,
-    private val runtime: RuntimeUpdateState,
     private val repository: GameLibraryRepository,
 ) {
     private val moving = HashSet<String>()
 
     fun beginBuild(game: String, config: GameConfig): Boolean = synchronized(moving) {
-        if (moving.isNotEmpty() || port.running || player.running || runtime.running) return@synchronized false
+        if (moving.isNotEmpty() || port.running) return@synchronized false
         port.begin(game, config)
-        true
-    }
-
-    fun beginRuntimeUpdate(pack: String, name: String): Boolean = synchronized(moving) {
-        if (moving.isNotEmpty() || port.running || player.running || runtime.running) return@synchronized false
-        runtime.begin(pack, name)
-    }
-
-    fun beginPlay(titleId: String, name: String): Boolean = synchronized(moving) {
-        if (moving.isNotEmpty() || port.running || player.running || runtime.running) return@synchronized false
-        player.start(titleId, name)
         true
     }
 
@@ -91,7 +78,9 @@ class LibraryOperationCoordinator @Inject constructor(
         val packs = repository.packsOf(entry)
         val workspace = entry.work ?: repository.existingWorkspace(entry.titleId)
         val partials = if (port.running) emptyList() else repository.partialPacks()
-        return GameCleanup.plan(entry.titleId, packs, workspace, partials)
+        // 统一目录里那份运行库是唯一正本：删游戏不删它，它就成了永久孤儿（清构建缓存不删它——那是能再生的东西之外的正本）
+        val runtime = repository.runtimeDir(entry.titleId)
+        return GameCleanup.plan(entry.titleId, packs, workspace, partials, runtime = runtime)
     }
 
     fun planCache(entry: GameEntry): GameCleanup.Plan {
@@ -113,19 +102,17 @@ class LibraryOperationCoordinator @Inject constructor(
     }
 
     private fun removalBlockedLocked(entry: GameEntry): GameCleanup.Outcome? {
-        if (runtime.running) return GameCleanup.Outcome.BUSY_PORTING
         if (entry.titleId in moving) return GameCleanup.Outcome.BUSY_MOVING
         return LibraryLogic.removalBlocked(
             portRunning = port.running, portGameFile = port.gameFile, gamePath = entry.sourcePath,
-            playerRunning = player.running, playerTitleId = player.titleId, titleId = entry.titleId, packPath = entry.pack?.pack?.absolutePath,
+            titleId = entry.titleId, packPath = entry.pack?.pack?.absolutePath,
         )
     }
 
     private fun moveBlocked(entry: GameEntry, includeMoving: Boolean): GameCleanup.Outcome? = synchronized(moving) {
-        if (runtime.running) return@synchronized GameCleanup.Outcome.BUSY_PORTING
         LibraryLogic.moveBlocked(
             portRunning = port.running, portGameFile = port.gameFile, gamePath = entry.sourcePath,
-            playerRunning = player.running, playerTitleId = player.titleId, titleId = entry.titleId, packPath = entry.pack?.pack?.absolutePath,
+            titleId = entry.titleId, packPath = entry.pack?.pack?.absolutePath,
             moving = includeMoving && entry.titleId in moving,
         )
     }

@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SdCard
@@ -75,7 +76,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nx.android.R
 import com.nx.android.appstate.LibraryState
-import com.nx.android.appstate.PlayerState
 import com.nx.android.appstate.PortState
 import com.nx.android.domain.drivers.Driver
 import com.nx.android.data.GameIcon
@@ -130,10 +130,6 @@ private fun statusLabel(s: GameStatus): String = when (s) {
 private fun experimentalTag(ported: Ported?): String? =
     if (ported?.status == "experimental") stringResource(R.string.lib_experimental) else null
 
-@Composable
-private fun reportTag(ported: Ported?): String? =
-    if (ported?.needsRuntimeUpdate == true) stringResource(R.string.lib_needs_report) else null
-
 private fun versionTag(ported: Ported?): String? =
     ported?.display?.trim()?.takeIf { it.isNotEmpty() }
 
@@ -148,7 +144,7 @@ private data class RemovalRequest(val kind: Removal, val plan: GameCleanup.Plan,
  * 由页面的根在最上层画（MainScreen），它的遮罩要盖住顶栏。
  */
 @Composable
-fun GameDetailRoute(lib: LibraryState, port: PortState, player: PlayerState,
+fun GameDetailRoute(lib: LibraryState, port: PortState,
                     e: GameEntry, installedDrivers: List<Driver>, actions: AppActions, onGoBuilds: () -> Unit,
                     onRequest: (PickerRequest) -> Unit, onClose: () -> Unit, navActive: Boolean = false) {
     val viewModel: GameDetailViewModel = hiltViewModel(key = "game-detail-${e.titleId}")
@@ -157,13 +153,13 @@ fun GameDetailRoute(lib: LibraryState, port: PortState, player: PlayerState,
     DisposableEffect(viewModel, e.titleId) {
         onDispose { viewModel.close(e.titleId) }
     }
-    GameDetailScreen(lib, port, player, e, installedDrivers, viewModel.saveRepository, viewModel.saveIo,
+    GameDetailScreen(lib, port, e, installedDrivers, viewModel.saveRepository, viewModel.saveIo,
         uiState, viewModel::selectLanguage, viewModel::selectDriver, actions, onGoBuilds, onRequest, onClose,
         navActive = navActive)
 }
 
 @Composable
-private fun GameDetailScreen(lib: LibraryState, port: PortState, player: PlayerState,
+private fun GameDetailScreen(lib: LibraryState, port: PortState,
                         e: GameEntry, installedDrivers: List<Driver>, saveRepository: SaveRepository,
                         saveIo: SaveIo, detailState: GameDetailUiState,
                         onSelectLanguage: (String?) -> Unit, onSelectDriver: (String?) -> Unit,
@@ -261,6 +257,10 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState, player: PlayerS
                 if (req.kind == Removal.CACHE) lib.clearCache(e) else lib.remove(e)
             }
             removing = false
+            // 游戏从库里删除：它的桌面图标置灰，点下去不再启动（清构建缓存不动桌面图标）
+            if (r.outcome == GameCleanup.Outcome.DONE && req.kind == Removal.DELETE) {
+                com.nx.android.app.GameShortcuts.disable(context, e.titleId, locale.str(R.string.shortcut_disabled))
+            }
             actions.onToast(
                 when (r.outcome) {
                     GameCleanup.Outcome.DONE -> {
@@ -388,7 +388,7 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState, player: PlayerS
                         style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        (listOfNotNull(titleId, versionTag(ported), statusLabel(status), experimentalTag(ported), reportTag(ported)) +
+                        (listOfNotNull(titleId, versionTag(ported), statusLabel(status), experimentalTag(ported)) +
                             com.nx.android.feature.library.needsTags(lib.profileOf(titleId), ported)).joinToString("  ·  "),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -412,6 +412,15 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState, player: PlayerS
                                     val p = ported
                                     if (p == null) actions.onToast(locale.str(R.string.lib_artifact_missing))
                                     else shareGameLog(p)
+                                },
+                            )
+                            // 发送到桌面：桌面快捷方式（pin shortcut），点击与库页卡片走同一扇门（已完成的游戏才有）
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(locale.str(R.string.lib_pin_shortcut)) },
+                                leadingIcon = { Icon(Icons.Filled.Home, null, Modifier.size(18.dp)) },
+                                onClick = {
+                                    menuOpen = false
+                                    actions.onSendToDesktop(e)
                                 },
                             )
                             androidx.compose.material3.DropdownMenuItem(
@@ -466,20 +475,12 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState, player: PlayerS
                         Spacer(Modifier.height(10.dp))
                         SaveRows(ported, e.label, saveRepository, saveIo, actions.onToast)
                         Spacer(Modifier.height(6.dp))
-                        // 别的游戏在跑时锁住这个：跑着的那个自己不受限（点它的「运行」是回到它）
-                        val locked = player.running && player.titleId != ported.titleId
-                        if (locked) Hint(locale.str(R.string.lib_close_current_game, player.name))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            // An incompatible player interface offers a runtime update first.
-                            if (ported.needsRuntimeUpdate) {
-                                CapsuleButton(locale.str(R.string.runtime_update), {
-                                    actions.onRun(ported.pack, e.label)
-                                }, modifier = Modifier.weight(1f), enabled = !locked)
-                            } else {
-                                CapsuleButton(locale.str(R.string.builds_run_action), {
-                                    actions.onRun(ported.pack, e.label)
-                                }, modifier = Modifier.weight(1f), enabled = !locked)
-                            }
+                            // 一个「运行」：运行库过期/缺失也点它——门放行后游戏页的 Loading 自己重建。
+                            // 占用不在这里拦：点「运行」由门统一裁决（在跑的带回、别的拒绝并说明）。
+                            CapsuleButton(locale.str(R.string.builds_run_action), {
+                                actions.onRun(ported.pack, e.label)
+                            }, modifier = Modifier.weight(1f))
                             CapsuleButton(locale.str(R.string.lib_build_action), {
                                 build()
                             }, modifier = Modifier.weight(1f))
@@ -488,10 +489,10 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState, player: PlayerS
                 }
                 else -> {
                     if (ported != null) {
-                        Hint(locale.str(R.string.lib_needs_report))
-                        CapsuleButton(locale.str(R.string.runtime_update), {
+                        // 包在而运行库不齐（过期/缺失）：一样的「运行」，游戏页的 Loading 自己补齐
+                        CapsuleButton(locale.str(R.string.builds_run_action), {
                             actions.onRun(ported.pack, e.label)
-                        }, modifier = Modifier.fillMaxWidth(), enabled = !port.running && !player.running)
+                        }, modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(8.dp))
                     }
                     Hint(if (e.work != null && e.pack == null) locale.str(R.string.lib_residual_hint)
@@ -576,6 +577,7 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState, player: PlayerS
                     else locale.str(R.string.lib_remove_item_pack)
                 GameCleanup.Kind.WORKSPACE -> locale.str(R.string.lib_remove_item_workspace)
                 GameCleanup.Kind.PARTIAL -> locale.str(R.string.lib_remove_item_partial)
+                GameCleanup.Kind.RUNTIME -> locale.str(R.string.lib_remove_item_runtime)
             }
         }
         androidx.compose.material3.AlertDialog(

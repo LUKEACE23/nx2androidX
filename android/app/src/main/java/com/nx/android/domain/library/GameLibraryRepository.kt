@@ -11,6 +11,8 @@ interface GameLibraryRepository {
     fun internalPortsDir(): File
     fun workRoot(): File
     fun existingWorkspace(titleId: String): File?
+    /** 统一目录里这个游戏的运行库文件夹（runtimes/<title ID 小写>）：删游戏时一并清理 */
+    fun runtimeDir(titleId: String): File
     fun partialPacks(): List<File>
     fun usageItems(games: List<GameEntry>): List<StorageUsage.Item>
     fun workFolderIn(from: Long, to: Long): String?

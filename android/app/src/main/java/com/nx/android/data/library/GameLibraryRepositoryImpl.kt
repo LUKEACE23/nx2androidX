@@ -44,14 +44,14 @@ class GameLibraryRepositoryImpl @Inject constructor(
         val byTitleInternal = HashMap<String, Boolean>()
         val removable = StorageVolumes.removablePortsDirs(context).map { it.second }
         for (dir in removable) {
-        for ((titleId, candidate) in LibraryFileScanner.outIndex(dir)) {
+        for ((titleId, candidate) in LibraryFileScanner.outIndex(dir, paths.runtimes)) {
                 val chosen = LibraryLogic.preferPack(byTitle[titleId], byTitleInternal[titleId] == true,
                     candidate, candidateInternal = false)
                 byTitle[titleId] = chosen.first
                 byTitleInternal[titleId] = chosen.second
             }
         }
-        for ((titleId, candidate) in LibraryFileScanner.outIndex(paths.ports)) {
+        for ((titleId, candidate) in LibraryFileScanner.outIndex(paths.ports, paths.runtimes)) {
             val chosen = LibraryLogic.preferPack(byTitle[titleId], byTitleInternal[titleId] == true,
                 candidate, candidateInternal = true)
             byTitle[titleId] = chosen.first
@@ -127,9 +127,10 @@ class GameLibraryRepositoryImpl @Inject constructor(
     override fun workRoot(): File = paths.work
     override fun existingWorkspace(titleId: String): File? =
         com.nx.android.domain.GameCleanup.workspaceOf(titleId, paths.work)?.takeIf(File::exists)
+    override fun runtimeDir(titleId: String): File = File(paths.runtimes, titleId.lowercase())
     override fun partialPacks(): List<File> = portsDirs().flatMap(LibraryFileScanner::partials)
     override fun workFolderIn(from: Long, to: Long): String? = LibraryFileScanner.workFolderIn(paths.work, from, to)
-    override fun portFromPack(pack: File): Ported? = LibraryFileScanner.portFromPack(pack)
+    override fun portFromPack(pack: File): Ported? = LibraryFileScanner.portFromPack(pack, paths.runtimes)
     override fun packDirOf(entry: GameEntry): File? = entry.pack?.pack?.parentFile
     override fun packDirOf(source: File, games: List<GameEntry>): File? =
         games.firstOrNull { it.sourcePath == source.absolutePath }?.pack?.pack?.parentFile

@@ -104,14 +104,15 @@ object LibraryLogic {
     }
 
     /**
-     * 点「运行」时的两种走法：那个游戏还活着就回到它（不重启），没在跑就全新启动。
-     *
-     * 三个条件缺一不可：状态在不在（App 的进程被回收重启后会丢）、是不是同一个游戏（一次只跑一个，
-     * 活着的那个未必是玩家点的这个）、进程是不是真的在（状态比进程慢半拍：游戏刚结束、进程已经没了而
-     * 状态还没清的那一两秒里，「回到前台」会回到一个已经不在的页面）。
+     * 门的两层决策（解析在外层做完，进来的是已解析出的游戏）：账本里有没有游戏在跑？
+     * 没在跑 → 启动；跑的正是这一个 → 带回前台（不重启）；跑的是别的 → 拒绝（执行方把在跑的
+     * 那个带回前台并说明）。账本没有身份（冷启动后没读回名字）时按「有别的游戏在跑」处理。
      */
-    fun runAction(running: Boolean, runningTitleId: String, portTitleId: String, processAlive: Boolean): RunAction =
-        if (running && runningTitleId == portTitleId && processAlive) RunAction.RESUME else RunAction.START
+    fun launchDecision(running: Boolean, runningTitleId: String, requestedTitleId: String): LaunchDecision = when {
+        !running -> LaunchDecision.START
+        runningTitleId.equals(requestedTitleId, ignoreCase = true) -> LaunchDecision.RESUME
+        else -> LaunchDecision.REFUSE
+    }
 
     /**
      * 这个游戏现在能不能删：正在被移植，或正在运行，都不能删——返回原因；能删返回 null。
@@ -119,11 +120,9 @@ object LibraryLogic {
      * 正在运行的那个游戏，包里的存档正被写着，删了会坏掉正在玩的这一局。
      */
     fun removalBlocked(portRunning: Boolean, portGameFile: String, gamePath: String?,
-                       playerRunning: Boolean, playerTitleId: String, titleId: String?,
+                       titleId: String?,
                        packPath: String? = null): GameCleanup.Outcome? = when {
         portRunning && (portGameFile == gamePath || portGameFile == packPath) -> GameCleanup.Outcome.BUSY_PORTING
-        playerRunning && titleId != null && playerTitleId.equals(titleId, ignoreCase = true) ->
-            GameCleanup.Outcome.BUSY_RUNNING
         else -> null
     }
 
@@ -133,18 +132,16 @@ object LibraryLogic {
      * 搬移期间这个游戏的包正在被写：再搬一次或删掉它，都会把那次搬移弄坏。
      */
     fun moveBlocked(portRunning: Boolean, portGameFile: String, gamePath: String?,
-                    playerRunning: Boolean, playerTitleId: String, titleId: String?,
+                    titleId: String?,
                     moving: Boolean, packPath: String? = null): GameCleanup.Outcome? = when {
         moving -> GameCleanup.Outcome.BUSY_MOVING
         portRunning && (portGameFile == gamePath || portGameFile == packPath) -> GameCleanup.Outcome.BUSY_PORTING
-        playerRunning && titleId != null && playerTitleId.equals(titleId, ignoreCase = true) ->
-            GameCleanup.Outcome.BUSY_RUNNING
         else -> null
     }
 }
 
-/** 点「运行」的走法：回到前台，还是全新启动 */
-enum class RunAction { RESUME, START }
+/** 点「运行」时门给出的决定：全新启动，还是回到在跑的那个，还是拒绝（有别的游戏在跑） */
+enum class LaunchDecision { START, RESUME, REFUSE }
 
 /** 同 title ID 的旧包的处理办法 */
 enum class OlderPackAction { REMOVE, MOVE_SAVES_AND_REMOVE, KEEP }

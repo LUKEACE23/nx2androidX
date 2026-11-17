@@ -37,8 +37,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -50,73 +48,71 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nx.android.R
-import com.nx.android.input.GamepadScan
-import com.nx.android.input.ui.PadCenterController
-import com.nx.android.input.PadAssignment
-import com.nx.android.input.ui.PadCenterScreen
-import com.nx.android.appstate.PortState
-import com.nx.android.appstate.PlayerState
+import com.nx.android.appstate.LibraryState
 import com.nx.android.appstate.OnboardingState
-import com.nx.android.data.AppLocale
-import com.nx.android.data.PrefsStore
-import com.nx.android.data.PadPlayers
-import com.nx.android.data.StorageVolumes
-import com.nx.android.domain.EnvCheck
-import com.nx.android.domain.GameIdentity
-import com.nx.android.domain.GAME_FILE_EXTENSIONS
-import com.nx.android.domain.GameConfig
-import com.nx.android.feature.builds.BuildsRoute
-import com.nx.android.feature.builds.BuildsViewModel
+import com.nx.android.appstate.PlayerState
+import com.nx.android.appstate.PortState
+import com.nx.android.core.ui.ProvideAppLocale
+import com.nx.android.core.ui.components.CapsuleButton
+import com.nx.android.core.ui.components.QuietButton
+import com.nx.android.core.ui.elapsedSecs
 import com.nx.android.core.ui.nav.NavKey
 import com.nx.android.core.ui.nav.OnNavKey
-import com.nx.android.core.ui.components.CapsuleButton
-import com.nx.android.core.ui.elapsedSecs
-import com.nx.android.core.ui.ProvideAppLocale
-import com.nx.android.feature.filepicker.FilePickerScreen
-import com.nx.android.feature.logs.LogOverlay
-import com.nx.android.feature.filepicker.PickerMode
-import com.nx.android.feature.filepicker.PickerRequest
-import com.nx.android.core.ui.components.QuietButton
+import com.nx.android.core.ui.theme.GlassSheet
+import com.nx.android.core.ui.theme.NxPalette
+import com.nx.android.core.ui.theme.NxTheme
+import com.nx.android.data.AppLocale
+import com.nx.android.data.PadPlayers
+import com.nx.android.data.PrefsStore
+import com.nx.android.data.StorageVolumes
+import com.nx.android.domain.EnvCheck
+import com.nx.android.domain.GameConfig
+import com.nx.android.domain.GameEntry
+import com.nx.android.domain.GameIdentity
+import com.nx.android.domain.drivers.DriverRepository
+import com.nx.android.domain.environment.EnvironmentSetup
+import com.nx.android.feature.builds.BuildsRoute
+import com.nx.android.feature.builds.BuildsViewModel
+import com.nx.android.feature.drivers.DriverRoute
 import com.nx.android.feature.environment.EnvChecklistDialog
 import com.nx.android.feature.environment.EnvChip
-import com.nx.android.domain.GameEntry
+import com.nx.android.feature.environment.EnvironmentCheckViewModel
+import com.nx.android.feature.filepicker.FilePickerScreen
+import com.nx.android.feature.filepicker.PickerMode
+import com.nx.android.feature.filepicker.PickerRequest
 import com.nx.android.feature.gamedetail.GameDetailRoute
 import com.nx.android.feature.library.HeroBackground
 import com.nx.android.feature.library.LibraryRoute
 import com.nx.android.feature.library.LibraryViewModel
-import com.nx.android.feature.storage.StorageViewModel
-import com.nx.android.feature.onboarding.OnboardingViewModel
-import com.nx.android.feature.updates.UpdateViewModel
-import com.nx.android.feature.environment.EnvironmentCheckViewModel
-import com.nx.android.domain.drivers.DriverRepository
-import com.nx.android.domain.environment.EnvironmentSetup
-import com.nx.android.appstate.LibraryState
+import com.nx.android.feature.logs.LogOverlay
 import com.nx.android.feature.onboarding.OnboardingScreen
-import com.nx.android.feature.drivers.DriverRoute
-import com.nx.android.domain.drivers.Driver
+import com.nx.android.feature.onboarding.OnboardingViewModel
 import com.nx.android.feature.settings.SettingsScreen
 import com.nx.android.feature.settings.SettingsSection
-import com.nx.android.core.ui.theme.GlassSheet
-import com.nx.android.core.ui.theme.NxPalette
-import com.nx.android.core.ui.theme.NxTheme
+import com.nx.android.feature.storage.StorageViewModel
 import com.nx.android.feature.updates.UpdatePopup
+import com.nx.android.feature.updates.UpdateViewModel
 import com.nx.android.feature.updates.openRepo
-import kotlinx.coroutines.delay
+import com.nx.android.input.GamepadScan
+import com.nx.android.input.PadAssignment
+import com.nx.android.input.ui.PadCenterController
+import com.nx.android.input.ui.PadCenterScreen
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
@@ -146,7 +142,8 @@ data class AppActions(
     val onStartPort: (file: File, cfg: GameConfig) -> Unit,
     val onCancelPort: () -> Unit,
     val onRun: (pack: File, name: String) -> Unit,
-    val onStopGame: () -> Unit,
+    // 桌面快捷方式：管理下拉里的「发送到桌面」（只对已完成的游戏出现）
+    val onSendToDesktop: (GameEntry) -> Unit = { },
     val onToast: (String) -> Unit,
     val version: () -> String,
     val keys: () -> String,
@@ -159,7 +156,6 @@ data class AppActions(
     val isBuildActive: (String) -> Boolean,
     val emptyBuildLogMessage: (String) -> String,
     val titleBuildLog: (String) -> String,
-    val onUpdateRuntime: (File, String) -> Unit = { _, _ -> },
     // the firmware: one for the machine (imported from a zip into the app's own folder, optional)
     val firmware: () -> String = { "" },
     val onImportFirmware: (File) -> Unit = {},
@@ -185,13 +181,11 @@ fun AppRoot(
     locale: AppLocale,
     port: PortState,
     library: LibraryState,
-    player: PlayerState,
-    onboarding: com.nx.android.appstate.OnboardingState,
+    onboarding: OnboardingState,
     drivers: DriverRepository,
     environmentSetup: EnvironmentSetup,
     actions: AppActions,
     startTab: Int,
-    runtime: com.nx.android.appstate.RuntimeUpdateState,
     launchBuildId: String,
     padController: PadCenterController,
     padCenterOpen: Boolean,
@@ -200,162 +194,216 @@ fun AppRoot(
     NxTheme {
         // 界面语言：整棵树读同一份资源，玩家在设置里换语言时这里跟着换
         ProvideAppLocale(locale) {
-        var pickerReq by remember { mutableStateOf<PickerRequest?>(null) }
-        var driversOpen by remember { mutableStateOf(false) }
-    var logOpen by remember { mutableStateOf(false) }
-    var buildLogId by remember { mutableStateOf("") }
-        var envCheckOpen by remember { mutableStateOf(false) }
-        var ossNotice by rememberSaveable { mutableStateOf(false) }
-        val ctx = androidx.compose.ui.platform.LocalContext.current
-        val onboardingViewModel: OnboardingViewModel = hiltViewModel()
-        val onboardingUiState by onboardingViewModel.uiState.collectAsStateWithLifecycle()
-        val environmentCheckViewModel: EnvironmentCheckViewModel = hiltViewModel()
-        // 开源声明：引导走完的那一刻弹一次，老用户（早已完成引导）升级后第一次启动也弹；记在 prefs 里，只此一次
-        LaunchedEffect(onboardingUiState.active) {
-            if (!onboardingUiState.active
-                && prefs.bool(PrefsStore.OB_COMPLETED)
-                && !prefs.bool(PrefsStore.OSS_NOTICE_SHOWN)) ossNotice = true
-        }
-        Box(Modifier.fillMaxSize().background(NxPalette.Background)) {
-            if (onboardingUiState.active) {
-                OnboardingScreen(onboardingViewModel, actions) { pickerReq = it }
-            } else {
-                // 这一层之外还盖着东西吗（文件选择器、驱动页、日志、清单、开源声明）：
-                // 盖着的时候手柄的键不落到里面的页面上
-                val outerOverlayOpen = pickerReq != null || driversOpen || logOpen ||
-                    buildLogId.isNotEmpty() || envCheckOpen || ossNotice
-                MainScreen(prefs, locale, port, library, player, onboarding, drivers, environmentSetup, actions, startTab, runtime, launchBuildId,
-                    padController = padController,
-                    padCenterOpen = padCenterOpen, onPadCenter = onPadCenter,
-                    outerOverlayOpen = outerOverlayOpen,
-                    onRequest = { pickerReq = it },
-                    onDrivers = { driversOpen = true },
-                    onLog = { id -> buildLogId = id },
-                    onDiagnosticLog = { logOpen = true },
-                    onEnvCheck = { envCheckOpen = true },
-                    envCheckViewModel = environmentCheckViewModel)
+            var pickerReq by remember { mutableStateOf<PickerRequest?>(null) }
+            var driversOpen by remember { mutableStateOf(false) }
+            var logOpen by remember { mutableStateOf(false) }
+            var buildLogId by remember { mutableStateOf("") }
+            var envCheckOpen by remember { mutableStateOf(false) }
+            var ossNotice by rememberSaveable { mutableStateOf(false) }
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val onboardingViewModel: OnboardingViewModel = hiltViewModel()
+            val onboardingUiState by onboardingViewModel.uiState.collectAsStateWithLifecycle()
+            val environmentCheckViewModel: EnvironmentCheckViewModel = hiltViewModel()
+            // 开源声明：引导走完的那一刻弹一次，老用户（早已完成引导）升级后第一次启动也弹；记在 prefs 里，只此一次
+            LaunchedEffect(onboardingUiState.active) {
+                if (!onboardingUiState.active
+                    && prefs.bool(PrefsStore.OB_COMPLETED)
+                    && !prefs.bool(PrefsStore.OSS_NOTICE_SHOWN)
+                ) ossNotice = true
             }
-            val volumes = remember(ctx, locale.mode) { StorageVolumes.list(ctx, locale) }
-            pickerReq?.let { req ->
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f))) {
-                    if (!actions.storageOk()) {
-                        // 内置文件管理器读不了没有全文件访问的存储：给授权入口
-                        Column(
-                            Modifier.fillMaxSize().padding(24.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-                        ) {
-                            Spacer(Modifier.weight(1f))
-                            Text(stringResource(R.string.app_storage_permission_needed),
-                                 style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                            Text(
-                                stringResource(R.string.app_storage_permission_picker),
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            Spacer(Modifier.weight(1f))
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier
+                .fillMaxSize()
+                .background(NxPalette.Background)) {
+                if (onboardingUiState.active) {
+                    OnboardingScreen(onboardingViewModel, actions) { pickerReq = it }
+                } else {
+                    // 这一层之外还盖着东西吗（文件选择器、驱动页、日志、清单、开源声明）：
+                    // 盖着的时候手柄的键不落到里面的页面上
+                    val outerOverlayOpen = pickerReq != null || driversOpen || logOpen ||
+                            buildLogId.isNotEmpty() || envCheckOpen || ossNotice
+                    MainScreen(
+                        prefs,
+                        locale,
+                        port,
+                        library,
+                        onboarding,
+                        drivers,
+                        environmentSetup,
+                        actions,
+                        startTab,
+                        launchBuildId,
+                        padController = padController,
+                        padCenterOpen = padCenterOpen,
+                        onPadCenter = onPadCenter,
+                        outerOverlayOpen = outerOverlayOpen,
+                        onRequest = { pickerReq = it },
+                        onDrivers = { driversOpen = true },
+                        onLog = { id -> buildLogId = id },
+                        onDiagnosticLog = { logOpen = true },
+                        onEnvCheck = { envCheckOpen = true },
+                        envCheckViewModel = environmentCheckViewModel
+                    )
+                }
+                val volumes = remember(ctx, locale.mode) { StorageVolumes.list(ctx, locale) }
+                pickerReq?.let { req ->
+                    Box(Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.45f))) {
+                        if (!actions.storageOk()) {
+                            // 内置文件管理器读不了没有全文件访问的存储：给授权入口
+                            Column(
+                                Modifier
+                                    .fillMaxSize()
+                                    .padding(24.dp),
+                                verticalArrangement = Arrangement.spacedBy(
+                                    12.dp,
+                                    Alignment.CenterVertically
+                                ),
+                            ) {
                                 Spacer(Modifier.weight(1f))
-                                QuietButton(stringResource(R.string.common_cancel), onClick = { pickerReq = null })
-                                CapsuleButton(stringResource(R.string.app_grant_permission), onClick = {
-                                    pickerReq = null
-                                    actions.onAskStorage()
-                                })
+                                Text(
+                                    stringResource(R.string.app_storage_permission_needed),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    stringResource(R.string.app_storage_permission_picker),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Spacer(Modifier.weight(1f))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Spacer(Modifier.weight(1f))
+                                    QuietButton(
+                                        stringResource(R.string.common_cancel),
+                                        onClick = { pickerReq = null })
+                                    CapsuleButton(
+                                        stringResource(R.string.app_grant_permission),
+                                        onClick = {
+                                            pickerReq = null
+                                            actions.onAskStorage()
+                                        })
+                                }
                             }
+                        } else {
+                            FilePickerScreen(
+                                req = req,
+                                volumes = volumes,
+                                onPicked = { f ->
+                                    pickerReq = null
+                                    req.onPicked(f)
+                                },
+                                onCancel = { pickerReq = null },
+                            )
                         }
-                    } else {
-                        FilePickerScreen(
-                            req = req,
-                            volumes = volumes,
-                            onPicked = { f ->
-                                pickerReq = null
-                                req.onPicked(f)
-                            },
-                            onCancel = { pickerReq = null },
-                        )
                     }
                 }
-            }
-            // 驱动页：盖住整屏，在页面之外
-            if (driversOpen) {
-                DriverRoute(onClose = { driversOpen = false })
-            }
-            // 环境检查清单：顶栏胶囊点开的，盖住整屏
-            if (envCheckOpen) {
-                BackHandler { envCheckOpen = false }
-                EnvChecklistDialog(
-                    viewModel = environmentCheckViewModel,
-                    onboarding = onboardingViewModel,
-                    portRunning = port.running,
-                    onPrepareEnv = { onboardingViewModel.unpack() },
-                    onPickKeys = {
-                        envCheckOpen = false
-                        pickerReq = PickerRequest(PickerMode.FILE, emptySet(), null,
-                            locale.str(R.string.onb_choose_prod_keys),
-                            onPicked = { f -> actions.onSetKeys(f.path) })
-                    },
-                    firmware = actions.firmware(),
-                    onImportFirmware = {
-                        envCheckOpen = false
-                        pickerReq = PickerRequest(PickerMode.FILE, setOf("zip"), null,
-                            locale.str(R.string.fw_pick),
-                            onPicked = { f -> actions.onImportFirmware(f) })
-                    },
-                    onImportProfiles = {
-                        envCheckOpen = false
-                        pickerReq = PickerRequest(PickerMode.FILE, setOf("zip"), null,
-                            locale.str(R.string.profiles_pick),
-                            onPicked = { f -> actions.onImportProfiles(f) })
-                    },
-                    // 在线更新导入完了：档案行自己会变，这里只是说一声
-                    onProfilesUpdated = { ok ->
-                        if (ok) actions.onToast(locale.str(R.string.profiles_imported_toast, environmentCheckViewModel.checks.profilesCount))
-                    },
-                    onRunOnboarding = {
-                        // the checklist first: it is drawn over the setup and would hide it
-                        envCheckOpen = false
-                        onboarding.open()
-                    },
-                    onDismiss = { envCheckOpen = false },
-                )
-            }
-            // 日志浮层：同样盖住整屏
-            if (logOpen) {
-                BackHandler { logOpen = false }
-                LogOverlay(onClose = { logOpen = false }, text = remember { actions.readLog() })
-            }
-            if (buildLogId.isNotEmpty()) {
-                BackHandler { buildLogId = "" }
-                data class InitialBuildLog(val text: String, val offset: Long, val length: Long)
-                val page by produceState(initialValue = InitialBuildLog("", 0, 0), buildLogId) {
-                    val length = withContext(Dispatchers.IO) { actions.buildLogLength(buildLogId) }
-                    val offset = (length - 64 * 1024).coerceAtLeast(0)
-                    val text = withContext(Dispatchers.IO) { actions.readBuildLog(buildLogId, offset, 64 * 1024) }
-                    value = InitialBuildLog(text, offset, length)
+                // 驱动页：盖住整屏，在页面之外
+                if (driversOpen) {
+                    DriverRoute(onClose = { driversOpen = false })
                 }
-                LogOverlay(
-                    onClose = { buildLogId = "" }, text = page.text,
-                    title = actions.titleBuildLog(buildLogId), buildId = buildLogId,
-                    initialOffset = page.offset, initialLength = page.length,
-                    active = actions.isBuildActive(buildLogId),
-                    emptyText = actions.emptyBuildLogMessage(buildLogId),
-                    readRange = { offset, length -> actions.readBuildLog(buildLogId, offset, length) },
-                    latestLength = { actions.buildLogLength(buildLogId) },
-                )
+                // 环境检查清单：顶栏胶囊点开的，盖住整屏
+                if (envCheckOpen) {
+                    BackHandler { envCheckOpen = false }
+                    EnvChecklistDialog(
+                        viewModel = environmentCheckViewModel,
+                        onboarding = onboardingViewModel,
+                        portRunning = port.running,
+                        onPrepareEnv = { onboardingViewModel.unpack() },
+                        onPickKeys = {
+                            envCheckOpen = false
+                            pickerReq = PickerRequest(
+                                PickerMode.FILE, emptySet(), null,
+                                locale.str(R.string.onb_choose_prod_keys),
+                                onPicked = { f -> actions.onSetKeys(f.path) })
+                        },
+                        firmware = actions.firmware(),
+                        onImportFirmware = {
+                            envCheckOpen = false
+                            pickerReq = PickerRequest(
+                                PickerMode.FILE, setOf("zip"), null,
+                                locale.str(R.string.fw_pick),
+                                onPicked = { f -> actions.onImportFirmware(f) })
+                        },
+                        onImportProfiles = {
+                            envCheckOpen = false
+                            pickerReq = PickerRequest(
+                                PickerMode.FILE, setOf("zip"), null,
+                                locale.str(R.string.profiles_pick),
+                                onPicked = { f -> actions.onImportProfiles(f) })
+                        },
+                        // 在线更新导入完了：档案行自己会变，这里只是说一声
+                        onProfilesUpdated = { ok ->
+                            if (ok) actions.onToast(
+                                locale.str(
+                                    R.string.profiles_imported_toast,
+                                    environmentCheckViewModel.checks.profilesCount
+                                )
+                            )
+                        },
+                        onRunOnboarding = {
+                            // the checklist first: it is drawn over the setup and would hide it
+                            envCheckOpen = false
+                            onboarding.open()
+                        },
+                        onDismiss = { envCheckOpen = false },
+                    )
+                }
+                // 日志浮层：同样盖住整屏
+                if (logOpen) {
+                    BackHandler { logOpen = false }
+                    LogOverlay(onClose = { logOpen = false }, text = remember { actions.readLog() })
+                }
+                if (buildLogId.isNotEmpty()) {
+                    BackHandler { buildLogId = "" }
+                    data class InitialBuildLog(val text: String, val offset: Long, val length: Long)
+
+                    val page by produceState(initialValue = InitialBuildLog("", 0, 0), buildLogId) {
+                        val length =
+                            withContext(Dispatchers.IO) { actions.buildLogLength(buildLogId) }
+                        val offset = (length - 64 * 1024).coerceAtLeast(0)
+                        val text = withContext(Dispatchers.IO) {
+                            actions.readBuildLog(
+                                buildLogId,
+                                offset,
+                                64 * 1024
+                            )
+                        }
+                        value = InitialBuildLog(text, offset, length)
+                    }
+                    LogOverlay(
+                        onClose = { buildLogId = "" }, text = page.text,
+                        title = actions.titleBuildLog(buildLogId), buildId = buildLogId,
+                        initialOffset = page.offset, initialLength = page.length,
+                        active = actions.isBuildActive(buildLogId),
+                        emptyText = actions.emptyBuildLogMessage(buildLogId),
+                        readRange = { offset, length ->
+                            actions.readBuildLog(
+                                buildLogId,
+                                offset,
+                                length
+                            )
+                        },
+                        latestLength = { actions.buildLogLength(buildLogId) },
+                    )
+                }
+                // 开源声明：盖在最后面，玩家先看到它
+                if (ossNotice) {
+                    OpenSourceNoticeDialog(
+                        onClose = {
+                            ossNotice = false
+                            prefs.put(PrefsStore.OSS_NOTICE_SHOWN, true)
+                        },
+                        onRepo = {
+                            openRepo(ctx)
+                            ossNotice = false
+                            prefs.put(PrefsStore.OSS_NOTICE_SHOWN, true)
+                        },
+                    )
+                }
             }
-            // 开源声明：盖在最后面，玩家先看到它
-            if (ossNotice) {
-                OpenSourceNoticeDialog(
-                    onClose = {
-                        ossNotice = false
-                        prefs.put(PrefsStore.OSS_NOTICE_SHOWN, true)
-                    },
-                    onRepo = {
-                        openRepo(ctx)
-                        ossNotice = false
-                        prefs.put(PrefsStore.OSS_NOTICE_SHOWN, true)
-                    },
-                )
-            }
-        }
         }
     }
 }
@@ -372,7 +420,12 @@ private fun OpenSourceNoticeDialog(onClose: () -> Unit, onRepo: () -> Unit) {
         title = { Text(stringResource(R.string.oss_notice_title), fontWeight = FontWeight.Bold) },
         text = { Text(stringResource(R.string.oss_notice_body)) },
         confirmButton = {
-            TextButton(onClick = onClose) { Text(stringResource(R.string.oss_notice_ok), color = NxPalette.Building) }
+            TextButton(onClick = onClose) {
+                Text(
+                    stringResource(R.string.oss_notice_ok),
+                    color = NxPalette.Building
+                )
+            }
         },
         dismissButton = {
             TextButton(onClick = onRepo) { Text(stringResource(R.string.oss_notice_repo)) }
@@ -381,21 +434,22 @@ private fun OpenSourceNoticeDialog(onClose: () -> Unit, onRepo: () -> Unit) {
 }
 
 @Composable
-fun MainScreen(prefs: PrefsStore, locale: AppLocale, port: PortState, library: LibraryState,
-               player: PlayerState, onboarding: OnboardingState, drivers: DriverRepository,
-               environmentSetup: EnvironmentSetup, actions: AppActions, startTab: Int,
-               runtime: com.nx.android.appstate.RuntimeUpdateState,
-               launchBuildId: String,
-               padController: PadCenterController,
-               padCenterOpen: Boolean,
-               onPadCenter: (Boolean) -> Unit,
-               outerOverlayOpen: Boolean = false,
-               onRequest: (PickerRequest) -> Unit,
-               onDrivers: () -> Unit,
-               onLog: (String) -> Unit,
-               onDiagnosticLog: () -> Unit,
-               onEnvCheck: () -> Unit,
-               envCheckViewModel: EnvironmentCheckViewModel) {
+fun MainScreen(
+    prefs: PrefsStore, locale: AppLocale, port: PortState, library: LibraryState,
+    onboarding: OnboardingState, drivers: DriverRepository,
+    environmentSetup: EnvironmentSetup, actions: AppActions, startTab: Int,
+    launchBuildId: String,
+    padController: PadCenterController,
+    padCenterOpen: Boolean,
+    onPadCenter: (Boolean) -> Unit,
+    outerOverlayOpen: Boolean = false,
+    onRequest: (PickerRequest) -> Unit,
+    onDrivers: () -> Unit,
+    onLog: (String) -> Unit,
+    onDiagnosticLog: () -> Unit,
+    onEnvCheck: () -> Unit,
+    envCheckViewModel: EnvironmentCheckViewModel
+) {
     var tab by rememberSaveable { mutableIntStateOf(startTab) }
     // 设置是一整页，盖住顶栏与下面的页面：从顶栏的设置图标进来，关掉才回到底下的页面
     var settingsOpen by remember { mutableStateOf(false) }
@@ -436,42 +490,49 @@ fun MainScreen(prefs: PrefsStore, locale: AppLocale, port: PortState, library: L
     val environmentCheckUiState by environmentCheckViewModel.uiState.collectAsStateWithLifecycle()
     val installedDrivers by drivers.drivers.collectAsStateWithLifecycle()
 
-    com.nx.android.feature.runtime.RuntimeUpdateDialog(runtime,
-        onRetry = { actions.onUpdateRuntime(File(runtime.pack), runtime.name) },
-        onFinished = { actions.onToast(locale.str(R.string.runtime_updated)) },
-        onUseCurrentProfile = {
-            // 玩家选择用当前档案继续：下一次更新带上这个开关（清单里的指纹会换成当前的）
-            runtime.useCurrentProfile()
-            actions.onUpdateRuntime(File(runtime.pack), runtime.name)
-        })
-
     // 选中游戏的背景铺满整块屏幕：顶栏透明画在图上，三个 tab 共用这层背景
     Box(Modifier.fillMaxSize()) {
         HeroBackground(lib.visible().getOrNull(lib.heroIndex))
         Column(Modifier.fillMaxSize()) {
-        TopBar(
-            selected = tab,
-            onSelect = { tab = it.ordinal },
-            onRefresh = { lib.rescan() },
-            onSettings = { settingsOpen = true },
-            padCount = padDevices.size,
-            onOpenPadCenter = { onPadCenter(true) },
-            chip = environmentCheckUiState.chip,
-            onChip = onEnvCheck,
-        )
-        // 有新版本时的弹框：冷启动查到了新版本才出现
-        UpdatePopup(updateViewModel)
-        Box(Modifier.weight(1f)) {
-            when (Tab.entries[tab]) {
-                Tab.LIBRARY -> LibraryRoute(libraryViewModel, port, player, actions,
-                    onGoBuilds = { buildsViewModel.setTarget(lib.buildsTarget); tab = Tab.BUILDS.ordinal }, onRequest = onRequest,
-                    navActive = navHost == NavHost.LIBRARY)
-                Tab.BUILDS -> BuildsRoute(buildsViewModel, envCheckViewModel, prefs.keys, environmentSetup.ready, actions, onRequest, onLog)
+            TopBar(
+                selected = tab,
+                onSelect = { tab = it.ordinal },
+                onRefresh = { lib.rescan() },
+                onSettings = { settingsOpen = true },
+                padCount = padDevices.size,
+                onOpenPadCenter = { onPadCenter(true) },
+                chip = environmentCheckUiState.chip,
+                onChip = onEnvCheck,
+            )
+            // 有新版本时的弹框：冷启动查到了新版本才出现
+            UpdatePopup(updateViewModel)
+            Box(Modifier.weight(1f)) {
+                when (Tab.entries[tab]) {
+                    Tab.LIBRARY -> LibraryRoute(
+                        libraryViewModel, port, actions,
+                        onGoBuilds = {
+                            buildsViewModel.setTarget(lib.buildsTarget); tab = Tab.BUILDS.ordinal
+                        }, onRequest = onRequest,
+                        navActive = navHost == NavHost.LIBRARY
+                    )
+
+                    Tab.BUILDS -> BuildsRoute(
+                        buildsViewModel,
+                        envCheckViewModel,
+                        prefs.keys,
+                        environmentSetup.ready,
+                        actions,
+                        onRequest,
+                        onLog
+                    )
+                }
             }
-        }
-        if (port.running || buildsViewModel.gameInfo.reading) {
-            ActivityBar(port, reading = buildsViewModel.gameInfo.reading, openBuilds = { tab = Tab.BUILDS.ordinal })
-        }
+            if (port.running || buildsViewModel.gameInfo.reading) {
+                ActivityBar(
+                    port,
+                    reading = buildsViewModel.gameInfo.reading,
+                    openBuilds = { tab = Tab.BUILDS.ordinal })
+            }
         }
         // 配置面板画在最上层：它的遮罩要盖住顶栏与整块页面
         val panelFile = remember { mutableStateOf<GameEntry?>(null) }
@@ -482,10 +543,14 @@ fun MainScreen(prefs: PrefsStore, locale: AppLocale, port: PortState, library: L
             exit = slideOutHorizontally { it } + fadeOut(),
         ) {
             panelFile.value?.let { f ->
-                GameDetailRoute(lib, port, player, f, installedDrivers, actions,
-                    onGoBuilds = { buildsViewModel.setTarget(lib.buildsTarget); tab = Tab.BUILDS.ordinal }, onRequest = onRequest,
+                GameDetailRoute(
+                    lib, port, f, installedDrivers, actions,
+                    onGoBuilds = {
+                        buildsViewModel.setTarget(lib.buildsTarget); tab = Tab.BUILDS.ordinal
+                    }, onRequest = onRequest,
                     onClose = { lib.selected = null },
-                    navActive = navHost == NavHost.PANEL)
+                    navActive = navHost == NavHost.PANEL
+                )
             }
         }
         // 手柄中心：盖住整屏（顶栏也在下面），关掉才回到底下的页面
@@ -493,34 +558,33 @@ fun MainScreen(prefs: PrefsStore, locale: AppLocale, port: PortState, library: L
             PadCenterScreen(
                 controller = padController,
                 onClose = { onPadCenter(false) },
-                // 谁玩谁：指派是每个游戏一份，这里看的是**正在跑**的那个游戏的（没在跑就是默认：
-                // 没被指派走的手柄都算玩家 1）
-                assignment = remember(player.running, player.titleId) {
-                    if (player.running && player.titleId.isNotEmpty())
-                        PadPlayers(padCtx, player.titleId).load()
-                    else PadAssignment()
-                },
+                // 谁玩谁：全局一份配置（所有游戏共用；库页可见时本来也没有游戏在跑）
+                assignment = remember { PadPlayers(padCtx, PadPlayers.GLOBAL).load() },
             )
         }
         // 设置页：盖住整屏（顶栏也在下面），关掉才回到底下的页面
         if (settingsOpen) {
-            SettingsScreen(onboarding, installedDrivers, drivers, updateViewModel,
+            SettingsScreen(
+                onboarding, installedDrivers, drivers, updateViewModel,
                 storageViewModel, actions,
                 onRequest, onDrivers,
                 section = settingsSection, onSelectSection = { settingsSection = it },
                 onDiagnosticLog = onDiagnosticLog,
                 onClose = { settingsOpen = false },
-                navActive = navHost == NavHost.SETTINGS)
+                navActive = navHost == NavHost.SETTINGS
+            )
         }
     }
 }
 
 /** 一行式顶栏：品牌 + 两个纯文字 tab（选中亮/未选灰）+ 环境状态胶囊 + 右侧图标与时钟（capyps5 的骨架，我们的颜色） */
 @Composable
-private fun TopBar(selected: Int, onSelect: (Tab) -> Unit, onRefresh: () -> Unit,
-                   onSettings: () -> Unit,
-                   padCount: Int, onOpenPadCenter: () -> Unit,
-                   chip: EnvCheck.Chip, onChip: () -> Unit) {
+private fun TopBar(
+    selected: Int, onSelect: (Tab) -> Unit, onRefresh: () -> Unit,
+    onSettings: () -> Unit,
+    padCount: Int, onOpenPadCenter: () -> Unit,
+    chip: EnvCheck.Chip, onChip: () -> Unit
+) {
     val time by produceState(initialValue = "") {
         val format = SimpleDateFormat("HH:mm", Locale.getDefault())
         while (true) {
@@ -530,14 +594,22 @@ private fun TopBar(selected: Int, onSelect: (Tab) -> Unit, onRefresh: () -> Unit
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 14.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 14.dp),
     ) {
         Image(painterResource(R.drawable.ic_launcher_mark), null, Modifier.size(32.dp))
         // 品牌：名字只有 app_name 一处，末位的标记（X）单独用品牌色
         val brand = stringResource(R.string.app_name)
         Text(
             buildAnnotatedString {
-                withStyle(SpanStyle(color = MaterialTheme.colorScheme.onBackground)) { append(brand.dropLast(1)) }
+                withStyle(SpanStyle(color = MaterialTheme.colorScheme.onBackground)) {
+                    append(
+                        brand.dropLast(
+                            1
+                        )
+                    )
+                }
                 withStyle(SpanStyle(color = NxPalette.Brand)) { append(brand.takeLast(1)) }
             },
             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
@@ -548,7 +620,9 @@ private fun TopBar(selected: Int, onSelect: (Tab) -> Unit, onRefresh: () -> Unit
                 stringResource(t.label),
                 style = MaterialTheme.typography.titleLarge,
                 color = if (i == selected) MaterialTheme.colorScheme.onBackground else NxPalette.Unbuilt,
-                modifier = Modifier.clickable { onSelect(t) }.padding(end = 26.dp),
+                modifier = Modifier
+                    .clickable { onSelect(t) }
+                    .padding(end = 26.dp),
             )
         }
         Spacer(Modifier.weight(1f))
@@ -561,8 +635,12 @@ private fun TopBar(selected: Int, onSelect: (Tab) -> Unit, onRefresh: () -> Unit
         TopIcon(Icons.Filled.Settings, stringResource(R.string.app_tab_settings), onSettings)
         Spacer(Modifier.width(6.dp))
         EnvChip(chip, onChip)
-        Text(time, style = MaterialTheme.typography.titleMedium,
-             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp))
+        Text(
+            time,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 6.dp)
+        )
     }
 }
 
@@ -581,7 +659,10 @@ private fun PadIcon(padCount: Int, onClick: () -> Unit) {
             },
         contentAlignment = Alignment.Center,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
             Icon(
                 Icons.Filled.SportsEsports,
                 null,
@@ -602,7 +683,10 @@ private fun PadIcon(padCount: Int, onClick: () -> Unit) {
 @Composable
 private fun TopIcon(icon: ImageVector, description: String, onClick: () -> Unit) {
     Box(
-        Modifier.clip(RoundedCornerShape(50)).clickable(onClick = onClick).padding(10.dp),
+        Modifier
+            .clip(RoundedCornerShape(50))
+            .clickable(onClick = onClick)
+            .padding(10.dp),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, description, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onBackground)
@@ -613,10 +697,20 @@ private fun TopIcon(icon: ImageVector, description: String, onClick: () -> Unit)
 @Composable
 private fun ActivityBar(port: PortState, reading: Boolean, openBuilds: () -> Unit) {
     val secs = elapsedSecs(port.startedAt)
-    GlassSheet(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
-        Column(Modifier.fillMaxWidth().clickable { openBuilds() }.padding(horizontal = 14.dp, vertical = 10.dp),
-               verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    GlassSheet(modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = 12.dp, vertical = 8.dp)) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clickable { openBuilds() }
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = NxPalette.Building,
                 )
@@ -627,8 +721,10 @@ private fun ActivityBar(port: PortState, reading: Boolean, openBuilds: () -> Uni
                         modifier = Modifier.weight(1f), maxLines = 1,
                     )
                     Text(
-                        stringResource(R.string.app_stage_and_time,
-                            port.stageOf, port.stages, secs / 60, secs % 60),
+                        stringResource(
+                            R.string.app_stage_and_time,
+                            port.stageOf, port.stages, secs / 60, secs % 60
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -651,7 +747,9 @@ private fun ActivityBar(port: PortState, reading: Boolean, openBuilds: () -> Uni
             if (port.running) {
                 LinearProgressIndicator(
                     progress = { port.progress },
-                    modifier = Modifier.fillMaxWidth().height(5.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(5.dp),
                     color = NxPalette.Building,
                 )
             }
