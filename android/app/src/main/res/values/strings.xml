@@ -620,4 +620,33 @@
     <string name="drawer_players_note">Player 1 is the phone: the on-screen gamepad and the motion are its, and it takes the controllers nobody else plays (automatic). Lock it to one controller and the others sit out. A controller plays one player only.</string>
     <string name="pad_center_player">Player %1$d</string>
     <string name="pad_center_idle">Idle</string>
+    <!-- 常见问题页 -->
+    <string name="faq_title">FAQ</string>
+    <string name="app_faq">FAQ</string>
+    <string name="faq_github_name">nx2androidX · GitHub</string>
+    <string name="faq_github_hint">The source repository. Open an issue when something does not work, and paste the log into it.</string>
+    <string name="faq_github_action">Report an issue</string>
+    <string name="faq_group_prepare">Getting ready</string>
+    <string name="faq_group_trouble">When something goes wrong</string>
+    <string name="faq_group_other">Other</string>
+    <string name="faq_q_prepare_requirements">What does porting a game need?</string>
+    <string name="faq_a_prepare_requirements">Four things: prod.keys exported from your own console, your own game file, the app\'s porting environment (it unpacks itself on the first port, about 700 MB), and the game profile pack (optional - the games the app ships with do not need it). The setup asks where your keys are, the build page picks the game file, and the environment capsule in the top bar installs the profile pack.</string>
+    <string name="faq_q_prepare_sources">Where do prod.keys and the game file come from?</string>
+    <string name="faq_a_prepare_sources">Export them from your own console. The app provides no download source for games or keys, and points to none - both can only come from your own console.</string>
+    <string name="faq_q_prepare_gamefile">Where do the game files go on the phone?</string>
+    <string name="faq_a_prepare_gamefile">Put them in the phone\'s storage; a card plugged in works too. The app recognizes nsp, xci, nsz and xcz. The build page\'s "Choose a game file" is where you pick it, and a file you picked shows up in the library.</string>
+    <string name="faq_q_prepare_profiles">Where is the game profile pack, and how do I install it?</string>
+    <string name="faq_a_prepare_profiles">It ships with the release: the environment capsule in the top bar → "Game profiles" → "Update online" downloads the pack (about 90 MB) from the release page. You can also download the zip yourself and import it from the same row.</string>
+    <string name="faq_q_trouble_exit">A port stops with no error (exit 137)</string>
+    <string name="faq_a_trouble_exit">Android\'s child-process limit stopped the porter; the port itself did not fail. Fix it: the environment capsule in the top bar → "Child-process limit" → "Fix".</string>
+    <string name="faq_q_trouble_perf">The game stutters, flickers or shows a black screen</string>
+    <string name="faq_a_trouble_perf">Look in this order: Settings → Vulkan driver (try another one), Settings → Display (frame generation), and the in-game drawer → Performance and HUD (frame rate, frame time, the driver in use). If none of that helps, read the log of that build (build details → "Share the log").</string>
+    <string name="faq_q_trouble_report">How do I report a problem to the developers?</string>
+    <string name="faq_a_trouble_report">Share the log of that build from the build details, then open an issue in the repository and paste the log into it. The GitHub card at the top of this page is the repository.</string>
+    <string name="faq_q_other_update">How do I update the app?</string>
+    <string name="faq_a_other_update">Settings → About → "Check for updates". It reads the release page of the repository; you can also download the APK from that page yourself.</string>
+    <string name="faq_q_other_saves">Where are the saves, and how do I back them up?</string>
+    <string name="faq_a_other_saves">Every game in the library has a "Saves" section where you can export or import a save pack. For the raw files in the app\'s own directory, turn on Settings → About → "File manager access" and go into the app\'s directory in the file manager.</string>
+    <string name="faq_q_other_pad">How do I connect and set up a gamepad?</string>
+    <string name="faq_a_other_pad">The gamepad icon in the top bar → Gamepad center: there you see how many are connected, rebind, calibrate, and open the Bluetooth settings. How the gamepad behaves inside a game is set in the drawer → Controls.</string>
 </resources>

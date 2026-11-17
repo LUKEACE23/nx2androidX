@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -95,6 +96,7 @@ import com.nx.android.feature.environment.GameProfilesDialog
 import com.nx.android.feature.filepicker.FilePickerScreen
 import com.nx.android.feature.filepicker.PickerMode
 import com.nx.android.feature.filepicker.PickerRequest
+import com.nx.android.feature.faq.FaqScreen
 import com.nx.android.feature.gamedetail.GameDetailRoute
 import com.nx.android.feature.library.HeroBackground
 import com.nx.android.feature.library.LibraryRoute
@@ -132,7 +134,7 @@ enum class Tab(@StringRes val label: Int, val icon: ImageVector) {
  * 判断只在这一处做（页面的根），页面自己只管「我收到这个动作时做什么」——
  * 这样不会出现两个页面同时响应，也不会要动一处就想起另一处。
  */
-private enum class NavHost { NONE, LIBRARY, PANEL, SETTINGS }
+private enum class NavHost { NONE, LIBRARY, PANEL, SETTINGS, FAQ }
 
 /** The screens' way back to the activity's own privileges: what they may ask for, nothing else */
 data class AppActions(
@@ -453,6 +455,8 @@ fun MainScreen(
     // 设置是一整页，盖住顶栏与下面的页面：从顶栏的设置图标进来，关掉才回到底下的页面
     var settingsOpen by remember { mutableStateOf(false) }
     var settingsSection by remember { mutableStateOf(SettingsSection.ENVIRONMENT) }
+    // 常见问题：也是一整页，从顶栏设置旁边的那个图标进来
+    var faqOpen by remember { mutableStateOf(false) }
     // 档案的处理弹窗：在线更新还是本地导入。构建页的「去导入」叫醒它。
     // 它盖住整屏，所以画在这一层（页面里画的遮罩只盖得到顶栏下面那一条缝）
     var profilesOpen by remember { mutableStateOf(false) }
@@ -466,6 +470,7 @@ fun MainScreen(
     val navHost = when {
         outerOverlayOpen || padCenterOpen || profilesOpen -> NavHost.NONE
         settingsOpen -> NavHost.SETTINGS
+        faqOpen -> NavHost.FAQ
         lib.selected != null -> NavHost.PANEL
         else -> NavHost.LIBRARY
     }
@@ -501,6 +506,7 @@ fun MainScreen(
                 onSelect = { tab = it.ordinal },
                 onRefresh = { lib.rescan() },
                 onSettings = { settingsOpen = true },
+                onFaq = { faqOpen = true },
                 padCount = padDevices.size,
                 onOpenPadCenter = { onPadCenter(true) },
                 chip = environmentCheckUiState.chip,
@@ -596,6 +602,13 @@ fun MainScreen(
                 navActive = navHost == NavHost.SETTINGS
             )
         }
+        // 常见问题页：也是盖住整屏（顶栏也在下面），关掉才回到底下的页面
+        if (faqOpen) {
+            FaqScreen(
+                onClose = { faqOpen = false },
+                navActive = navHost == NavHost.FAQ
+            )
+        }
     }
 }
 
@@ -604,6 +617,7 @@ fun MainScreen(
 private fun TopBar(
     selected: Int, onSelect: (Tab) -> Unit, onRefresh: () -> Unit,
     onSettings: () -> Unit,
+    onFaq: () -> Unit,
     padCount: Int, onOpenPadCenter: () -> Unit,
     chip: EnvCheck.Chip, onChip: () -> Unit
 ) {
@@ -655,6 +669,9 @@ private fun TopBar(
         Spacer(Modifier.width(6.dp))
         // 设置：它是一整页，从这个图标进来
         TopIcon(Icons.Filled.Settings, stringResource(R.string.app_tab_settings), onSettings)
+        Spacer(Modifier.width(6.dp))
+        // 常见问题：也是一整页，紧挨着设置图标
+        TopIcon(Icons.Filled.HelpOutline, stringResource(R.string.app_faq), onFaq)
         Spacer(Modifier.width(6.dp))
         EnvChip(chip, onChip)
         Text(

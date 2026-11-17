@@ -819,7 +819,8 @@ def bnd3_members(d, label):
     for i in range(struct.unpack_from('<i', d, 0x10)[0]):
         _, n, off, _, nm, usz = struct.unpack_from('<B3xiQiIi', d, 0x20 + 28 * i)
         if n != usz: red(f'{label}: BND3 entry {i} is compressed ({n:#x} of {usz:#x} bytes)')
-        name = d[nm:(z := d.find(b'\0', nm)) if z >= 0 else len(d)].decode('shift-jis', 'replace').replace('\\', '/')
+        z = d.find(b'\0', nm)
+        name = d[nm:(z if z >= 0 else len(d))].decode('shift-jis', 'replace').replace('\\', '/')
         yield name.split('/Source/', 1)[-1], d[off:off + n]
 
 def bdt_shaders(path, rel, ents, out):
