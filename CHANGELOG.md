@@ -8,6 +8,36 @@ players on the released version are not pushed onto an alpha.
 
 The release page has the APK and the full notes: <https://github.com/zFitness/nx2androidX/releases>.
 
+## v0.3.0-alpha15 - 2026-11-17
+
+### Before you update
+
+- The app does not carry the game profiles any more. They are half a gigabyte of shader tables, and every release copied them again; this build carries none of them. Import the profiles package once after the update - it is the release's second file. The environment check has the button, and the profiles row's "manage" box can fetch this build's own package for you: the download is checked against the build's digest, so what arrives is what this build was made for. The imported layer lives outside the app's own storage, so an app update never touches it again.
+- A data pack made with this version needs this app to run: the pack no longer carries the runtime inside. The app keeps one runtime per game in its own folder and builds it when the game page opens. The games already on the phone keep working, and a rebuild moves them to the new layout.
+
+### New
+
+- The game page takes care of itself: it opens on a loading page that checks the game, rebuilds the runtime when the profile drifted (no confirmation asked), and starts the game. A failure shows the porter's reason with a retry. The "update runtime" chore is gone from the library.
+- Tapping a game asks the game's own process first: a running game is resumed, a dead one is refused - the library no longer greys cards out on its own guess.
+- A game can be pinned to the home screen from its detail panel: the shortcut goes through the same launch gate as a tap in the library, its id stays with the game, and the icon greys out when the game is deleted.
+- A port can leave the phone as one folder of plain files, and another phone's + button takes the folder in. The folder stays the player's own, wherever they put it, and the same game can sit in the library twice.
+- The help icon opens a FAQ page with the questions players keep asking, in the phone's language; the answers point at the place where the thing is done.
+- The build page says how many of the profiles are really ported: the package holds upstream's iOS profiles too, and those are experiments.
+- The layout editor hides a control on a long press.
+
+### Fixed
+
+- A pack carries its own profile now: the port writes the profile it used into the pack, and a rebuild reads it first, so a rebuild no longer needs the phone the pack was made on. One successful rebuild writes the profile back, so an older pack becomes self-sufficient after one update.
+- The runtime update puts the runtime back where the pack keeps it: an update used to leave a new folder behind while the pack's own host went stale. A pack holds one runtime now, not a pile of them.
+- The profiles package is reproducible: two cuts of the same content are the same file, so the app's digest check no longer calls an identical package "not this build's".
+- DARK SOULS: REMASTERED's re-port no longer dies in the shader split: every BND3 archive hit a broken name read (UnboundLocalError on the first entry). The reader has a test now.
+- The porter's answers come back on the app's main thread: a toast raised from the porter's own thread killed the app right after a successful profiles import.
+- The profiles chip says "not ready" in amber: it said "ready" in amber for everything else, and a missing package was not tellable from a working one.
+
+### Community ports
+
+- No pull request was merged into this repository itself, and no upstream sync came with this release.
+
 ## v0.3.0-alpha14 - 2026-11-16
 
 ### New games
