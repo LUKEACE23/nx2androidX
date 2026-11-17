@@ -63,7 +63,7 @@ README 的 "For players" 一节讲桌面工具，那仍是真实存在的玩家�
   之后的预发布不会自动抢走这个位置。**只改标记可能不会让 "Latest" 指过去**：GitHub 的 "Latest" 在创建时
   就定了（`make_latest`），事后去标记要另外显式点名：
   `gh api -X PATCH repos/zFitness/nx2androidX/releases/<id> -F make_latest=true`。
-  现状：`v0.3.0-alpha12` 是 Latest
+  现状：`v0.3.0-alpha14` 是 Latest
 - **构建只由 tag 触发**：推分支什么都不构建。tag 一推，构建就开始（产物从那个 tag 的提交来），
   它会等 release 建好后把 APK 附上去（`gh release create` 紧跟着 tag 就行）。**要重新构建就把 tag 重推一次**
   （`git tag -f` + `git push --force`），构建跟着新 tag 走
