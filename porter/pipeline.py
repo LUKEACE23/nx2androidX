@@ -1167,13 +1167,25 @@ class Port:
             # (the desktop tool, the upstream engine) the runtime stays in the pack, as before.
             runtimes = os.environ.get('NX2A_RUNTIMES', '').strip()
             if runtimes:
-                from porter.runtime_update import HOOKS, build_marker, install, write_marker
+                from porter.runtime_update import build_marker, write_marker
                 target = Path(runtimes) / self.g.id.lower()
-                install(self.so, target / 'libdmplay.so')
+
+                def copy_into(src, name):
+                    # 拷贝语义（原子写）：宿主、钩子与驱动在构建树/工具树里还有正本，
+                    # 移走会让之后的移植与重建找不到它们。
+                    target.mkdir(parents=True, exist_ok=True)
+                    pending = target / (name + '.part')
+                    with src.open('rb') as f, pending.open('wb') as dst:
+                        shutil.copyfileobj(f, dst)
+                        dst.flush()
+                        os.fsync(dst.fileno())
+                    os.replace(pending, target / name)
+
+                copy_into(self.so, 'libdmplay.so')
                 for lib in self.loader_libs():   # the loader's four hooks, the only managed parts beside the host
-                    install(lib, target / lib.name)
+                    copy_into(lib, lib.name)
                 if self.o.vulkan_driver:   # a driver the player picked for this port loads from the same folder
-                    install(self.o.vulkan_driver, target / driver_lib_name(self.o.vulkan_driver))
+                    copy_into(self.o.vulkan_driver, driver_lib_name(self.o.vulkan_driver))
                 write_marker(target / 'build.json', build_marker(getattr(self, 'profile_h', None), self.o.no_lsfg))
             else:
                 host = 'host/libdmplay.so'
