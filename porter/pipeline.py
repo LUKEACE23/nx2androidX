@@ -3,7 +3,7 @@
 # the rewrite for DM_TARGET=android, the Vulkan shader bundle, the host built with the player's NDK, the APK, the data pack and the install.
 # Work files go where upstream's NSP script puts them, <game folder>/<title ID>_build/ (extract/, aoc/, shader/, logs/ are shared with an iOS build of the same folder),
 # with the Android ones in its android/ folder.
-import hashlib, importlib.util, json, mmap, os, re, shutil, socket, struct, subprocess, sys, traceback
+import collections, hashlib, importlib.util, json, mmap, os, re, shutil, socket, struct, subprocess, sys, time, traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -701,8 +701,78 @@ class Port:
             # The split needs the game's own decoder only for the Oodle entries of GFPAK / Trinity packs. A pure Unreal game's shader code archives are decoded by device_ue (its own
             # rounds), so the split gets no decoder: it would boot the game for a job of zero entries (and crash on a dump whose build the profile does not register).
             self.oodle_run = self.device_oodle if self.oodle_why else None
-        for k in ('glslc_capture', 'ue_legacy') + (() if self.ue_why else ('ue_decode',)) + (() if self.oodle_why else ('oodle_packs',)):
+        # A game that compiles shaders with its own GLSLC at boot (Fire Emblem: Three Houses, Catherine: Full Body): the outputs are in no game file, so the port runs the game's own
+        # compiler to get them (local_glslc), the way it runs the game's own decoder for the Oodle entries
+        self.glslc_why = src['glslc_capture'][1] if src['glslc_capture'][0] else ''
+        for k in ('ue_legacy',) + (() if self.ue_why else ('ue_decode',)) + (() if self.oodle_why else ('oodle_packs',)):
             if src[k][0]: raise BuildError(f'{self.app_name} needs a step that boots the game in the Mac host ({src[k][1]}), which the Android port cannot run yet')
+
+    # ---- shaders the game compiles with its own GLSLC at boot, captured by running that compiler on the device ----
+    GLSLC_SECS = 60   # the longest capture run: the game compiles its shaders within a second of boot, and the run stops as soon as every file the profile names is there
+
+    def glslc_todo(self):
+        """The run-time shader captures this port still needs: the profile's shader map names the capture files it was built from (column 5), a provisional profile names none"""
+        want = nsp.glslc_wanted(self.g)
+        todo = []
+        for v in self.versions:
+            got = nsp.glslc_done(self.dirs[v] / 'glslc_capture')
+            if not (got >= want if want else got): todo.append(v)
+        if todo and todo != [self.pkg_ver]:
+            missing = ', '.join(v for v in todo if v != self.pkg_ver)
+            raise BuildError(f"the run-time shader capture runs the packed version {self.pkg_ver}'s code; {missing} needs a capture of its own")
+        return want, todo
+
+    def glslc_host(self):
+        """The headless host with null graphics (dm/android/gfx_null.c): the game's own modules and the game's own compiler, run without a window"""
+        out = self.aw / ('host-glslc-debug' if self.o.debug else 'host-glslc')
+        PROG.set(step='building the headless host')
+        nsp.run([PY, DM / 'android/build.py', '--game', self.g.id, '--ndk', self.tools['ndk'], '--out', out, '--exe', '--gfx', 'null', '--no-lsfg', '--jobs', str(self.o.jobs)] + ([] if self.o.debug else ['--release']),
+                self.logs / 'android_glslc_host.log', env=self.env)
+        return out / 'dmhost'
+
+    def local_glslc(self):
+        """The capture, run here: the phone app's porter IS the device (Android, arm64), so the game's own compiler runs on this machine — no adb, no second device. The host boots
+        the game with DM_GLSLC_CAPTURE (dm/host/hle_glslc.c), which writes every output it compiles to a folder the split reads like any other GLSLC source. The outputs are the same on
+        every run, so a capture that is already there is reused"""
+        want, todo = self.glslc_todo()
+        if not todo:
+            say('reusing the captured run-time shaders'); return
+        PROG.add(1); PROG.stage('GLSLC capture', step='building the headless host')
+        dmhost = self.glslc_host()
+        d = self.dirs[self.pkg_ver]
+        cap, rd, log = d / 'glslc_capture.partial', self.work / 'tmp/glslc_run', self.logs / 'android_glslc.log'
+        nsp.rmtree(cap); nsp.rmtree(rd)
+        for s in ('save', 'temp'): (rd / s).mkdir(parents=True)
+        os.chmod(dmhost, 0o755)   # a file the App unpacked is not executable: the phone's own exec bit
+        env = dict(self.env, DM_ROOT=str(rd), DM_ROMFS=str(d / 'RomFS'), DM_SAVE=str(rd / 'save'), DM_TEMP=str(rd / 'temp'), DM_GLSLC_CAPTURE=str(cap))
+        env.pop('LD_LIBRARY_PATH', None)   # the guest's glibc libraries are none of the bionic host's business: its own are in /system/lib64
+        shmap = self.g.dir / 'shader_map.tsv'
+        if shmap.is_file(): env['DM_NVN_SHMAP'] = str(shmap)
+        say(f"booting {self.app_name} here to capture the shaders it compiles at run time (up to {self.GLSLC_SECS} s)")
+        t0 = time.time()
+        with open(log, 'w') as f:
+            p = subprocess.Popen([str(dmhost), str(self.patched)], env=env, stdout=f, stderr=subprocess.STDOUT)
+            try:
+                while p.poll() is None and time.time() - t0 < self.GLSLC_SECS:
+                    got = nsp.glslc_done(cap)
+                    if want and got >= want: break
+                    time.sleep(0.25)
+            finally:
+                if p.poll() is None:   # the host's graceful exit (SIGTERM), a kill 5 s later
+                    p.terminate()
+                    try: p.wait(5)
+                    except subprocess.TimeoutExpired: p.kill(); p.wait()
+        got = nsp.glslc_done(cap)
+        if not got or (want and not got >= want):
+            tail = ''.join(collections.deque(open(log, errors='replace'), maxlen=30)).rstrip('\n')
+            PROG.end(ok=False)
+            raise BuildError(f'captured only {len(got)} run-time shaders' + (f', the profile needs {len(want)}' if want else '') + f' (host output: {log})\n{tail}')
+        dst = d / 'glslc_capture'
+        old = d / 'glslc_capture.old'
+        nsp.rmtree(old)
+        if dst.exists(): dst.rename(old)
+        cap.rename(dst); nsp.rmtree(old)
+        PROG.end(f'{len(got)} run-time shader outputs in {time.time() - t0:.0f} s')
 
     # ---- the game's own Oodle decoder, for the shader split (Pokémon Legends: Arceus's GFPAKs, Pokémon Legends: Z-A's Trinity packs) ----
     ODEV = '/data/local/tmp/nx2a-oodle'   # dmhost, the rewritten modules and the job, removed afterwards
@@ -902,6 +972,7 @@ class Port:
         sv = self.versions
         pkg = self.work / 'shader' / 'pkg'
         try:
+            if getattr(self, 'glslc_why', ''): self.local_glslc()   # shaders the game compiles at boot with its own GLSLC: captured by running the game's own compiler here
             if getattr(self, "ue_why", ""): self.device_ue()   # Unreal's shader code archives, decoded with the game's own Oodle (on the device, or here on the phone app) into <version dir>/ue_shaders before the split reads them
             nsp.split_shaders(PY, NXNATIVE, [self.dirs[v] / 'RomFS' for v in sv], [self.dirs[v] / 'ExeFS/main' for v in sv], pkg, self.env, self.logs, self.g, bool(self.derived or self.provisional),
                                oodle=getattr(self, 'oodle_run', None),   # Oodle-compressed archives: the game's own decoder (on the device, or here on the phone app)
