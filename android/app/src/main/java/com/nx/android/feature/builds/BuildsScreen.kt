@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -68,8 +67,6 @@ import com.nx.android.core.ui.components.FirmwareRow
 import com.nx.android.core.ui.components.Hint
 import com.nx.android.feature.filepicker.PickerMode
 import com.nx.android.feature.filepicker.PickerRequest
-import com.nx.android.feature.environment.EnvironmentCheckViewModel
-import com.nx.android.feature.environment.GameProfilesDialog
 import com.nx.android.core.ui.components.PickRow
 import com.nx.android.core.ui.components.QuietButton
 import com.nx.android.core.ui.components.Section
@@ -89,17 +86,19 @@ private fun sourceMatchesTarget(target: File, candidate: File): Boolean {
 /**
  * 构建页：发起与跟踪移植的工作台，按移植的顺序排卡——目标（游戏与它的参数）、进度与取消、产物、日志、历史。
  * 游戏库里点「▶ 构建」把游戏带进来（buildsTarget）；开始按钮在这里，前提的检查与说明也在这里。
+ *
+ * 档案的处理弹窗（在线更新还是本地导入）不在这里画：它要盖住整屏，画在页面里只盖得到顶栏与内容之间
+ * 那一条缝（页面是滚动列，遮罩跟着列走）。这里只报一个意图，外层那一层拿它把弹框画在整屏上。
  */
 @Composable
-fun BuildsRoute(viewModel: BuildsViewModel, envCheckViewModel: EnvironmentCheckViewModel, keys: String, envReady: Boolean,
-                actions: AppActions, onRequest: (PickerRequest) -> Unit, onLog: (String) -> Unit) {
+fun BuildsRoute(viewModel: BuildsViewModel, keys: String, envReady: Boolean,
+                actions: AppActions, onRequest: (PickerRequest) -> Unit, onLog: (String) -> Unit,
+                onOpenProfiles: () -> Unit) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val locale = LocalAppLocale.current
     LaunchedEffect(uiState.running) { if (uiState.running) viewModel.buildStarted() }
     // 档案：玩家可能刚导入过，进页面时读一次回执
     LaunchedEffect(Unit) { viewModel.refreshProfiles() }
-    // 档案的处理弹窗：在线更新还是本地导入
-    var profilesDialog by remember { mutableStateOf(false) }
     // 页面自己要说的话（没有档案的游戏被勾上了实验性移植）：屏幕把它念出来
     LaunchedEffect(viewModel.noticeSeq) {
         when (viewModel.notice) {
@@ -110,23 +109,8 @@ fun BuildsRoute(viewModel: BuildsViewModel, envCheckViewModel: EnvironmentCheckV
             null -> Unit
         }
     }
-    Box(Modifier.fillMaxSize()) {
-        BuildsScreen(viewModel.library, viewModel, uiState, keys, envReady, actions, onRequest, onLog,
-            onImportProfiles = { profilesDialog = true })
-        // 档案的处理弹窗：盖在构建页上（环境检查里的那个，同一个）
-        if (profilesDialog) GameProfilesDialog(
-            viewModel = envCheckViewModel,
-            onLocalImport = {
-                profilesDialog = false
-                onRequest(PickerRequest(PickerMode.FILE, setOf("zip"), null, locale.str(R.string.profiles_pick),
-                    onPicked = { f -> actions.onImportProfiles(f) }))
-            },
-            onUpdated = { ok ->
-                if (ok) actions.onToast(locale.str(R.string.profiles_imported_toast, viewModel.profilesCount))
-            },
-            onDismiss = { profilesDialog = false },
-        )
-    }
+    BuildsScreen(viewModel.library, viewModel, uiState, keys, envReady, actions, onRequest, onLog,
+        onImportProfiles = onOpenProfiles)
 }
 
 @Composable

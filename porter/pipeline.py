@@ -1180,6 +1180,12 @@ class Port:
                 files[host] = self.so
                 for d in self.loader_libs(): files[f'drivers/{d.name}'] = d
                 drivers = sorted({f'drivers/{d.name}' for d in self.loader_libs()})
+            # 档案随包走：构建这份宿主实际用的**整个档案目录**（实验性是派生/扩容后的副本，含
+            # shader_map 等数据表——指纹按目录整体计算，缺文件会让重建误判漂移）写进包内
+            # profile/<title ID>/，重建运行库时它是第一候选——导出、导入与 PC 的包因此自给自足。
+            for src in sorted(self.g.dir.iterdir()):
+                if src.is_file():
+                    files[f'profile/{self.g.id}/{src.name}'] = src
             if theme := self.theme_files(): files.update(theme)
             if src := self.icon_png(): icon = 'icon.png'; files[icon] = src
             for d in self.drivers(): files[f'drivers/{d.name}'] = d

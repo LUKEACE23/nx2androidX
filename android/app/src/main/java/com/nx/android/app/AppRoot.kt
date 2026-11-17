@@ -91,6 +91,7 @@ import com.nx.android.feature.drivers.DriverRoute
 import com.nx.android.feature.environment.EnvChecklistDialog
 import com.nx.android.feature.environment.EnvChip
 import com.nx.android.feature.environment.EnvironmentCheckViewModel
+import com.nx.android.feature.environment.GameProfilesDialog
 import com.nx.android.feature.filepicker.FilePickerScreen
 import com.nx.android.feature.filepicker.PickerMode
 import com.nx.android.feature.filepicker.PickerRequest
@@ -241,7 +242,6 @@ fun AppRoot(
                         onLog = { id -> buildLogId = id },
                         onDiagnosticLog = { logOpen = true },
                         onEnvCheck = { envCheckOpen = true },
-                        envCheckViewModel = environmentCheckViewModel
                     )
                 }
                 val volumes = remember(ctx, locale.mode) { StorageVolumes.list(ctx, locale) }
@@ -448,12 +448,14 @@ fun MainScreen(
     onLog: (String) -> Unit,
     onDiagnosticLog: () -> Unit,
     onEnvCheck: () -> Unit,
-    envCheckViewModel: EnvironmentCheckViewModel
 ) {
     var tab by rememberSaveable { mutableIntStateOf(startTab) }
     // 设置是一整页，盖住顶栏与下面的页面：从顶栏的设置图标进来，关掉才回到底下的页面
     var settingsOpen by remember { mutableStateOf(false) }
     var settingsSection by remember { mutableStateOf(SettingsSection.ENVIRONMENT) }
+    // 档案的处理弹窗：在线更新还是本地导入。构建页的「去导入」叫醒它。
+    // 它盖住整屏，所以画在这一层（页面里画的遮罩只盖得到顶栏下面那一条缝）
+    var profilesOpen by remember { mutableStateOf(false) }
     // 手柄中心：从顶栏的手柄按钮进来，盖住整屏（跟设置页一样）。开着不开着是活动那边
     // 的一份（分发层也要知道：手柄的键该进中心还是进页面）
     val padDevices by GamepadScan.devices.collectAsStateWithLifecycle()
@@ -462,7 +464,7 @@ fun MainScreen(
     // 手柄导航归谁：谁在最上面，谁拿走手柄。
     // 手柄中心开着的时候，手柄的键进中心（活动层就不发了），外面还盖着东西的时候也一样。
     val navHost = when {
-        outerOverlayOpen || padCenterOpen -> NavHost.NONE
+        outerOverlayOpen || padCenterOpen || profilesOpen -> NavHost.NONE
         settingsOpen -> NavHost.SETTINGS
         lib.selected != null -> NavHost.PANEL
         else -> NavHost.LIBRARY
@@ -518,12 +520,13 @@ fun MainScreen(
 
                     Tab.BUILDS -> BuildsRoute(
                         buildsViewModel,
-                        envCheckViewModel,
                         prefs.keys,
                         environmentSetup.ready,
                         actions,
                         onRequest,
-                        onLog
+                        onLog,
+                        // 档案的弹框盖整屏，所以画在这一层：页面只报意图
+                        onOpenProfiles = { profilesOpen = true },
                     )
                 }
             }
@@ -552,6 +555,25 @@ fun MainScreen(
                     navActive = navHost == NavHost.PANEL
                 )
             }
+        }
+        // 档案的处理弹窗：盖住整屏（顶栏也在下面），关掉才回到底下的页面。
+        // 构建页的「去导入」叫醒它；本地导入接着开文件选择器（那一层盖得更上面）
+        if (profilesOpen) {
+            BackHandler { profilesOpen = false; environmentCheckViewModel.cancelPackageUpdate() }
+            GameProfilesDialog(
+                viewModel = environmentCheckViewModel,
+                onLocalImport = {
+                    profilesOpen = false
+                    onRequest(PickerRequest(PickerMode.FILE, setOf("zip"), null, locale.str(R.string.profiles_pick),
+                        onPicked = { f -> actions.onImportProfiles(f) }))
+                },
+                onUpdated = { ok ->
+                    if (ok) actions.onToast(
+                        locale.str(R.string.profiles_imported_toast, environmentCheckViewModel.checks.profilesCount)
+                    )
+                },
+                onDismiss = { profilesOpen = false; environmentCheckViewModel.cancelPackageUpdate() },
+            )
         }
         // 手柄中心：盖住整屏（顶栏也在下面），关掉才回到底下的页面
         if (padCenterOpen) {

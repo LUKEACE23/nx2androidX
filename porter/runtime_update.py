@@ -56,6 +56,28 @@ def build_marker(profile_h, no_lsfg):
     return {'player_api_revision': PLAYER_API_REVISION, 'profile_h': profile_h or '', 'no_lsfg': bool(no_lsfg)}
 
 
+def embed_profile(pack: Path, title_id: str, profile_dir: Path) -> bool:
+    """Copy the profile a runtime was built from into the pack's own profile/<title ID>/ (the two tsv files,
+    each one atomic rename; the source copy stays where it is - this is a copy, not a move). Best-effort: True
+    when the pack carries them, False when they were already there or the write failed (an unmounted card, say)
+    - the next rebuild simply falls back again."""
+    target = pack / 'profile' / title_id
+    if target == profile_dir: return False
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+        for src in sorted(profile_dir.iterdir()):
+            if not src.is_file(): continue   # 子目录不属于档案本身
+            pending = target / (src.name + '.part')
+            with src.open('rb') as f, pending.open('wb') as dst:
+                shutil.copyfileobj(f, dst)
+                dst.flush()
+                os.fsync(dst.fileno())
+            os.replace(pending, target / src.name)
+        return True
+    except OSError:
+        return False
+
+
 def write_marker(target: Path, marker: dict):
     """The build marker goes in last: a runtime without its marker is rebuilt, never loaded half-known."""
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -71,15 +93,16 @@ class ProfileDrift(ValueError):
     """The pack was built with a profile that no longer exists; the player may choose the profile the game has now."""
 
 
-def profile_candidates(title_id):
-    """Where the profile this pack was built with may live: the workspace's own copies first (the headroom copy,
-    the derived one, the provisional one), then the player's own profiles (the package they imported), then the
-    payload's registered profile."""
+def profile_candidates(pack, title_id):
+    """Where the profile this pack was built with may live: the pack's own copy first (the two tsv files travel
+    with the pack, so a rebuild on another device - or after the workspace is gone - finds them), then the build
+    workspace's own copies (the headroom copy, the derived one, the provisional one - older packs rely on them
+    until their first successful rebuild writes the pack's copy), then the player's imported profiles."""
+    yield Path(pack) / 'profile' / title_id
     build = Path(os.environ.get('NX2A_WORK') or tempfile.gettempdir()) / f'{title_id}_build'
     for name in ('profile-mem', 'profile-derived', 'profile'):
         yield build / name / title_id
     yield profiles_layer.layer_dir() / title_id
-    yield DM / 'games' / title_id
 
 
 def profile_fingerprint(directory):
@@ -95,7 +118,7 @@ def profile_fingerprint(directory):
         return hashlib.sha256(header.read_bytes()).hexdigest()
 
 
-def find_profile(title_id, expected, allow_drift=False):
+def find_profile(pack, title_id, expected, allow_drift=False):
     """(the profile to rebuild with, its fingerprint, whether any candidate was there at all)
 
     A pack that recorded no fingerprint (made before the profiles were fingerprinted) cannot be checked: it gets
@@ -103,7 +126,7 @@ def find_profile(title_id, expected, allow_drift=False):
     is told to port the game again if it misbehaves afterwards."""
     found = False
     first = None
-    for candidate in profile_candidates(title_id):
+    for candidate in profile_candidates(pack, title_id):
         fingerprint = profile_fingerprint(candidate)
         if fingerprint is None: continue
         found = True
@@ -128,7 +151,7 @@ def rebuild(pack, *, no_lsfg=False, jobs=None, allow_profile_drift=False, emit=p
         raise ValueError('Invalid game identity. Port the game again from its original files.')
     fingerprint = manifest.get('profile_h')
     if not isinstance(fingerprint, str) or not fingerprint: fingerprint = None   # an old pack: trusted, not checked
-    profile, chosen, found = find_profile(title_id, fingerprint, allow_drift=allow_profile_drift)
+    profile, chosen, found = find_profile(pack, title_id, fingerprint, allow_drift=allow_profile_drift)
     if profile is None:
         if not found:
             raise ValueError('No game profile for this game. Port the game again from its original files.')
@@ -196,6 +219,7 @@ def rebuild(pack, *, no_lsfg=False, jobs=None, allow_profile_drift=False, emit=p
                 manifest.pop('host_front', None)
                 manifest['player_api_revision'] = PLAYER_API_REVISION
                 manifest['profile_h'] = chosen
+                embed_profile(pack, title_id, profile)
             else:
                 # No runtimes folder given (the desktop tool, the upstream engine): the runtime lives in
                 # the pack's own places, the way it always has. The hooks go in first and the host last
@@ -208,6 +232,7 @@ def rebuild(pack, *, no_lsfg=False, jobs=None, allow_profile_drift=False, emit=p
                 manifest['player_api_revision'] = PLAYER_API_REVISION
                 manifest['profile_h'] = chosen   # the profile this runtime was built from (a pack without one gets it now)
                 manifest.pop('host_front', None)
+                embed_profile(pack, title_id, profile)
             pending = stage / 'manifest.json'
             with pending.open('w', encoding='utf-8') as stream:
                 json.dump(manifest, stream, indent=2)

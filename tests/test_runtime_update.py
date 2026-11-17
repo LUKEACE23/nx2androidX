@@ -128,9 +128,13 @@ for name in ('libhook_impl.so', 'libmain_hook.so', 'libfile_redirect_hook.so', '
         self.record(fingerprint)
         self.rebuild()
         self.assert_preserved(manifest=False)
+        # 重建成功后这份档案回写进数据包：之后的工作区删除与否都无所谓了
+        embedded = self.pack / 'profile' / self.title
+        self.assertEqual((embedded / 'game.tsv').read_text(), 'effective game profile with adjusted memory')
+        self.assertEqual((embedded / 'android.tsv').read_text(), 'effective android profile')
 
-    def test_the_payload_profile_is_used_when_the_workspace_has_none(self):
-        fingerprint = self.profile(self.dm / 'games')
+    def test_the_packs_own_profile_is_used_when_the_workspace_has_none(self):
+        fingerprint = self.profile(self.pack / 'profile')
         self.record(fingerprint)
         self.rebuild()
         self.assert_preserved(manifest=False)
