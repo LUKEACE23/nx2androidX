@@ -158,8 +158,13 @@ private fun BuildsScreen(lib: LibraryState, viewModel: BuildsViewModel, uiState:
                     Text(stringResource(R.string.builds_start_hint), style = MaterialTheme.typography.bodyMedium)
                     // 档案：App 不带档案，玩家自己导入一份。没有档案的时候，移植只能盲猜
                     val profiles = viewModel.profilesCount
+                    val ported = viewModel.profilesPorted
                     if (profiles > 0) {
-                        Hint(stringResource(R.string.builds_profiles_ready, profiles), size = 11.sp)
+                        Hint(
+                            if (ported > 0) stringResource(R.string.builds_profiles_ready_ported, profiles, ported)
+                            else stringResource(R.string.builds_profiles_ready, profiles),
+                            size = 11.sp,
+                        )
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(2.dp)) {

@@ -58,6 +58,9 @@ class BuildsViewModel @Inject constructor(
     /** The game profiles the player imported (the app does not carry them) */
     val profilesCount: Int get() = envCheck.profilesCount
 
+    /** The imported profiles that are ported to Android (the rest are upstream's iOS ones) */
+    val profilesPorted: Int get() = envCheck.profilesPorted
+
     /** Reads the imported profiles again: a package may have been imported since the page was last on screen */
     fun refreshProfiles() = envCheck.refreshProfiles()
     var selectedBuildId by mutableStateOf("")

@@ -326,6 +326,7 @@
     <string name="builds_start_hint">选择一个游戏文件开始移植；同目录的更新与 DLC 会自动带上。构建完成后它会在游戏库里出现。</string>
     <string name="builds_choose_game_file">选择游戏文件</string>
     <string name="builds_profiles_ready">已有 %1$d 个游戏档案</string>
+    <string name="builds_profiles_ready_ported">已有 %1$d 个游戏档案，其中 %2$d 个已适配</string>
     <string name="builds_profiles_missing">尚未导入游戏档案</string>
     <string name="builds_profiles_import">去导入</string>
     <string name="builds_target">目标</string>

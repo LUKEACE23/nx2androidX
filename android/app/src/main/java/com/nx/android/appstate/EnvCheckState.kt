@@ -112,6 +112,15 @@ class EnvCheckState @Inject constructor(
     var profilesCount by mutableStateOf(0); private set
     var profilesLabel by mutableStateOf(""); private set
 
+    /**
+     * The imported profiles that are ported to Android (they carry an android.tsv).
+     *
+     * The package holds more than that: most of its profiles are upstream's iOS ones, which the player can try
+     * experimentally but which are not ported. The count is read from the layer itself, so it is right for every
+     * package the player imported, not only for the ones this build made.
+     */
+    var profilesPorted by mutableStateOf(0); private set
+
     /** The package this build made: its name, its digest and its revision (empty when the app carries none) */
     var profilesExpected by mutableStateOf(""); private set
     var profilesExpectedName by mutableStateOf(""); private set
@@ -161,7 +170,9 @@ class EnvCheckState @Inject constructor(
         profilesCount = 0
         profilesLabel = ""
         profilesDiffer = false
-        val receipt = File(paths.nxHome, "profiles/manifest.json")
+        profilesPorted = 0
+        val layer = File(paths.nxHome, "profiles")
+        val receipt = File(layer, "manifest.json")
         if (!receipt.isFile) return
         val text = runCatching { receipt.readText() }.getOrNull() ?: return
         val json = runCatching { JSONObject(text) }.getOrNull() ?: return
@@ -170,6 +181,8 @@ class EnvCheckState @Inject constructor(
         // the digests: the player's package against this build's. A different one is not wrong, it is another one.
         val theirs = json.optString("sha256", "")
         profilesDiffer = profilesExpected.isNotEmpty() && theirs.isNotEmpty() && theirs != profilesExpected
+        // the ported ones: the profiles that carry an android.tsv (the layer mirrors the game's own tree)
+        profilesPorted = layer.listFiles()?.count { it.isDirectory && File(it, "android.tsv").isFile } ?: 0
     }
 
     /**

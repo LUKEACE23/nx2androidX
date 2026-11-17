@@ -327,6 +327,7 @@
     <string name="builds_start_hint">Pick a game file to start a port; the updates and the DLC next to it are taken along. It appears in the library when the build is done.</string>
     <string name="builds_choose_game_file">Choose a game file</string>
     <string name="builds_profiles_ready">%1$d game profile(s) imported</string>
+    <string name="builds_profiles_ready_ported">%1$d game profile(s) imported, %2$d of them ported</string>
     <string name="builds_profiles_missing">No game profiles imported</string>
     <string name="builds_profiles_import">Import</string>
     <string name="builds_target">Target</string>
