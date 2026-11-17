@@ -562,6 +562,8 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onSizePreview = { c, s -> padView.previewSize(c, s) },
                     onSizeCommit = { c, s -> padView.commitSize(c, s) },
                     onSizeCancel = { c -> padView.cancelPreview(c) },
+                    onLongPress = { c -> padView.hideControl(c) },   // 长按：把它藏起来
+                    onShow = { c -> padView.showControl(c) },        // 点一下幽灵：把它找回来
                     onDone = { closeEditor() },
                 )
             }

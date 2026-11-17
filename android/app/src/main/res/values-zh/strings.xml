@@ -307,7 +307,8 @@
     <string name="drawer_pad_reset_layout">恢复默认布局</string>
     <string name="editor_done">完成</string>
     <string name="editor_reset_layout">重置</string>
-    <string name="editor_hint">拖动控件移动位置；点一下改它的大小。</string>
+    <string name="editor_hint">拖动控件移动位置；点一下改它的大小；长按把它藏起来。</string>
+    <string name="editor_hidden_toast">已藏起%1$s · 点一下它的影子就能找回来</string>
     <string name="editor_ctl_stick_l">左摇杆</string>
     <string name="editor_ctl_stick_r">右摇杆</string>
     <string name="editor_ctl_dpad">十字键</string>

@@ -308,7 +308,8 @@
     <string name="drawer_pad_reset_layout">Reset the layout to default</string>
     <string name="editor_done">Done</string>
     <string name="editor_reset_layout">Reset</string>
-    <string name="editor_hint">Drag a control to move it; tap it to change its size.</string>
+    <string name="editor_hint">Drag a control to move it; tap it to change its size; hold it to hide it.</string>
+    <string name="editor_hidden_toast">%1$s hidden — tap its ghost to bring it back</string>
     <string name="editor_ctl_stick_l">Left stick</string>
     <string name="editor_ctl_stick_r">Right stick</string>
     <string name="editor_ctl_dpad">D-pad</string>
