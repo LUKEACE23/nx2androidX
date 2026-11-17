@@ -30,6 +30,8 @@ object LibraryLogic {
     fun statusOf(entry: GameEntry, portRunning: Boolean, portGameFile: String, workStartedAt: Long): GameStatus = when {
         portRunning && building(entry, portGameFile, workStartedAt) -> GameStatus.PORTING
         entry.pack?.runnable == true -> GameStatus.DONE
+        // 导入的包：运行库还没有（另一台手机编的运行库不在这里），第一次运行时由这台手机自己编
+        entry.isImported && entry.pack != null && entry.romfsInside -> GameStatus.DONE
         else -> GameStatus.NEEDS_BUILD
     }
 
@@ -48,14 +50,19 @@ object LibraryLogic {
      *
      * 一个 title ID 一张卡：有包有工作区都归它。源文件只是附件（[sources] 记着它上次是从哪个文件
      * 构建的），它不在了也不影响这张卡。
+     *
+     * 导入的包按它自己的路径单列：同一个游戏可以在库里有一份 App 自己做的和一份导入的，
+     * 两份不互相取代。
      */
-    fun merge(packs: Map<String, Ported>, work: Map<String, File>, sources: Map<String, String>): List<GameEntry> {
+    fun merge(packs: Map<String, Ported>, work: Map<String, File>, sources: Map<String, String>,
+              imported: List<GameEntry> = emptyList()): List<GameEntry> {
         val entries = LinkedHashMap<String, GameEntry>()
         for ((tid, pack) in packs) entries[tid] = GameEntry(tid, pack, work[tid], sources[tid])
         for ((tid, w) in work) {
             if (!entries.containsKey(tid)) entries[tid] = GameEntry(tid, null, w, sources[tid])
         }
-        return entries.values.sortedBy { it.label.lowercase() }
+        val all = entries.values + imported
+        return all.sortedBy { it.label.lowercase() }
     }
 
     /**

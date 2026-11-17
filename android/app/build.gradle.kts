@@ -187,6 +187,7 @@ val legacyFeatureDataImports = setOf(
     "feature/library/LibraryHeroDetails.kt|com.nx.android.data.library.GameProfile",
     "feature/library/LibraryScreen.kt|com.nx.android.data.library.GameProfile",
     "feature/library/LibraryStatus.kt|com.nx.android.data.library.GameProfile",
+    "feature/faq/FaqContent.kt|com.nx.android.data.AppLocale",
     "feature/settings/SettingsScreen.kt|com.nx.android.data.AppLocale",
     "feature/settings/SettingsScreen.kt|com.nx.android.data.LosslessDll",
 )

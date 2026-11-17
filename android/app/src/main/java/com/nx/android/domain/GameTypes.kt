@@ -18,21 +18,29 @@ enum class GameStatus {
  * 库里的一张卡：一个游戏（title ID）+ 它的三样东西——数据包、构建工作区、上次构建用的源文件。
  *
  * 身份是 title ID，不是路径：源文件被挪走或删掉时，卡还在（包与工作区还在）。
+ *
+ * 导入的包是另一回事：它的身份是**它自己的路径**（[imported]），同一个游戏因此可以在库里
+ * 有一份 App 自己做的和一份导入的，两份各跑各的。
  */
 data class GameEntry(
     val titleId: String,        // 游戏的 title ID（每张卡都有）
     val pack: Ported?,          // 数据包
     val work: File?,            // 构建工作区
     val sourcePath: String?,    // 上次构建用的源文件路径（文件可能已经不在了）
+    val imported: PortablePack.Imported? = null,   // 导入的包：路径就是它的身份
 ) {
     /** 上次构建用的那个源文件：还在吗 */
     val source: File? get() = sourcePath?.let { File(it) }?.takeIf { it.isFile }
 
-    /** 卡片的稳定标识 */
-    val key: String get() = titleId
+    /** 这张卡是导入的（不是 App 自己移植的） */
+    val isImported: Boolean get() = imported != null
 
-    /** 卡上的名字：包清单里的游戏名；没有包就用记住的源路径中的文件名 */
+    /** 卡片的稳定标识：导入的卡按自己的路径认，本地的卡按 title ID 认 */
+    val key: String get() = imported?.path ?: titleId
+
+    /** 卡上的名字：包清单里的游戏名；导入的卡用登记时记下的名字；没有包就用记住的源路径中的文件名 */
     val label: String get() = pack?.name?.trim()?.takeIf { it.isNotEmpty() }
+        ?: imported?.name?.trim()?.takeIf { it.isNotEmpty() }
         ?: sourcePath?.let { GameIdentity.displayName(File(it)) }
         ?: titleId
 
@@ -42,6 +50,10 @@ data class GameEntry(
      */
     val romfsSharedWithWorkspace: Boolean
         get() = pack != null && GameCleanup.packReadsWorkspace(pack.romfsAt, work)
+
+    /** 游戏的文件就在包里（导入的文件夹自带 RomFS/；老的 PC 工具出的包也是） */
+    val romfsInside: Boolean
+        get() = pack != null && File(pack.pack, PortablePack.ROMFS).isDirectory
 }
 
 

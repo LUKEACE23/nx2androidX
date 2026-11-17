@@ -8,6 +8,7 @@ import com.nx.android.domain.GameEntry
 import com.nx.android.domain.GameConfig
 import com.nx.android.domain.LibraryLogic
 import com.nx.android.domain.PackMover
+import com.nx.android.domain.PortablePack
 import com.nx.android.domain.library.GameLibraryRepository
 import java.io.File
 import javax.inject.Inject
@@ -28,6 +29,8 @@ class LibraryOperationCoordinator @Inject constructor(
     }
 
     fun remove(entry: GameEntry): GameCleanup.Result = synchronized(moving) {
+        // 导入的游戏：那个文件夹是玩家的文件，删它等于替玩家删东西 —— 只忘路径
+        if (entry.isImported) return@synchronized removeImported(entry)
         removalBlockedLocked(entry)?.let { return@synchronized GameCleanup.Result(it) }
         val plan = planRemoval(entry)
         removalBlockedLocked(entry)?.let { return@synchronized GameCleanup.Result(it) }
@@ -40,6 +43,18 @@ class LibraryOperationCoordinator @Inject constructor(
             workspaceKnown = plan.workspaceKnown,
             failed = deleted.failed + unreachable,
         )
+    }
+
+    /**
+     * 移出一个导入的游戏：只忘掉那个路径。
+     *
+     * 那个文件夹是玩家的文件（可能在卡上），App 不删它、也不碰它 —— 它只是不再出现在库里。
+     */
+    fun removeImported(entry: GameEntry): GameCleanup.Result = synchronized(moving) {
+        removalBlockedLocked(entry)?.let { return@synchronized GameCleanup.Result(it) }
+        val path = entry.imported?.path ?: return@synchronized GameCleanup.Result(GameCleanup.Outcome.FAILED)
+        repository.forgetImported(path)
+        GameCleanup.Result(outcome = GameCleanup.Outcome.DONE, workspaceKnown = true)
     }
 
     fun clearCache(entry: GameEntry): GameCleanup.Result = synchronized(moving) {
@@ -73,6 +88,17 @@ class LibraryOperationCoordinator @Inject constructor(
     fun removalBlocked(entry: GameEntry): GameCleanup.Outcome? = synchronized(moving) { removalBlockedLocked(entry) }
 
     fun moveBlocked(entry: GameEntry): GameCleanup.Outcome? = moveBlocked(entry, includeMoving = true)
+
+    /** 导出一个完成的移植：一个文件夹（数据包 + 散装的游戏文件） */
+    fun exportPack(entry: GameEntry, targetDir: File, onProgress: (PortablePack.Progress) -> Unit): PortablePack.Result =
+        repository.exportPack(entry, targetDir, onProgress)
+
+    /** 登记一个导入的文件夹（路径就是它的身份） */
+    fun registerImported(dir: File, validation: PortablePack.Validation): PortablePack.Imported? =
+        repository.registerImported(dir, validation)
+
+    /** 忘掉一个导入的文件夹（文件留在原地） */
+    fun forgetImported(path: String) = repository.forgetImported(path)
 
     fun planRemoval(entry: GameEntry): GameCleanup.Plan {
         val packs = repository.packsOf(entry)

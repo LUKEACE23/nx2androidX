@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Refresh
@@ -42,6 +43,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -116,6 +118,7 @@ import com.nx.android.input.ui.PadCenterController
 import com.nx.android.input.ui.PadCenterScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
@@ -455,6 +458,10 @@ fun MainScreen(
     // 设置是一整页，盖住顶栏与下面的页面：从顶栏的设置图标进来，关掉才回到底下的页面
     var settingsOpen by remember { mutableStateOf(false) }
     var settingsSection by remember { mutableStateOf(SettingsSection.ENVIRONMENT) }
+    // 导入别人导出的数据包：顶栏的加号先进这个说明框，框里的按钮再去选文件夹
+    var importPackHelp by remember { mutableStateOf(false) }
+    // 导入要读那个文件夹：不在主线程上做
+    val scope = rememberCoroutineScope()
     // 常见问题：也是一整页，从顶栏设置旁边的那个图标进来
     var faqOpen by remember { mutableStateOf(false) }
     // 档案的处理弹窗：在线更新还是本地导入。构建页的「去导入」叫醒它。
@@ -505,6 +512,7 @@ fun MainScreen(
                 selected = tab,
                 onSelect = { tab = it.ordinal },
                 onRefresh = { lib.rescan() },
+                onImportPack = { importPackHelp = true },
                 onSettings = { settingsOpen = true },
                 onFaq = { faqOpen = true },
                 padCount = padDevices.size,
@@ -609,13 +617,52 @@ fun MainScreen(
                 navActive = navHost == NavHost.FAQ
             )
         }
+        // 导入的说明框：顶栏那个加号先进这里，框里的按钮再去选文件夹
+        if (importPackHelp) {
+            AlertDialog(
+                onDismissRequest = { importPackHelp = false },
+                title = { Text(locale.str(R.string.lib_pack_import_title)) },
+                text = { Text(locale.str(R.string.lib_pack_import_text)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        importPackHelp = false
+                        onRequest(PickerRequest(PickerMode.DIR, emptySet(), File("/storage"),
+                            locale.str(R.string.lib_pack_import_pick),
+                            onPicked = { dir ->
+                                // 登记要读那个文件夹（还要把包自己的行指到它现在的位置）：不在主线程上做
+                                scope.launch {
+                                    val result = withContext(Dispatchers.IO) { lib.importPack(dir) }
+                                    actions.onToast(
+                                        if (result.ok) locale.str(R.string.lib_pack_import_done, result.name.ifEmpty { result.titleId })
+                                        else locale.str(importFailureText(result.failure))
+                                    )
+                                }
+                            }))
+                    }) { Text(locale.str(R.string.lib_pack_import_pick)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { importPackHelp = false }) { Text(locale.str(R.string.common_cancel)) }
+                },
+            )
+        }
     }
+}
+
+/** 导入没有成功的原因：数据层给的是代码，这里把它说成一句话 */
+private fun importFailureText(code: String?): Int = when (code) {
+    "not_a_folder" -> R.string.lib_pack_import_not_folder
+    "no_manifest" -> R.string.lib_pack_import_no_manifest
+    "bad_title_id" -> R.string.lib_pack_import_bad_id
+    "no_romfs" -> R.string.lib_pack_import_no_romfs
+    "already_imported" -> R.string.lib_pack_import_already
+    else -> R.string.lib_pack_import_failed
 }
 
 /** 一行式顶栏：品牌 + 两个纯文字 tab（选中亮/未选灰）+ 环境状态胶囊 + 右侧图标与时钟（capyps5 的骨架，我们的颜色） */
 @Composable
 private fun TopBar(
     selected: Int, onSelect: (Tab) -> Unit, onRefresh: () -> Unit,
+    onImportPack: () -> Unit,
     onSettings: () -> Unit,
     onFaq: () -> Unit,
     padCount: Int, onOpenPadCenter: () -> Unit,
@@ -663,6 +710,9 @@ private fun TopBar(
         }
         Spacer(Modifier.weight(1f))
         TopIcon(Icons.Filled.Refresh, stringResource(R.string.app_refresh_library), onRefresh)
+        Spacer(Modifier.width(6.dp))
+        // 导入一个别人导出的数据包：先看一句说明，再去选文件夹
+        TopIcon(Icons.Filled.Add, stringResource(R.string.lib_pack_import_action), onImportPack)
         Spacer(Modifier.width(6.dp))
         // 手柄中心：顶栏的入口（接着几只手柄就亮几颗）
         PadIcon(padCount, onOpenPadCenter)
