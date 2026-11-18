@@ -193,6 +193,35 @@ def registered_patches():
     return out
 
 
+# The marker in a profile folder the porter copied into dm/games: the tree's own profiles have none, so a copy can be told from one that is not ours to replace
+IMPORTED = '.nx2a-imported'
+
+
+def in_checkout(path):
+    """The path is inside a git checkout (the repository's own tree: not ours to write)"""
+    for d in [Path(path), *Path(path).parents]:
+        if (d / '.git').exists(): return True
+    return False
+
+
+def copy_imported_profile(tid, games=None):
+    """The player's imported profile of a game into the tool tree's dm/games, where the tools that do not read DM_GAMES_DIR look for it: the rewriter (patch_nso.py) finds
+    the profiles' patches.py only there (without them a profile's cuts are not applied: FINAL FANTASY RESONANCE's allocator cut, without which Unreal's own allocator
+    reserves 38 GB of address space and the port dies), and so do the host's profile header and the runtime update. The copy is refreshed at every port (a player who
+    imported a newer package gets the newer profile) and put back after an app update wiped the tree. A profile the tree has of its own (the desktop bundle, a checkout)
+    is left alone. → the copy's folder, or None when there was nothing to copy"""
+    src = profiles_layer.layer_dir() / tid
+    if not (src / 'game.tsv').is_file(): return None   # the player imported no profile of this game
+    games = Path(games or DM / 'games')
+    dst = games / tid
+    if dst.exists() and not (dst / IMPORTED).is_file(): return None   # the tree's own profile: not ours to replace
+    if in_checkout(games): return None   # a checkout: its profiles are the ones to use, and they are not ours to write
+    nsp.rmtree(dst)
+    shutil.copytree(src, dst, ignore=shutil.ignore_patterns('__pycache__'))
+    (dst / IMPORTED).write_text(f'copied from {src}\n', encoding='utf-8')
+    return dst
+
+
 def lost_patches(builds, exefs, mods, table=None):
     """The modules of a derived port whose build has no registered patch while the profile's tested builds of it have some: the rewriter applies a module's patches by its build ID
     only, so the module runs without them. Unpacking's base game v0 ships sdk 2d369d99… (no cuts until GitHub issue #26) where update 2.01's sdk 357efc19… has the node-area and
@@ -443,6 +472,7 @@ class Port:
         say(f'game folder: {o.folder}' + (f' (game: {o.game.name})' if o.game else ''))
         self.app, self.fam = nsp.scan_nsps(o.folder, dumps.EXTS, o.keys, o.game)
         tid = f'{self.app:016X}'
+        self.sync_profile(tid)   # the player's imported profile into dm/games, before the profile is read (a copy of an older import would hide the newer one)
         # the build folder: where the port's own programs run and where the game is unpacked. On a phone it
         # cannot be next to the game (Android does not let an app run a program on the shared storage), so
         # NX2A_WORK points at the app's own folder.
@@ -516,6 +546,15 @@ class Port:
         self.env['DM_GAMES_DIR'] = os.environ['DM_GAMES_DIR'] = os.pathsep.join(dirs)
         if first: self.env['DM_GAMES_FIRST'] = os.environ['DM_GAMES_FIRST'] = '1'
 
+    def sync_profile(self, tid):
+        """The player's imported profile into the tool tree's dm/games (copy_imported_profile): the rewriter's patches.py and the host's profile header are looked up
+        there, and not in the folder the player imported them into"""
+        try:
+            dst = copy_imported_profile(tid)
+        except OSError as e:
+            say(f'[RED] the imported profile of {tid} could not be copied into dm/games ({e}): the rewriter applies none of its patches'); return
+        if dst: say(f'game profile {tid}: copied into dm/games ({dst}), so the rewriter applies its patches')
+
     def experimental_profile(self, g, tid):
         """A profile for a game not ported to Android, in <build folder>/profile/<id>/ (outside the repository): upstream's survey and provisional profile when the game has
         none (scripts/build_ipa_from_nsp.py survey / write_profile, dm/games/profile_guess.py), or a copy of its iOS profile; plus an android.tsv with status experimental.
@@ -536,7 +575,7 @@ class Port:
             self.provisional = True
             say('[RED] provisional game profile: values guessed from the survey, the game may not start')
         elif not (d / 'game.tsv').is_file() or (g.dir / 'game.tsv').stat().st_mtime > (d / 'game.tsv').stat().st_mtime:   # the iOS profile as it is now
-            nsp.rmtree(d); shutil.copytree(g.dir, d, ignore=shutil.ignore_patterns('patches.py', '__pycache__'))   # patches.py stays in dm/games, where patch_nso.py finds it
+            nsp.rmtree(d); shutil.copytree(g.dir, d, ignore=shutil.ignore_patterns('patches.py', '__pycache__'))   # patches.py stays in dm/games, where patch_nso.py finds it (the imported profile's copy is there: sync_profile)
         if not (d / 'android.tsv').is_file():
             (d / 'android.tsv').write_text(f'# Written by porter for an experimental port: the game has not been brought up on Android\nstatus\texperimental\n'
                                           f'package\torg.nx2a.t{tid.lower()}\norientation\tlandscape\n', encoding='utf-8')
@@ -614,7 +653,8 @@ class Port:
 
     def mem_profile(self):
         """The player's --alias-headroom on a version the profile was brought up on (or a provisional or experimental profile): a copy of the profile in
-        <build folder>/profile-mem/ with the bigger guest block, which every tool takes first. patches.py stays in dm/games, where patch_nso.py finds it. extract() removes
+        <build folder>/profile-mem/ with the bigger guest block, which every tool takes first. patches.py stays in dm/games, where patch_nso.py finds it (the imported
+        profile's copy is there: sync_profile). extract() removes
         an earlier run's copy before it, so the build folder keeps none without the option"""
         pdir = self.work / 'profile-mem'
         if not self.o.alias_headroom: return

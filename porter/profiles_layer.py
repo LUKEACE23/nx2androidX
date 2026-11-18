@@ -4,6 +4,10 @@
 # the package once and keeps it. game.py finds the profiles through DM_GAMES_DIR (dm/games/game.py "DM_GAMES_DIR"), so the layer joins that
 # variable and every tool that reads a profile - the porter, the shader tools, the host build - sees the imported ones.
 #
+# The tools that do not read that variable look in dm/games: the rewriter (patch_nso.py finds the profiles' patches.py only there) and the host's profile
+# header. A port copies the imported profile there (porter.pipeline.copy_imported_profile); the copy is refreshed at every port and put back after an
+# app update wiped the tool tree.
+#
 # The package's layout is checked before anything is written: an entry that is not a profile folder, or that tries to leave the layer, is
 # refused, and every profile folder has to hold a game.tsv. The layer's receipt records what came in.
 import hashlib, json, os, re, shutil, time, zipfile
