@@ -77,7 +77,11 @@
       },
       {
         "q": "What is coming next?",
-        "a": "On the list: screen resolution, cheats, mods, online play and upscaling. They are all still being worked on - please wait for a later release. Everything that works today is written down in the other entries on this page."
+        "a": "On the list: screen resolution, mods, online play and upscaling. They are all still being worked on - please wait for a later release. Everything that works today is written down in the other entries on this page."
+      },
+      {
+        "q": "How do I use cheats?",
+        "a": "In the game, open the drawer and go to the Cheats tab: turn on \"Use cheats\" and the cheats of this game are listed, each with its own switch, effective at once. The cheat files come with the data pack (the community files in the Atmosphère format, matched to the game's build). It can change values in the game's memory and patch the game's own code; the ones that would touch a word the rewriter changed (writing there would break the game) are marked with the reason they cannot run."
       }
     ]
   }

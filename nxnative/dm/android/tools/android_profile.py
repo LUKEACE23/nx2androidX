@@ -15,6 +15,8 @@
 #   env          <KEY>=<VALUE>, one row each: host switches the game needs on Android (the data pack's env.txt)
 #   overlay      <tablet|phone> <control> <x> <y>: moves one control of that layout (dm/android/overlay_default.tsv) to x, y as fractions of the window
 #   romfs        raw (default) | zstd: zstd puts the RomFS files that compress in the data pack as packed files (porter/romfs_pack.py), which the host reads back
+#   cheats       the game's cheat file in the profile folder, relative to it (Atmosphère format, named by the build it belongs to);
+#                the pack carries it in its cheats/ folder and the host runs it when the player turns the cheats on (docs/ARCHITECTURE.md)
 # Usage: android_profile.py header <id> <out.h> (android_profile.h for the host: the gamepad layouts, written only when it changes); android_profile.py list;
 #   android_profile.py <id> [<key>] (the profile's keys, or one key's value); android_profile.py theme <id> (the gamepad theme pack porter puts in the APK)
 # From Python: import android_profile; p = android_profile.load(<id>) (None without android.tsv); p.status, p.package, p.settings, p.env, p.overlay_table();
@@ -33,7 +35,7 @@ SETTINGS = {'overlay': ('0', '1'), 'rumble': ('0', '1'), 'docked': ('0', '1'), '
 REQUIRES = ('bcn',)
 GRAPHICS = ('vulkan', 'gl', 'nvn')
 KINDS = {'stick_l': 'OV_STICK_L', 'stick_r': 'OV_STICK_R', 'button': 'OV_BUTTON', 'dpad': 'OV_DPAD', 'menu': 'OV_MENU'}
-SINGLE = ('status', 'tested', 'package', 'orientation', 'requires', 'sysdata', 'graphics', 'lan', 'romfs')
+SINGLE = ('status', 'tested', 'package', 'orientation', 'requires', 'sysdata', 'graphics', 'lan', 'romfs', 'cheats')
 REPEAT = ('setting', 'env', 'overlay')
 
 
@@ -103,6 +105,10 @@ class AndroidProfile:
     def romfs_zstd(self): return self.get('romfs', 'raw') == 'zstd'   # the data pack's RomFS compressed (porter/romfs_pack.py)
 
     @property
+    def cheats(self):   # the cheat file in the profile folder, relative to it ('' when the game has none)
+        return self.get('cheats')
+
+    @property
     def graphics(self): return self.get('graphics', '')   # 'vulkan' | 'gl' | 'nvn' ('' when it is not known)
 
     @property
@@ -138,6 +144,9 @@ class AndroidProfile:
             k, eq, val = v.partition('=')
             if not eq or k not in SETTINGS or val not in SETTINGS[k]: bad.append(f'setting {v!r}: ' + ', '.join(f'{n}={"|".join(vs)}' for n, vs in SETTINGS.items()))
         bad += [f'env {v!r}: KEY=VALUE' for v in self.values('env') if not re.fullmatch(r'[A-Z_][A-Z0-9_]*=.*', v)]
+        if v := self.get('cheats'):
+            if Path(v).is_absolute() or '..' in Path(v).parts: bad.append(f'cheats {v!r}: a path inside the profile folder')
+            elif not (self.game.dir / v).is_file(): bad.append(f'cheats {v!r}: no such file in the profile folder')
         names = {r['name'] for r in default_layout()}
         for v in self.values('overlay'):
             c = v.split()

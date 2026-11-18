@@ -12,3 +12,7 @@ tested	v196608 Lenovo Legion Y700 TB322FC (Snapdragon 8 Elite, Adreno 830, Andro
 package	org.nx2a.darksoulsremastered
 orientation	landscape
 graphics	nvn
+# The community's cheat file for this build (Atmosphère format, the file the cheat sites share): the data pack carries it in its
+# cheats/ folder and the game runs it when the player turns the cheats on (docs/ARCHITECTURE.md). Its name is the first 16 hex
+# digits of main's build ID, so a file of another build is never loaded.
+cheats	cheats/DF3766A2BB651A3E.txt

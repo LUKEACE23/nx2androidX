@@ -64,6 +64,7 @@ import com.nx.android.core.ui.theme.NxPalette
 import com.nx.android.core.ui.theme.NxTheme
 import com.nx.android.data.AppLocale
 import com.nx.android.data.AppLog
+import com.nx.android.data.CheatSettings
 import com.nx.android.data.FrameGenSettings
 import com.nx.android.data.LosslessDll
 import com.nx.android.data.MotionKnobs
@@ -170,6 +171,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var fgSettings: FrameGenSettings? = null
     private var rateSettings: RateSettings? = null
     private var motionSettings: MotionSettings? = null
+    private var cheatSettings: CheatSettings? = null
     private var padPlayers: PadPlayers? = null
     private var packPath: String? = null
     private var packTitleId: String? = null
@@ -483,6 +485,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         fgSettings = titleId?.let { FrameGenSettings(PrefsStore(this), it) }
         rateSettings = titleId?.let { RateSettings(PrefsStore(this), it) }
         motionSettings = titleId?.let { MotionSettings(PrefsStore(this), it) }
+        cheatSettings = titleId?.let { CheatSettings(PrefsStore(this), it) }
         padPlayers = PadPlayers(this, PadPlayers.GLOBAL)   // 谁玩谁是全局一份（手柄中心与这里读写同一份）
         // 手柄的档案（每只手柄一份）与手柄的枚举：中心靠它
         loadPadProfiles()
@@ -499,7 +502,8 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         hudFahrenheit = prefs.bool(PrefsStore.HUD_TEMP_F, false)
         // 体感的两行也交给宿主：开不开（默认按设备有没有陀螺仪）与保留甩动方向（每个游戏各一份）
         val env = (fgSettings?.load()?.envLines(LosslessDll.ensure(this)?.absolutePath) ?: emptyArray()) +
-            (motionSettings?.load(hasGyroscope(this))?.envLines() ?: emptyArray())
+            (motionSettings?.load(hasGyroscope(this))?.envLines() ?: emptyArray()) +
+            (cheatSettings?.envLine(cheatsDir()) ?: emptyArray())
         if (!Native.start(pack, filesDir.path, titleId, resources.displayMetrics.densityDpi, env, this)) {
             endProcess()   // the save import asked to end: it happens at the next start
             return
@@ -593,6 +597,31 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         externalOn = on
         PrefsStore(this).put(PrefsStore.EXTERNAL_DISPLAY, on)
         if (on) startExternal() else stopExternal()
+    }
+
+    // ---- 金手指（宿主那边跑，App 只下发开关）----
+
+    /** 数据包里的金手指目录（有才有：这个数据包没有带金手指） */
+    private fun cheatsDir(): String? {
+        val pack = packPath ?: return null
+        val dir = File(pack, "cheats")
+        return if (dir.isDirectory) dir.absolutePath else null
+    }
+
+    /**
+     * 金手指的总开关：开着就让宿主加载这个 build 的金手指文件（运行时就能开关每一条），
+     * 关着就让宿主什么都不加载、不执行。开关本身按游戏记着（下次启动照旧）。
+     */
+    private fun setCheatsMaster(on: Boolean) {
+        val s = cheatSettings ?: return
+        s.setMaster(on)
+        val dir = cheatsDir()
+        if (on && dir != null) runCatching { Native.cheatsOpen(dir) } else runCatching { Native.cheatsClose() }
+    }
+
+    /** 开关一条金手指：宿主那边改状态并记下来（它自己知道这个 build 的编号与条目名） */
+    private fun setCheat(index: Int, on: Boolean) {
+        runCatching { Native.cheatsSet(index, on) }
     }
 
     /**
@@ -746,6 +775,10 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                 externalOn = { externalOn },
                 externalAvailable = { externalScreenAttached() },
                 onExternal = { setExternal(it) },
+                // 金手指：总开关与每条的开关（宿主那边加载、跑、记）
+                cheatsMaster = { cheatSettings?.master() == true },
+                onCheatsMaster = { setCheatsMaster(it) },
+                onCheatToggle = { i, on -> setCheat(i, on) },
                 // 暂停/继续：游戏原地停/起，抽屉不收——玩家可以一边停着一边调设置
                 onPauseGame = {
                     paused = true

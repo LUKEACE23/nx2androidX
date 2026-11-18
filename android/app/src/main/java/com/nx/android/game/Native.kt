@@ -149,4 +149,19 @@ object Native {
      * 认出「这个数据包是用旧前端编的」，请玩家重新移植。位：1 = 玩家前端（App 画手柄，宿主不画面板）。
      */
     @JvmStatic external fun frontCaps(): Int
+
+    /**
+     * 金手指：宿主那边这个游戏的金手指，JSON 数组（每条：名字 name、是否开着 on、不能跑的原因 why）。
+     * 老宿主的宿主没有这个入口（调用即抛 UnsatisfiedLinkError），App 据此不显示这一页。
+     */
+    @JvmStatic external fun cheatsList(): String
+
+    /** 开关一条金手指：1 = 成功，-1 = 这条不能跑（要改游戏的代码之类），0 = 没有这条 */
+    @JvmStatic external fun cheatsSet(index: Int, on: Boolean): Int
+
+    /** 加载金手指（总开关打开时）：目录 = 数据包里的 cheats 目录；返回条目数（0 = 这个 build 没有金手指） */
+    @JvmStatic external fun cheatsOpen(dir: String): Int
+
+    /** 关掉金手指：宿主不再加载也不再执行 */
+    @JvmStatic external fun cheatsClose()
 }

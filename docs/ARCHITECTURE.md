@@ -137,8 +137,15 @@ A profile is offered for Android when it has an `android.tsv`; the profiles with
 | `romfs` | `raw` (default) or `zstd`: the data pack's RomFS files that compress are stored zstd-compressed and read back by the host ("Compressed RomFS" below) |
 | `env` | `<KEY>=<VALUE>`: a host switch the game needs on Android, written to the data pack's `env.txt` |
 | `overlay` | `<tablet\|phone> <control> <x> <y>`: moves one on-screen control of that layout (`dm/android/overlay_default.tsv`) to x, y as fractions of the window, compiled into `android_profile.h` |
+| `cheats` | The game's cheat file in the profile folder, relative to it: an Atmosphère-format file named by the build it belongs to (the first 16 hex digits of main's build ID). The pack carries it in its `cheats/` folder and the host runs it when the player turns the cheats on in the game (see "Cheats" below) |
 
 Per-build knowledge stays where upstream keeps it: the rewriter's cuts in `patches.py` / `dm/tools/sdk_patches.py`, keyed by build ID.
+
+## Cheats
+
+The host runs the Atmosphère-format cheat codes (the dmnt cheat VM of Atmosphère 1.12.1) that the cheat sites share: the file of a build is named by the first 16 hex digits of main's build ID, and the host loads the file of the build it runs (`dm/host/hle_cheats.c`). A profile's `cheats` key names that file; the data pack carries it in its `cheats/` folder, and the app points the host at that folder (`DM_CHEATS`) when the player turns the cheats on in the game's drawer (the "Cheats" tab). The host runs the enabled cheats once per game frame (at the game's own present, `hle_nvn.c`), and it remembers each cheat's switch in `<build ID>.enabled` beside the file.
+
+A cheat may write the game's own code (a community cheat that patches an instruction). The host seals the code pages read+execute after loading them, so the write path opens the write bit on the pages it needs, writes, and flushes the instruction cache - the execution bit never goes off, because a thread that is executing there would fault and take the game with it. Two places stay off limits: the host's own pages (the key page, the patch area with its stubs) and the words the rewriter changed or hooked (`sites.tsv` / `cuts.tsv`, read into the module's table): writing there would break the game's own code in a way nobody can undo, so such a cheat is refused and turned off with the reason. Everything else follows the reference: a failed access is ignored and retried (a pointer the game has not set yet), the registers reset once per pass, and one cheat that cannot run does not stop the others.
 
 ## The port
 

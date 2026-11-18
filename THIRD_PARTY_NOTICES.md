@@ -31,6 +31,7 @@ describes what every one of them is, which version it is and where it is used.
 | Component | License | Where | License text |
 |---|---|---|---|
 | `nvn.h` (the NVN API declarations) | MIT, Copyright (c) 2020 h1k421 | `nxnative/dm/gfx/nvn/include/nvn.h` | in the file header |
+| The cheat engine (the Atmosphère dmnt cheat VM), ported from the sibling host's engine (the BananaNative repository) | MIT, Copyright (c) 2026 seedds | `nxnative/dm/host/hle_cheats.c` | in the file header |
 | The layout size algorithm ported from deko3d | zlib, Copyright (C) 2018-2020 fincs | `nxnative/dm/gfx/nvn/nvn_tex.c` | in the file header |
 | Two adaptations from MacNativeGames (MIT) | MIT | `nxnative/dm/gfx/nvn/nvn_mtl.m`, `nxnative/dm/gfx/tools/dmsh_xlate/Program.cs` | `nxnative/dm/third_party/macnativegames/LICENSE` |
 | `stb_image.h` (2.23), `stb_image_write.h` (1.13), `tinyexr.h` | MIT / public domain | `nxnative/dm/third_party/flip/tool/` | in each file's header |

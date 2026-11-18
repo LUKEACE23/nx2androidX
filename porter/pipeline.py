@@ -1301,6 +1301,8 @@ class Port:
                              progress=lambda what: PROG.set(step=f'linking {what}'))
         self.data_path = dst; self.result['data'] = str(dst)
         PROG.end(f'{man["files"]:,} files, {man["bytes"] / 2**30:.1f} GB')
+        if man.get('cheats'): say(f'cheats: the pack carries {man["cheats"]} (the game runs it when the player turns the cheats on)')
+        elif self.ap and self.ap.cheats: say(f'cheats: {self.ap.cheats} belongs to another build than this pack ({datapack.build_id(self.patched) or "unknown"}): not packed')
 
     def lists(self):
         """The launcher's lists: the languages the game supports (languages.txt) and the drivers the APK carries (drivers.txt).

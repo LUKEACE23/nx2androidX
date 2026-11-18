@@ -39,6 +39,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -96,7 +97,9 @@ import com.nx.android.data.FrameGenSettings
 import com.nx.android.data.LosslessDll
 import com.nx.android.data.RatePin
 import com.nx.android.game.hud.HudField
+import com.nx.android.game.Cheat
 import com.nx.android.game.Native
+import com.nx.android.game.parseCheats
 import com.nx.android.game.input.PadStyle
 import com.nx.android.input.GamepadScan
 import com.nx.android.input.PadAssignment
@@ -115,6 +118,7 @@ enum class DrawerTab(@StringRes val label: Int, val icon: ImageVector) {
     CONTROLS(R.string.drawer_tab_controls, Icons.Filled.SportsEsports),
     AUDIO(R.string.drawer_tab_audio, Icons.AutoMirrored.Filled.VolumeUp),
     PLAYERS(R.string.drawer_tab_players, Icons.Filled.Groups),
+    CHEATS(R.string.drawer_tab_cheats, Icons.Filled.Extension),
 }
 
 /**
@@ -164,6 +168,9 @@ fun GameDrawer(
     externalOn: () -> Boolean,
     externalAvailable: () -> Boolean,
     onExternal: (Boolean) -> Unit,
+    cheatsMaster: () -> Boolean,
+    onCheatsMaster: (Boolean) -> Unit,
+    onCheatToggle: (Int, Boolean) -> Unit,
     onPauseGame: () -> Unit,
     onResumeGame: () -> Unit,
     onExit: () -> Unit,
@@ -197,6 +204,11 @@ fun GameDrawer(
                 var pads by remember { mutableStateOf(emptyList<GamepadScan.Info>()) }
                 // 外接屏：插上拔下也要看得见（开着这个模式却没有屏，要告诉玩家）
                 var extAvailable by remember { mutableStateOf(externalAvailable()) }
+                // 金手指：老宿主没有这个入口（调用即抛 UnsatisfiedLinkError）——那一页给一句话说明，别留一个空页
+                val cheatsGet = remember { runCatching { Native.cheatsList() } }
+                val cheatsSupported = cheatsGet.isSuccess
+                // 宿主那边可能自己关掉一条（比如它要改游戏的代码，跑一次就关了），所以开着抽屉时每次轮询都读一遍
+                var cheatList by remember { mutableStateOf(if (cheatsSupported) parseCheats(cheatsGet.getOrDefault("")) else emptyList()) }
                 var tick by remember { mutableIntStateOf(0) }
                 LaunchedEffect(open) {   // 打开期间 2 Hz 轮询宿主的状态串与帧率档位
                     while (open) {
@@ -211,6 +223,8 @@ fun GameDrawer(
                         runCatching { pads = pads() }
                         // 外接屏：每次都读（插上显示器要立刻看得见）
                         if (externalSupported()) runCatching { extAvailable = externalAvailable() }
+                        // 金手指：每次都读（宿主可能自己关掉了一条）
+                        if (cheatsSupported) runCatching { cheatList = parseCheats(Native.cheatsList()) }
                         tick++
                         delay(500)
                     }
@@ -261,6 +275,8 @@ fun GameDrawer(
                                         onPick = { id -> audioId = id; Native.audioSet(id) })
                                     // 玩家页：谁玩谁（这个游戏里哪只手柄是几号玩家）
                                     DrawerTab.PLAYERS -> PlayerRows(pads, players, onPlayers)
+                                    // 金手指页：这个游戏的金手指与它们的开关（宿主那边跑，App 只显示与下发）
+                                    DrawerTab.CHEATS -> CheatRows(cheatList, cheatsMaster(), cheatsSupported, onCheatsMaster, onCheatToggle)
                                 }
                             }
                             Spacer(Modifier.height(8.dp))
@@ -682,6 +698,42 @@ private fun PlayerRows(
         }
     }
     HintRow(stringResource(R.string.drawer_players_note))
+}
+
+/**
+ * 金手指页：总开关与这个游戏的金手指。
+ *
+ * 总开关关着的时候宿主不加载也不执行任何金手指（这一页不列条目）；打开后每条一个开关。
+ * 不能跑的那条（要改游戏的代码）开关是灰的，小字写着原因。
+ */
+@Composable
+private fun CheatRows(
+    cheats: List<Cheat>,
+    master: Boolean,
+    supported: Boolean,
+    onMaster: (Boolean) -> Unit,
+    onToggle: (Int, Boolean) -> Unit,
+) {
+    if (!supported) {
+        HintRow(stringResource(R.string.drawer_cheats_unsupported))
+        return
+    }
+    GroupLabel(stringResource(R.string.drawer_group_cheats))
+    ToggleRow(Icons.Filled.Extension, stringResource(R.string.drawer_cheats_master),
+        stringResource(R.string.drawer_cheats_master_hint), master, onChange = onMaster)
+    if (!master) {
+        HintRow(stringResource(R.string.drawer_cheats_off_hint))
+        return
+    }
+    if (cheats.isEmpty()) {
+        HintRow(stringResource(R.string.drawer_cheats_none))
+        return
+    }
+    for ((i, c) in cheats.withIndex()) {
+        ToggleRow(Icons.Filled.Tune, c.name, if (c.broken) c.why else null, c.on, enabled = !c.broken) {
+            onToggle(i, it)
+        }
+    }
 }
 
 /**
