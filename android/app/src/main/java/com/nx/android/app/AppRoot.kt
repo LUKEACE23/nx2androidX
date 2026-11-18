@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -54,6 +55,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -62,6 +64,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nx.android.R
@@ -709,19 +712,19 @@ private fun TopBar(
             )
         }
         Spacer(Modifier.weight(1f))
-        TopIcon(Icons.Filled.Refresh, stringResource(R.string.app_refresh_library), onRefresh)
-        Spacer(Modifier.width(6.dp))
+        // 右侧这一排：按钮彼此相邻，靠每个按钮自己的 10dp 内边距形成均匀的节奏（capyps5 顶栏的排法），
+        // 所以这里不插额外的间隔，否则图标会被撑得松散
         // 导入一个别人导出的数据包：先看一句说明，再去选文件夹
         TopIcon(Icons.Filled.Add, stringResource(R.string.lib_pack_import_action), onImportPack)
-        Spacer(Modifier.width(6.dp))
+        // 重新扫描资料库
+        TopIcon(Icons.Filled.Refresh, stringResource(R.string.app_refresh_library), onRefresh)
         // 手柄中心：顶栏的入口（接着几只手柄就亮几颗）
         PadIcon(padCount, onOpenPadCenter)
-        Spacer(Modifier.width(6.dp))
         // 设置：它是一整页，从这个图标进来
         TopIcon(Icons.Filled.Settings, stringResource(R.string.app_tab_settings), onSettings)
-        Spacer(Modifier.width(6.dp))
         // 常见问题：也是一整页，紧挨着设置图标
         TopIcon(Icons.Filled.HelpOutline, stringResource(R.string.app_faq), onFaq)
+        // 按钮簇到这里结束：环境状态胶囊是状态不是按钮，隔开一点
         Spacer(Modifier.width(6.dp))
         EnvChip(chip, onChip)
         Text(
@@ -733,13 +736,14 @@ private fun TopBar(
     }
 }
 
-/** 手柄的入口：接着手柄时图标是亮的，旁边一个数字是接了几只。 */
+/** 手柄的入口：接着手柄时图标是亮的，右下角的小数字是接了几只。 */
 @Composable
 private fun PadIcon(padCount: Int, onClick: () -> Unit) {
     val description = stringResource(R.string.app_pad_center_connected, padCount)
     Box(
         Modifier
-            .size(40.dp)
+            // 42dp：和 TopIcon（22dp 图标 + 两侧 10dp 内边距）一样宽，圆心才能落在同一节拍上
+            .size(42.dp)
             .clip(RoundedCornerShape(50))
             .clickable(onClick = onClick)
             .semantics {
@@ -748,21 +752,32 @@ private fun PadIcon(padCount: Int, onClick: () -> Unit) {
             },
         contentAlignment = Alignment.Center,
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Icon(
-                Icons.Filled.SportsEsports,
-                null,
-                Modifier.size(22.dp),
-                tint = if (padCount > 0) MaterialTheme.colorScheme.onBackground else NxPalette.Unbuilt,
-            )
-            if (padCount > 0) {
+        Icon(
+            Icons.Filled.SportsEsports,
+            null,
+            Modifier.size(22.dp),
+            tint = if (padCount > 0) MaterialTheme.colorScheme.onBackground else NxPalette.Unbuilt,
+        )
+        if (padCount > 0) {
+            // 数字叠在图标的右下角，不排在图标旁边：图标因此一直坐在格子正中，
+            // 接上手柄时整排图标也不会跟着挪动
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = (-3).dp, y = (-3).dp)
+                    .size(14.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(MaterialTheme.colorScheme.surface),
+                contentAlignment = Alignment.Center,
+            ) {
                 Text(
-                    "$padCount",
+                    if (padCount > 9) "9+" else "$padCount",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 9.sp,
+                    lineHeight = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    // 数字已经在按钮的描述里了，不必再读一遍
+                    modifier = Modifier.clearAndSetSemantics { },
                 )
             }
         }

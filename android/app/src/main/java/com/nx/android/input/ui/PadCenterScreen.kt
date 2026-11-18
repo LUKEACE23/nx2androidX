@@ -57,6 +57,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nx.android.R
@@ -67,6 +68,7 @@ import com.nx.android.input.PadMapping
 import com.nx.android.input.PadAssignment
 import com.nx.android.input.PadTestInput
 import com.nx.android.input.PadTestState
+import kotlin.math.min
 
 /**
  * 手柄中心：接在手机上的物理手柄看得见、摸得着。
@@ -114,8 +116,10 @@ fun PadCenterScreen(
     ) {
         val compact = maxWidth < 760.dp
         val sidePadding = if (maxWidth < 600.dp) 14.dp else 28.dp
+        // 左边的列表往左贴一点：右边那块示波面板是固定尺寸的（面键的菱形、摇杆盘），得留地方
+        val startPadding = if (maxWidth < 600.dp) 4.dp else 16.dp
         Column(
-            Modifier.fillMaxSize().padding(horizontal = sidePadding).widthIn(max = 1040.dp)
+            Modifier.fillMaxSize().padding(start = startPadding, end = sidePadding).widthIn(max = 1040.dp)
                 .align(Alignment.Center),
         ) {
             Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -325,9 +329,24 @@ private fun ColumnScope.PhysicalControllerPage(
                 )
             }
             Spacer(Modifier.height(24.dp))
-            UtilityButtons(state?.pressed.orEmpty())
-            Spacer(Modifier.height(16.dp))
-            ControllerDiagram(state, compact, faceSlots)
+            // 示波面板是固定 dp 的（按键、菱形、摇杆盘）：窄屏放不下就整块等比缩小 ——
+            // 不缩的话行尾的键（面键右边的 A）被顶出屏幕，看不见
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val available = maxWidth
+                // Box 的子元素是叠着画的：扳机行和示波图要竖着排，里面套一层 Column
+                Column {
+                    UtilityButtons(
+                        state?.pressed.orEmpty(),
+                        compact,
+                        fitScale(available, utilityWidth(compact)),
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    ControllerDiagram(
+                        state, compact, faceSlots,
+                        fitScale(available, diagramWidth(compact)),
+                    )
+                }
+            }
             Spacer(Modifier.height(20.dp))
             Text(
                 stringResource(
@@ -368,39 +387,86 @@ private fun ColumnScope.PhysicalControllerPage(
     }
 }
 
+/** 示波面板里那几件固定尺寸的东西：一颗按键、一个菱形、一只摇杆盘。 */
+private val BUTTON_SIZE = 38.dp
+private val BUTTON_PAD = 2.dp
+private val DIAMOND_GAP = 42.dp
+private val STICK_SIZE = 112.dp
+
+/** 一颗按键占多宽（含边距）。 */
+private fun buttonWidth(): Dp = BUTTON_SIZE + BUTTON_PAD * 2
+
+/** 一个菱形占多宽（左键 + 中缝 + 右键）。 */
+private fun diamondWidth(): Dp = buttonWidth() * 2 + DIAMOND_GAP
+
+/** 扳机那一行（ZL…ZR）占多宽：窄屏一行 4 颗，宽屏一行 8 颗。 */
+private fun utilityWidth(compact: Boolean): Dp = buttonWidth() * if (compact) 4 else 8
+
+/** 示波图占多宽：窄屏两行（十字键+菱形 / 两根摇杆），宽屏一行排开。 */
+private fun diagramWidth(compact: Boolean): Dp = if (compact) {
+    maxOf(diamondWidth() * 2, STICK_SIZE * 2)
+} else {
+    diamondWidth() * 2 + STICK_SIZE * 2
+}
+
+/** 放不下就按可用宽度等比缩小（缩放只在示波面板里用，改了排版不用重来）。 */
+private fun fitScale(available: Dp, need: Dp): Float =
+    if (need <= 0.dp) 1f else min(1f, available.value / need.value)
+
 /** 肩键与摇杆：ZL、L、L3、SELECT、OPTION、R3、R、ZR。 */
 @Composable
-private fun UtilityButtons(pressed: Set<String>) {
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        listOf(
-            "ZL" to "zl",
-            "L" to "l",
-            "L3" to "ls",
-            "-" to "minus",
-            "+" to "plus",
-            "R3" to "rs",
-            "R" to "r",
-            "ZR" to "zr",
-        ).forEach { (label, key) -> TestButton(label, key in pressed) }
+private fun UtilityButtons(pressed: Set<String>, compact: Boolean, scale: Float) {
+    val items = listOf(
+        "ZL" to "zl",
+        "L" to "l",
+        "L3" to "ls",
+        "-" to "minus",
+        "+" to "plus",
+        "R3" to "rs",
+        "R" to "r",
+        "ZR" to "zr",
+    )
+    if (compact) {
+        // 窄屏：一行放不下 8 颗，分成两行（每行 4 颗）
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy((8 * scale).dp)) {
+            items.chunked(4).forEach { chunk ->
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    chunk.forEach { (label, key) -> TestButton(label, key in pressed, scale) }
+                }
+            }
+        }
+    } else {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            items.forEach { (label, key) -> TestButton(label, key in pressed, scale) }
+        }
     }
 }
 
 /** 十字键、两根摇杆与面键（面键是手柄上的那个菱形：上、左、右、下）。 */
 @Composable
-private fun ControllerDiagram(state: PadTestState?, compact: Boolean, face: FaceSlots) {
+private fun ControllerDiagram(
+    state: PadTestState?,
+    compact: Boolean,
+    face: FaceSlots,
+    scale: Float,
+) {
     if (compact) {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy((20 * scale).dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                Dpad(state?.pressed.orEmpty())
-                FaceButtons(state?.pressed.orEmpty(), face)
+                Dpad(state?.pressed.orEmpty(), scale)
+                FaceButtons(state?.pressed.orEmpty(), face, scale)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                StickIndicator("L", state?.leftX ?: 0f, state?.leftY ?: 0f)
-                StickIndicator("R", state?.rightX ?: 0f, state?.rightY ?: 0f)
+                StickIndicator("L", state?.leftX ?: 0f, state?.leftY ?: 0f, scale)
+                StickIndicator("R", state?.rightX ?: 0f, state?.rightY ?: 0f, scale)
             }
         }
     } else {
@@ -409,24 +475,24 @@ private fun ControllerDiagram(state: PadTestState?, compact: Boolean, face: Face
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Dpad(state?.pressed.orEmpty())
-            StickIndicator("L", state?.leftX ?: 0f, state?.leftY ?: 0f)
-            StickIndicator("R", state?.rightX ?: 0f, state?.rightY ?: 0f)
-            FaceButtons(state?.pressed.orEmpty(), face)
+            Dpad(state?.pressed.orEmpty(), scale)
+            StickIndicator("L", state?.leftX ?: 0f, state?.leftY ?: 0f, scale)
+            StickIndicator("R", state?.rightX ?: 0f, state?.rightY ?: 0f, scale)
+            FaceButtons(state?.pressed.orEmpty(), face, scale)
         }
     }
 }
 
 @Composable
-private fun Dpad(pressed: Set<String>) {
+private fun Dpad(pressed: Set<String>, scale: Float) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        TestButton("↑", "up" in pressed)
+        TestButton("↑", "up" in pressed, scale)
         Row {
-            TestButton("←", "left" in pressed)
-            Spacer(Modifier.width(42.dp))
-            TestButton("→", "right" in pressed)
+            TestButton("←", "left" in pressed, scale)
+            Spacer(Modifier.width(DIAMOND_GAP * scale))
+            TestButton("→", "right" in pressed, scale)
         }
-        TestButton("↓", "down" in pressed)
+        TestButton("↓", "down" in pressed, scale)
     }
 }
 
@@ -437,22 +503,22 @@ private fun Dpad(pressed: Set<String>) {
  * 亮起来的是玩家此刻按着的那一颗。
  */
 @Composable
-private fun FaceButtons(pressed: Set<String>, slots: FaceSlots) {
+private fun FaceButtons(pressed: Set<String>, slots: FaceSlots, scale: Float) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        FaceButton(slots.top, pressed)
+        FaceButton(slots.top, pressed, scale)
         Row {
-            FaceButton(slots.left, pressed)
-            Spacer(Modifier.width(42.dp))
-            FaceButton(slots.right, pressed)
+            FaceButton(slots.left, pressed, scale)
+            Spacer(Modifier.width(DIAMOND_GAP * scale))
+            FaceButton(slots.right, pressed, scale)
         }
-        FaceButton(slots.bottom, pressed)
+        FaceButton(slots.bottom, pressed, scale)
     }
 }
 
 /** 面键的一格：字是那个方位的游戏键，亮不亮是玩家按着没有。 */
 @Composable
-private fun FaceButton(target: String?, pressed: Set<String>) {
-    TestButton(target?.uppercase() ?: "–", target != null && target in pressed)
+private fun FaceButton(target: String?, pressed: Set<String>, scale: Float) {
+    TestButton(target?.uppercase() ?: "–", target != null && target in pressed, scale)
 }
 
 /** 面键的四方：每个方位上的游戏键（没有绑定就是 null）。 */
@@ -464,12 +530,12 @@ private data class FaceSlots(
 )
 
 @Composable
-private fun TestButton(label: String, pressed: Boolean) {
+private fun TestButton(label: String, pressed: Boolean, scale: Float) {
     val state = stringResource(
         if (pressed) R.string.pad_center_pressed else R.string.pad_center_released,
     )
     Box(
-        Modifier.padding(2.dp).size(38.dp).clip(CircleShape)
+        Modifier.padding(BUTTON_PAD * scale).size(BUTTON_SIZE * scale).clip(CircleShape)
             .background(if (pressed) NxPalette.Brand else NxPalette.Surface)
             .semantics { contentDescription = "$label, $state" },
         contentAlignment = Alignment.Center,
@@ -478,13 +544,13 @@ private fun TestButton(label: String, pressed: Boolean) {
             label,
             color = if (pressed) NxPalette.Background else Color(0xFFA9A9B2),
             style = MaterialTheme.typography.titleMedium,
-            fontSize = if (label.length > 2) 10.sp else 17.sp,
+            fontSize = ((if (label.length > 2) 10f else 17f) * scale).sp,
         )
     }
 }
 
 @Composable
-private fun StickIndicator(label: String, x: Float, y: Float) {
+private fun StickIndicator(label: String, x: Float, y: Float, scale: Float) {
     val description = stringResource(R.string.pad_center_stick_state, label, (x * 100).toInt(), (y * 100).toInt())
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -495,7 +561,7 @@ private fun StickIndicator(label: String, x: Float, y: Float) {
             style = MaterialTheme.typography.labelLarge,
             color = Color(0xFFA9A9B2),
         )
-        Canvas(Modifier.padding(top = 8.dp).size(112.dp)) {
+        Canvas(Modifier.padding(top = (8 * scale).dp).size(STICK_SIZE * scale)) {
             val center = Offset(size.width / 2, size.height / 2)
             val radius = size.minDimension * 0.43f
             drawCircle(NxPalette.Surface, radius, center)

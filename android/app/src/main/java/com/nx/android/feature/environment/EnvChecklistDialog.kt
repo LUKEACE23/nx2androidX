@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -59,6 +60,10 @@ import com.nx.android.core.ui.theme.NxPalette
  * doctor's rows are below the two cheap ones: they cost seconds (a python inside the rootfs), so they run only
  * when the player asks for them.
  */
+
+/** 弹窗最高占可用高度的比例：留一点边距，内容超出时由清单自己滚动 */
+private const val CARD_HEIGHT_RATIO = 0.92f
+
 @Composable
 fun EnvChecklistDialog(
     viewModel: EnvironmentCheckViewModel,
@@ -79,7 +84,7 @@ fun EnvChecklistDialog(
     var phantomOpen by remember { mutableStateOf(false) }
     // 档案的处理弹窗：在线更新还是本地导入
     var profilesOptions by remember { mutableStateOf(false) }
-    Box(
+    BoxWithConstraints(
         Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable { onDismiss() },
         contentAlignment = Alignment.Center,
     ) {
@@ -88,6 +93,9 @@ fun EnvChecklistDialog(
         // nothing - the scrim shows, the card does not.
         Box(
             Modifier.widthIn(max = 520.dp)
+                // 卡片不越过屏幕：手机横屏只有约 400dp 高，超出的部分由清单自己滚动，
+                // 而不是把底部的按钮顶出屏幕（居中的卡片上下两端一起被裁）。
+                .heightIn(max = maxHeight * CARD_HEIGHT_RATIO)
                 .clip(RoundedCornerShape(20.dp))
                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(20.dp))
                 .background(NxPalette.Surface.copy(alpha = 0.9f))
@@ -102,7 +110,9 @@ fun EnvChecklistDialog(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 Column(
-                    Modifier.fillMaxWidth().heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                    // 标题与底部按钮之间的那块地方：清单吃掉剩下的高度并自己滚动，
+                    // 所以底下的按钮永远在屏幕上（清单里有几行、跑没跑过自检都不影响）。
+                    Modifier.weight(1f, fill = false).fillMaxWidth().verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     CheckLine(

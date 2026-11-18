@@ -344,6 +344,7 @@
     <string name="fw_title">Firmware</string>
     <string name="fw_not_imported">not imported</string>
     <string name="fw_import">Import zip</string>
+    <string name="fw_reimport">Import again</string>
     <string name="fw_pick">Choose the firmware package (zip)</string>
     <string name="fw_hint">Optional: only a game that reads the console\'s system data needs it (Mario Kart 8 Deluxe\'s Mii heads). Import a firmware zip (the kind an emulator uses) and you are done.</string>
     <string name="fw_imported">%1$s imported (%2$d files)</string>

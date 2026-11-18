@@ -16,24 +16,32 @@ import com.nx.android.core.ui.theme.NxPalette
 /**
  * 固件那一行：整机级的一份（可选）。
  *
- * 状态点 + 现在是什么（没导入 / 导入的 zip 名）+ 导入 / 清除。
+ * 状态点 + 现在是什么（导入的 zip 名，没导入时不写文字——状态点的颜色已经说了）+ 导入 / 重新导入。
  * 导入是设备级的事：环境清单、设置页的环境一节、引导与构建页都指向这一行，
  * 导入的东西在 App 的私有目录里，移植时统一带给移植器。
+ *
+ * @param onClear 清除按钮的动作；不传（null）就不显示那个按钮
  */
 @Composable
 fun FirmwareRow(
     imported: String,
     onImport: () -> Unit,
-    onClear: () -> Unit,
+    onClear: (() -> Unit)? = null,
 ) {
     InfoRow(
         title = stringResource(R.string.fw_title),
-        value = imported.ifEmpty { stringResource(R.string.fw_not_imported) },
+        // 没导入时不写「没导入」：状态点已经用颜色说了，重复一遍只是噪音
+        value = imported.takeIf { it.isNotBlank() },
         leading = { StatusDot(if (imported.isNotBlank()) NxPalette.Ready else NxPalette.Unbuilt, 8.dp) },
         trailing = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                QuietButton(stringResource(R.string.fw_import), onClick = onImport)
-                if (imported.isNotBlank()) QuietButton(stringResource(R.string.builds_clear), onClick = onClear)
+                QuietButton(
+                    if (imported.isNotBlank()) stringResource(R.string.fw_reimport) else stringResource(R.string.fw_import),
+                    onClick = onImport,
+                )
+                if (imported.isNotBlank() && onClear != null) {
+                    QuietButton(stringResource(R.string.builds_clear), onClick = onClear)
+                }
             }
         },
     )

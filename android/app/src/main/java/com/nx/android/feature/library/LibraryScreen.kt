@@ -5,13 +5,15 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -220,27 +222,28 @@ internal fun LibraryContent(
     Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
         if (entries.isEmpty()) {
             // 空态：架子上的几个空位、一句提示、支持的格式。没有按钮——加游戏的路只有构建页那一条
-            // 竖着放不下（横屏）时也能滚
-            Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    EmptyShelf()
-                    Spacer(Modifier.height(26.dp))
-                    Text(
-                        stringResource(R.string.lib_empty_title),
-                        style = MaterialTheme.typography.displaySmall,
-                        textAlign = TextAlign.Center,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        stringResource(R.string.lib_empty_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.widthIn(max = 340.dp),
-                    )
-                    Spacer(Modifier.height(18.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        for (f in EMPTY_FORMATS) FormatChip(f)
+            // 插画在左、文案在右（这 app 只横屏）。竖排的话中间那一小坨浮在一大片黑里，
+            // 两边全是空的；并排之后整块内容占住画面的一半，架子也看得清。
+            // 窗口窄到并排放不下（分屏）时，退回竖排居中。
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val wide = maxWidth > maxHeight * 1.25f
+                Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.Center) {
+                    if (wide) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            EmptyShelf()
+                            Spacer(Modifier.width(36.dp))
+                            EmptyCopy(Alignment.Start, TextAlign.Start)
+                        }
+                    } else {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            EmptyShelf()
+                            Spacer(Modifier.height(26.dp))
+                            EmptyCopy(Alignment.CenterHorizontally, TextAlign.Center)
+                        }
                     }
                 }
             }
@@ -297,10 +300,40 @@ private fun LibraryContentPreview() {
     }
 }
 
-/** 预览：空库（架子上几个空位） */
+/** 预览：空库（架子上几个空位）——平板横放，并排 */
 @Preview(name = "Library empty", widthDp = 1280, heightDp = 800, showBackground = true)
 @Composable
 private fun LibraryEmptyPreview() {
+    PreviewSurface {
+        LibraryContent(
+            entries = emptyList(),
+            heroIndex = 0,
+            statusOf = previewStatus,
+            portProgress = 0f,
+            actions = previewActions(),
+        )
+    }
+}
+
+/** 预览：手机竖屏上的空库——竖排 */
+@Preview(name = "Library empty portrait", widthDp = 420, heightDp = 860, showBackground = true)
+@Composable
+private fun LibraryEmptyPortraitPreview() {
+    PreviewSurface {
+        LibraryContent(
+            entries = emptyList(),
+            heroIndex = 0,
+            statusOf = previewStatus,
+            portProgress = 0f,
+            actions = previewActions(),
+        )
+    }
+}
+
+/** 预览：横屏手机上的空库——并排，插画与文案都在屏内 */
+@Preview(name = "Library empty landscape", widthDp = 780, heightDp = 360, showBackground = true)
+@Composable
+private fun LibraryEmptyLandscapePreview() {
     PreviewSurface {
         LibraryContent(
             entries = emptyList(),
