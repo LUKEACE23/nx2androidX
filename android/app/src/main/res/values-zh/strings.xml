@@ -650,6 +650,15 @@
     <string name="drawer_cheats_off_hint">打开后才能看到并使用这个游戏的金手指</string>
     <string name="drawer_cheats_none">这个游戏的这个版本没有金手指</string>
     <string name="drawer_cheats_unsupported">这个运行库没有金手指功能</string>
+    <string name="drawer_cheats_download">从社区库下载</string>
+    <string name="drawer_cheats_downloading">下载中…</string>
+    <string name="drawer_cheats_redownload">重新下载</string>
+    <string name="drawer_cheats_retry">重试下载</string>
+    <string name="drawer_cheats_no_build">社区库里没有这个版本</string>
+    <string name="drawer_cheats_download_hint">从 switch-cheats-db 下载这个 build 的文件（需要联网）</string>
+    <string name="drawer_cheats_no_build_hint">社区库里没有这个游戏这个版本的金手指</string>
+    <string name="drawer_cheats_failed_hint">下载失败：检查网络后再试</string>
+    <string name="drawer_cheats_credit">出处：%1$s</string>
     <string name="drawer_player_n">玩家 %1$d</string>
     <string name="drawer_player_auto">自动</string>
     <string name="drawer_player_none">没有手柄</string>

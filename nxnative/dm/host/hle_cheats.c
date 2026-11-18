@@ -3,7 +3,8 @@
 //
 // Atmosphère-format cheat codes (the dmnt cheat VM) applied to the running game: the .txt files that cheat sites share,
 // named by the first 16 hex digits of the main NSO's build ID (dm_main_build(), from the rewriter's fixups header).
-// The app points the host at the folder that holds them (DM_CHEATS=<folder>, the data pack's cheats/ folder) and the host
+// The app points the host at the folder that holds them (DM_CHEATS=<folder>, the app's own cheats/ folder, where the
+// file it downloaded from the community library lies) and the host
 // loads the file of the build it runs (dm_cheats_open); the player turns the cheats on and off in the game's drawer (the
 // app's Cheats tab, through dm_cheats_set), and the host remembers the toggles in <build ID>.enabled beside the file.
 //
@@ -930,6 +931,14 @@ static char *find_file(const char *dir) {
     return found;
 }
 
+// The build ID as the cheat files name it: the first 16 hex digits of main's build ID, upper case ("" when the build
+// is not known)
+static void build16(const char *build, char out[17]) {
+    if (strlen(build) < 16) { out[0] = 0; return; }
+    for (int i = 0; i < 16; i++) out[i] = (char)toupper((unsigned char)build[i]);
+    out[16] = 0;
+}
+
 // Load the cheats of the running build from the folder: the file whose name is the build ID, its entries parsed and the
 // toggles read from <build ID>.enabled beside it. Returns the number of entries (0 when the folder holds no file of this
 // build: another build's cheats would write the wrong places, so none of them is loaded)
@@ -946,9 +955,8 @@ int dm_cheats_open(const char *dir) {
     for (int i = 0; i < g_nmod; i++) if (!strcmp(g_mod[i].name, "main")) g_main = &g_mod[i];
     if (!g_main) { pthread_mutex_unlock(&g_lock); return 0; }
     const char *build = dm_main_build();
-    if (strlen(build) < 16) { pthread_mutex_unlock(&g_lock); return 0; }
-    for (int i = 0; i < 16; i++) g_build[i] = (char)toupper((unsigned char)build[i]);
-    g_build[16] = 0;
+    build16(build, g_build);
+    if (!g_build[0]) { pthread_mutex_unlock(&g_lock); return 0; }
     if (!dir || !dir[0]) { pthread_mutex_unlock(&g_lock); return 0; }
     snprintf(g_dir, sizeof g_dir, "%s", dir);
     char *file = find_file(g_dir);
@@ -977,6 +985,17 @@ void dm_cheats_close(void) {
     free(g_cheat); g_cheat = NULL; g_ncheat = 0;
     g_dir[0] = 0; g_build[0] = 0;
     pthread_mutex_unlock(&g_lock);
+}
+
+// The build ID the cheat files are named by: the first 16 hex digits of main's build ID, upper case ("" when the
+// running build is not known). The app asks the host for it: the community library holds one file per build, and the
+// app needs to know which one belongs to the game it runs.
+const char *dm_cheats_build(void) {
+    static char build[17];
+    pthread_mutex_lock(&g_lock);
+    build16(dm_main_build(), build);
+    pthread_mutex_unlock(&g_lock);
+    return build;
 }
 
 // The host's start hook (main.c): the folder the app named (DM_CHEATS), if any

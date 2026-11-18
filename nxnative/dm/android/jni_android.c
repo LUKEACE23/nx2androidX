@@ -425,6 +425,14 @@ Java_com_nx_android_game_Native_cheatsList(JNIEnv *E, jclass c) {
     return out;
 }
 
+// The build ID the cheat files are named by (the first 16 hex digits of main's build ID, upper case): the app uses it
+// to pick the file of this build in the community library.
+JNIEXPORT jstring JNICALL
+Java_com_nx_android_game_Native_cheatsBuild(JNIEnv *E, jclass c) {
+    (void)c;
+    return (*E)->NewStringUTF(E, dm_cheats_build());
+}
+
 // Switch one cheat on or off: 1 = done, -1 = it cannot run (it writes the game's code), 0 = no such cheat.
 JNIEXPORT jint JNICALL
 Java_com_nx_android_game_Native_cheatsSet(JNIEnv *E, jclass c, jint index, jboolean on) {
@@ -432,7 +440,8 @@ Java_com_nx_android_game_Native_cheatsSet(JNIEnv *E, jclass c, jint index, jbool
     return dm_cheats_set(index, on ? 1 : 0);
 }
 
-// Load the cheats of the running build from the pack's cheats folder: the number of cheats (0 = none for this build).
+// Load the cheats of the running build from the folder the app names (the app's own cheats/ folder, where the file
+// it downloaded from the community library lies): the number of cheats (0 = none for this build).
 JNIEXPORT jint JNICALL
 Java_com_nx_android_game_Native_cheatsOpen(JNIEnv *E, jclass c, jstring dir) {
     (void)c;

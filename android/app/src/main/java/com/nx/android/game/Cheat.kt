@@ -23,3 +23,22 @@ fun parseCheats(json: String): List<Cheat> {
         }
     }.getOrDefault(emptyList())
 }
+
+/** 从社区库下载到哪一步了 */
+enum class CheatDownload {
+    NONE,        // 还没试过
+    DOWNLOADING, // 正在下
+    DONE,        // 下好了
+    NO_BUILD,    // 社区库里没有这个 build 的文件
+    FAILED,      // 下载失败（网络）
+}
+
+/** 金手指页的状态：App 那边这个游戏有什么 */
+data class CheatStatus(
+    /** 文件已经在手机上了（下载过） */
+    val downloaded: Boolean = false,
+    /** 下载到哪一步了 */
+    val download: CheatDownload = CheatDownload.NONE,
+    /** 出处：社区库自己写的 */
+    val credit: String = "",
+)

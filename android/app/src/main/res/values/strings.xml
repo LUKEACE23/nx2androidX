@@ -651,6 +651,15 @@
     <string name="drawer_cheats_off_hint">Turn this on to see the cheats of this game</string>
     <string name="drawer_cheats_none">This game has no cheats for its version</string>
     <string name="drawer_cheats_unsupported">This runtime has no cheats</string>
+    <string name="drawer_cheats_download">Download from the library</string>
+    <string name="drawer_cheats_downloading">Downloading…</string>
+    <string name="drawer_cheats_redownload">Download again</string>
+    <string name="drawer_cheats_retry">Try the download again</string>
+    <string name="drawer_cheats_no_build">The library has no file for this version</string>
+    <string name="drawer_cheats_download_hint">From switch-cheats-db, the file of this build (needs the network)</string>
+    <string name="drawer_cheats_no_build_hint">The library has no cheats for this game and version</string>
+    <string name="drawer_cheats_failed_hint">The download failed: check the network and try again</string>
+    <string name="drawer_cheats_credit">From: %1$s</string>
     <string name="drawer_player_n">Player %1$d</string>
     <string name="drawer_player_auto">Automatic</string>
     <string name="drawer_player_none">No controller</string>

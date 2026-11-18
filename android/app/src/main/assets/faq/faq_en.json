@@ -81,7 +81,7 @@
       },
       {
         "q": "How do I use cheats?",
-        "a": "In the game, open the drawer and go to the Cheats tab: turn on \"Use cheats\" and the cheats of this game are listed, each with its own switch, effective at once. The cheat files come with the data pack (the community files in the Atmosphère format, matched to the game's build). It can change values in the game's memory and patch the game's own code; the ones that would touch a word the rewriter changed (writing there would break the game) are marked with the reason they cannot run."
+        "a": "In the game, open the drawer and go to the Cheats tab: turn on \"Use cheats\" and tap \"Download from the library\". The cheat files are not in the app: they are fetched from the community library (switch-cheats-db) for this build of the game, which needs the network. Once they are here the cheats are listed, each with its own switch, effective at once; if the library has no file for your version, the row says so. The file stays in the app's own folder, so a rebuilt data pack does not lose it. A cheat can change values in the game's memory and patch the game's own code; the ones that would touch a word the rewriter changed (writing there would break the game) are marked with the reason they cannot run."
       }
     ]
   }

@@ -39,6 +39,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Info
@@ -98,6 +99,8 @@ import com.nx.android.data.LosslessDll
 import com.nx.android.data.RatePin
 import com.nx.android.game.hud.HudField
 import com.nx.android.game.Cheat
+import com.nx.android.game.CheatDownload
+import com.nx.android.game.CheatStatus
 import com.nx.android.game.Native
 import com.nx.android.game.parseCheats
 import com.nx.android.game.input.PadStyle
@@ -171,6 +174,8 @@ fun GameDrawer(
     cheatsMaster: () -> Boolean,
     onCheatsMaster: (Boolean) -> Unit,
     onCheatToggle: (Int, Boolean) -> Unit,
+    cheatStatus: () -> CheatStatus,
+    onCheatsDownload: () -> Unit,
     onPauseGame: () -> Unit,
     onResumeGame: () -> Unit,
     onExit: () -> Unit,
@@ -283,7 +288,8 @@ fun GameDrawer(
                                     DrawerTab.PLAYERS -> PlayerRows(pads, players, onPlayers)
                                     // 金手指页：这个游戏的金手指与它们的开关（宿主那边跑，App 只显示与下发）
                                     DrawerTab.CHEATS -> CheatRows(cheatList, cheatsMasterOn, cheatsSupported,
-                                        { on -> cheatsMasterOn = on; onCheatsMaster(on) }, onCheatToggle)
+                                        cheatStatus(), { on -> cheatsMasterOn = on; onCheatsMaster(on) },
+                                        onCheatToggle, onCheatsDownload)
                                 }
                             }
                             Spacer(Modifier.height(8.dp))
@@ -463,25 +469,29 @@ internal fun ToggleRow(
     }
 }
 
-/** 一行：图标 + 标题 + 小字提示 + 展开的箭头（点了去某个地方） */
+/** 一行：图标 + 标题 + 小字提示 + 展开的箭头（点了去某个地方）。enabled=false 时灰着，按不动 */
 @Composable
 internal fun ActionRow(
     icon: ImageVector, title: String, hint: String? = null,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 4.dp),
+        Modifier.fillMaxWidth().clickable(enabled = enabled) { onClick() }.padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+        val tint = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant
+        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+        Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text(title, style = MaterialTheme.typography.bodyMedium,
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else tint)
             if (hint != null) {
-                Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(hint, style = MaterialTheme.typography.bodySmall, color = tint)
             }
         }
-        Icon(Icons.Filled.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+        Icon(Icons.Filled.ChevronRight, null, tint = tint, modifier = Modifier.size(18.dp))
     }
 }
 
@@ -712,14 +722,19 @@ private fun PlayerRows(
  *
  * 总开关关着的时候宿主不加载也不执行任何金手指（这一页不列条目）；打开后每条一个开关。
  * 不能跑的那条（要改游戏的代码）开关是灰的，小字写着原因。
+ *
+ * 金手指文件不在 App 里，是从社区库（switch-cheats-db）按这个 build 下载的：上面是下载那一行，
+ * 下好了才列出条目（出处写在最后一行小字里）。
  */
 @Composable
 private fun CheatRows(
     cheats: List<Cheat>,
     master: Boolean,
     supported: Boolean,
+    status: CheatStatus,
     onMaster: (Boolean) -> Unit,
     onToggle: (Int, Boolean) -> Unit,
+    onDownload: () -> Unit,
 ) {
     if (!supported) {
         HintRow(stringResource(R.string.drawer_cheats_unsupported))
@@ -732,14 +747,33 @@ private fun CheatRows(
         HintRow(stringResource(R.string.drawer_cheats_off_hint))
         return
     }
+    // 下载这一行：社区库里按 build 编号放文件（每个 build 一份）
+    val downloading = status.download == CheatDownload.DOWNLOADING
+    val title = when {
+        downloading -> stringResource(R.string.drawer_cheats_downloading)
+        status.download == CheatDownload.NO_BUILD -> stringResource(R.string.drawer_cheats_no_build)
+        status.download == CheatDownload.FAILED -> stringResource(R.string.drawer_cheats_retry)
+        status.downloaded -> stringResource(R.string.drawer_cheats_redownload)
+        else -> stringResource(R.string.drawer_cheats_download)
+    }
+    val hint = when {
+        status.download == CheatDownload.NO_BUILD -> stringResource(R.string.drawer_cheats_no_build_hint)
+        status.download == CheatDownload.FAILED -> stringResource(R.string.drawer_cheats_failed_hint)
+        else -> stringResource(R.string.drawer_cheats_download_hint)
+    }
+    ActionRow(Icons.Filled.Download, title, hint, enabled = !downloading) { onDownload() }
     if (cheats.isEmpty()) {
-        HintRow(stringResource(R.string.drawer_cheats_none))
+        // 文件在，但没有条目（或者还没下）：下好了才有东西列
+        if (status.downloaded) HintRow(stringResource(R.string.drawer_cheats_none))
         return
     }
     for ((i, c) in cheats.withIndex()) {
         ToggleRow(Icons.Filled.Tune, c.name, if (c.broken) c.why else null, c.on, enabled = !c.broken) {
             onToggle(i, it)
         }
+    }
+    if (status.credit.isNotEmpty()) {
+        HintRow(stringResource(R.string.drawer_cheats_credit, status.credit))
     }
 }
 

@@ -145,11 +145,13 @@ void dm_guest_write_prep_register(void (*fn)(void *addr, size_t len));
 void dm_res_report_register(void (*fn)(uint32_t tick, const char *why));   // Resource count callback (registered by the graphics layer): called every 250 ticks, when the loading screen has been dismissed, and on exit when the record is full
 void (*dm_res_report_cb(void))(uint32_t tick, const char *why);   // Get the registered resource count callback (null if not registered)
 void dm_guest_write_prepare(void *addr, size_t len);
-// Cheats (hle_cheats.c): Atmosphère-format cheat files applied to the running game (the data pack's cheats/ folder)
+// Cheats (hle_cheats.c): Atmosphère-format cheat files applied to the running game (the folder the app names:
+// the app's own cheats/ folder, where the file it downloaded from the community library lies)
 // void dm_cheats_init(void);   // at start (main.c): loads the file of the running build from the folder DM_CHEATS names
 // void dm_cheats_present(void);   // per presented frame (hle_nvn.c): runs the enabled cheats once
 // int dm_cheats_open(const char *dir);   // load the cheats of the running build from that folder: the entries (0 = no file of this build)
 // void dm_cheats_close(void);   // drop the loaded cheats
+// const char *dm_cheats_build(void);   // the build ID the cheat files are named by (the first 16 hex digits of main's, upper case)
 // int dm_cheats_count(void);   // the entries the player can switch
 // int dm_cheats_row(int i, const char **name, int *on, const char **why);   // one entry: its name, whether it is on, why it cannot run ("" when it can)
 // int dm_cheats_set(int i, int on);   // switch it (1 = done, -1 = it cannot run, 0 = no such entry)
@@ -165,6 +167,7 @@ void dm_cheats_init(void);
 void dm_cheats_present(void);
 int dm_cheats_open(const char *dir);
 void dm_cheats_close(void);
+const char *dm_cheats_build(void);
 int dm_cheats_count(void);
 int dm_cheats_row(int i, const char **name, int *on, const char **why);
 int dm_cheats_set(int i, int on);

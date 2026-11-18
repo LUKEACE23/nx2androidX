@@ -54,6 +54,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
@@ -64,6 +65,7 @@ import com.nx.android.core.ui.theme.NxPalette
 import com.nx.android.core.ui.theme.NxTheme
 import com.nx.android.data.AppLocale
 import com.nx.android.data.AppLog
+import com.nx.android.data.CheatRepo
 import com.nx.android.data.CheatSettings
 import com.nx.android.data.FrameGenSettings
 import com.nx.android.data.LosslessDll
@@ -172,6 +174,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var rateSettings: RateSettings? = null
     private var motionSettings: MotionSettings? = null
     private var cheatSettings: CheatSettings? = null
+    private var cheatStatus by mutableStateOf(CheatStatus())   // 金手指页的状态（文件在不在、出处、下载到哪了）
     private var padPlayers: PadPlayers? = null
     private var packPath: String? = null
     private var packTitleId: String? = null
@@ -518,6 +521,8 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         // 玩家选的帧率档位：start 之后才下发——包的 env.txt 在宿主启动时读过，晚 setenv 的那份留下来，
         // 玩家的选择盖过档案自己的 DM_FPS_PIN。没选过就不下发，档案的默认继续说话。
         rateSettings?.load()?.let { pin -> runCatching { Native.perfPinSet(pin.fps) } }
+        // 金手指页的状态：宿主起来了才知道这个 build 的编号（下载过的文件在不在、出处）
+        refreshCheatStatus()
         watchControllers()
     }
 
@@ -601,10 +606,10 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     // ---- 金手指（宿主那边跑，App 只下发开关）----
 
-    /** 数据包里的金手指目录（有才有：这个数据包没有带金手指） */
+    /** App 自己的金手指目录（下载来的文件在这里：重打包不动它） */
     private fun cheatsDir(): String? {
-        val pack = packPath ?: return null
-        val dir = File(pack, "cheats")
+        val tid = packTitleId ?: return null
+        val dir = CheatRepo.dir(filesDir, tid)
         return if (dir.isDirectory) dir.absolutePath else null
     }
 
@@ -622,6 +627,57 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     /** 开关一条金手指：宿主那边改状态并记下来（它自己知道这个 build 的编号与条目名） */
     private fun setCheat(index: Int, on: Boolean) {
         runCatching { Native.cheatsSet(index, on) }
+    }
+
+    /**
+     * 这个游戏的金手指文件在不在手机上（下载过没有）：宿主那边按 build 编号找文件，
+     * 所以这里也按它的编号找。
+     */
+    private fun cheatFile(): File? {
+        val tid = packTitleId ?: return null
+        val build = cheatBuild() ?: return null
+        return CheatRepo.file(CheatRepo.dir(filesDir, tid), build)
+    }
+
+    /** 这个 build 的编号（宿主给：金手指文件按它命名）；宿主没有那个入口时是 null */
+    private fun cheatBuild(): String? = runCatching { Native.cheatsBuild() }.getOrNull()
+        ?.takeIf { it.length >= 16 }
+
+    /** 金手指页的状态：文件在不在、出处是什么（进游戏时读一遍，之后下载完再读） */
+    private fun refreshCheatStatus() {
+        var downloaded = false
+        var credit = ""
+        val file = cheatFile()
+        if (file != null) {
+            downloaded = file.isFile
+            val note = CheatRepo.creditFile(file.parentFile, file.name.removeSuffix(".txt"))
+            if (note.isFile) credit = runCatching { note.readText() }.getOrDefault("").trim()
+        }
+        cheatStatus = cheatStatus.copy(downloaded = downloaded, credit = credit)
+    }
+
+    /**
+     * 从社区库下载这个 build 的金手指（要联网）：文件下到 App 自己的目录里，
+     * 下好了让宿主把新文件加载起来（总开关开着才跑）。
+     */
+    private fun downloadCheats() {
+        val tid = packTitleId ?: return
+        val build = cheatBuild()
+        if (build == null) { cheatStatus = cheatStatus.copy(download = CheatDownload.NO_BUILD); return }
+        if (cheatStatus.download == CheatDownload.DOWNLOADING) return
+        cheatStatus = cheatStatus.copy(download = CheatDownload.DOWNLOADING)
+        lifecycleScope.launch {
+            val dir = CheatRepo.dir(filesDir, tid)
+            val result = withContext(Dispatchers.IO) { CheatRepo.download(tid, build, dir) }
+            if (result.isSuccess && cheatSettings?.master() == true) {
+                runCatching { Native.cheatsOpen(dir.absolutePath) }
+            }
+            refreshCheatStatus()
+            val state = if (result.isSuccess) CheatDownload.DONE
+            else if (result.exceptionOrNull() is CheatRepo.NoSuchBuild) CheatDownload.NO_BUILD
+            else CheatDownload.FAILED
+            cheatStatus = cheatStatus.copy(download = state)
+        }
     }
 
     /**
@@ -779,6 +835,9 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                 cheatsMaster = { cheatSettings?.master() == true },
                 onCheatsMaster = { setCheatsMaster(it) },
                 onCheatToggle = { i, on -> setCheat(i, on) },
+                // 金手指文件从社区库下载：状态与那一下点击
+                cheatStatus = { cheatStatus },
+                onCheatsDownload = { downloadCheats() },
                 // 暂停/继续：游戏原地停/起，抽屉不收——玩家可以一边停着一边调设置
                 onPauseGame = {
                     paused = true
