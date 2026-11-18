@@ -106,11 +106,48 @@ class CheatRepoTest {
     }
 
     @Test
+    fun `the build id comes from the pack's rewriter table`() {
+        val pack = folder()
+        val mods = File(pack, "mods")
+        mods.mkdirs()
+        File(mods, "main.fixups.tsv").writeText(
+            "# BUILD_ID\tdf3766a2bb651a3e822828abf10b6f7b\n" +
+                "# PATCH_OFF\t-0x2000000\n" +
+                "0x277d838\t280080d2\t080080d2\tdisplay settings\n"
+        )
+        assertEquals("DF3766A2BB651A3E", CheatRepo.buildIdOf(pack))
+    }
+
+    @Test
+    fun `a pack without that table gives no build id`() {
+        assertNull(CheatRepo.buildIdOf(folder()))
+    }
+
+    @Test
     fun `the library's file of one game is fetched by its title id`() {
         assertEquals(
             "https://cdn.jsdelivr.net/gh/HamletDuFromage/switch-cheats-db@master/cheats/01004AB00A260000.json",
             CheatRepo.url("01004ab00a260000"),
         )
+    }
+
+    @Test
+    fun `the file is asked of every edge of the CDN`() {
+        val urls = CheatRepo.urls("01004ab00a260000")
+        assertEquals(3, urls.size)
+        assertEquals(
+            "https://fastly.jsdelivr.net/gh/HamletDuFromage/switch-cheats-db@master/cheats/01004AB00A260000.json",
+            urls[1],
+        )
+        for (u in urls) assertTrue(u.startsWith("https://"))
+    }
+
+    @Test
+    fun `an edge that fails does not stop the download`() {
+        val dir = folder()
+        val result = CheatRepo.downloadFrom(listOf("http://127.0.0.1:1/nope.json", server(library)), "DF3766A2BB651A3E", dir)
+        assertTrue(result.isSuccess)
+        assertTrue(CheatRepo.file(dir, "DF3766A2BB651A3E").isFile)
     }
 
     // ---- the download itself (a local server stands in for the library) ----

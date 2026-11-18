@@ -93,6 +93,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nx.android.R
+import com.nx.android.data.AppLog
 import com.nx.android.data.FrameGenKnobs
 import com.nx.android.data.FrameGenSettings
 import com.nx.android.data.LosslessDll
@@ -253,7 +254,7 @@ fun GameDrawer(
                         Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 14.dp)) {
                             var tab by remember { mutableIntStateOf(0) }
                             // 顶部的页签行：图标在上、文字在下，选中项下面一条滑动的短杠
-                            DrawerTabBar(tab) { tab = it }
+                            DrawerTabBar(tab) { tab = it; AppLog.line("drawer: the tab -> ${DrawerTab.entries[it].name}") }
                             Spacer(Modifier.height(10.dp))
                             // 内容页：滚动，占据动作行之上的全部空间（动作行在本列底部，不可能被挤出）
                             Column(

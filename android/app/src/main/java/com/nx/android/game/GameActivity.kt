@@ -103,6 +103,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -296,6 +297,8 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 游戏进程自己的日志（App 的日志只在主进程里开过，这里也开一份：游戏出问题时看得到）
+        AppLog.init(this)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         currentInstance = WeakReference(this)
         packPath = intent.getStringExtra(EXTRA_PACK)
@@ -523,6 +526,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         rateSettings?.load()?.let { pin -> runCatching { Native.perfPinSet(pin.fps) } }
         // 金手指页的状态：宿主起来了才知道这个 build 的编号（下载过的文件在不在、出处）
         refreshCheatStatus()
+        awaitCheatBuild()
         watchControllers()
     }
 
@@ -537,7 +541,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         frame.addView(screenBlank, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         // 虚拟手柄绘制层（android-virtual-pad）：画在游戏画面之上、抽屉之下；不消费触点——命中与分流在宿主
         padView = PadView(this, PrefsStore(this), packPath?.let { File(it) }, packTitleId)
-        padView.onMenuTapped = { runOnUiThread { drawerOpen = !drawerOpen } }   // ☰ 按钮：App 开自己的抽屉
+        padView.onMenuTapped = { runOnUiThread { if (drawerOpen) drawerOpen = false else openDrawer() } }   // ☰ 按钮：App 开自己的抽屉
         frame.addView(padView, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         // the drawer's layer: a ComposeView over the game's surface (the composition needs the activity's owners on the view)
         val compose = ComposeView(this)
@@ -626,6 +630,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     /** 开关一条金手指：宿主那边改状态并记下来（它自己知道这个 build 的编号与条目名） */
     private fun setCheat(index: Int, on: Boolean) {
+        AppLog.line("cheats: cheat $index -> ${if (on) "on" else "off"}")
         runCatching { Native.cheatsSet(index, on) }
     }
 
@@ -639,9 +644,46 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         return CheatRepo.file(CheatRepo.dir(filesDir, tid), build)
     }
 
-    /** 这个 build 的编号（宿主给：金手指文件按它命名）；宿主没有那个入口时是 null */
-    private fun cheatBuild(): String? = runCatching { Native.cheatsBuild() }.getOrNull()
-        ?.takeIf { it.length >= 16 }
+    /**
+     * 这个 build 的编号（金手指文件按它命名）：宿主知道自己这个 build（它加载完模块就有了），
+     * 宿主还没加载完时先看数据包里的重写器表（同一份 BUILD_ID，不用等）。
+     */
+    private fun cheatBuild(): String? {
+        val fromHost = runCatching { Native.cheatsBuild() }.getOrNull()?.takeIf { it.length >= 16 }
+        return fromHost ?: packBuildId()
+    }
+
+    /**
+     * 数据包里重写器记的 main 的 build ID（fixups 表的头一行，和宿主读到的是同一个值）：
+     * 宿主还没加载完模块时，App 靠它知道这个游戏的版本。
+     */
+    private fun packBuildId(): String? {
+        val pack = packPath ?: return null
+        return CheatRepo.buildIdOf(File(pack))
+    }
+
+    /**
+     * 宿主在自己的线程里加载模块：它过一会儿才知道自己这个 build 的编号（金手指文件按它命名）。
+     * 数据包里的表已经能回答了（不必等），这一轮只是等宿主自己知道，好让两边的值对齐。
+     */
+    private fun awaitCheatBuild() {
+        lifecycleScope.launch {
+            for (i in 0 until 60) {
+                refreshCheatStatus()
+                if (runCatching { Native.cheatsBuild() }.getOrNull()?.length?.let { it >= 16 } == true) return@launch
+                // 老宿主没有金手指这个入口（调用即抛）：不用再等了
+                if (runCatching { Native.cheatsList() }.isFailure) return@launch
+                delay(500)
+            }
+        }
+    }
+
+    /** 抽屉打开：这时宿主该知道自己的 build 编号了（金手指页要拿它去库里挑文件） */
+    private fun openDrawer() {
+        AppLog.line("cheats: the drawer opened")
+        drawerOpen = true
+        refreshCheatStatus()
+    }
 
     /** 金手指页的状态：文件在不在、出处是什么（进游戏时读一遍，之后下载完再读） */
     private fun refreshCheatStatus() {
@@ -668,9 +710,14 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (build == null) { cheatStatus = cheatStatus.copy(download = CheatDownload.NO_BUILD); return }
         if (cheatStatus.download == CheatDownload.DOWNLOADING) return
         cheatStatus = cheatStatus.copy(download = CheatDownload.DOWNLOADING)
+        AppLog.line("cheats: fetching the library's file of $build for $tid")
         lifecycleScope.launch {
             val dir = CheatRepo.dir(filesDir, tid)
             val result = withContext(Dispatchers.IO) { CheatRepo.download(tid, build, dir) }
+            result.fold(
+                onSuccess = { AppLog.line("cheats: $build downloaded (${it.length()} bytes)") },
+                onFailure = { AppLog.line("[RED] cheats: the download failed: ${it.message}") },
+            )
             if (result.isSuccess && cheatSettings?.master() == true) {
                 runCatching { Native.cheatsOpen(dir.absolutePath) }
             }
@@ -730,7 +777,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     fun onHostNotice(what: Int) {
         runOnUiThread {
             when (what) {
-                1 -> drawerOpen = !drawerOpen
+                1 -> if (drawerOpen) drawerOpen = false else openDrawer()
                 2 -> drawerOpen = false
                 3 -> textReq = readTextRequest()
             }
@@ -799,7 +846,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             GameDrawer(
                 paused = paused,
                 open = drawerOpen,
-                onOpenChange = { drawerOpen = it },
+                onOpenChange = { if (it) openDrawer() else drawerOpen = false },
                 settings = fgSettings,
                 onRatePin = { saveRatePin(it) },
                 motion = { motionState() },
@@ -925,7 +972,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                     editorOpen -> closeEditor()   // 编辑器：Back 是收工（改动早就存好了）
                     drawerOpen -> drawerOpen = false
                     hostPanel -> Native.key(e.deviceId, e.source, e.keyCode, e.action, e.metaState, e.repeatCount)   // 宿主的面板在后退一步
-                    else -> drawerOpen = true
+                    else -> openDrawer()
                 }
             }
             return true   // Back 只在宿主的面板开着时交给宿主

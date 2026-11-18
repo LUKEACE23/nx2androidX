@@ -17,11 +17,21 @@ import java.net.URL
  */
 object CheatRepo {
 
-    /** The library's CDN (the community's files, one JSON per game) */
+    /** The library's CDN: the community's files, one JSON per game */
     const val CDN = "https://cdn.jsdelivr.net/gh/HamletDuFromage/switch-cheats-db@master/cheats"
+
+    /**
+     * The CDN's own edges: the same file, three networks. One network is often blocked (a reset TLS handshake
+     * on some carriers), so the download walks the list and takes the first that answers.
+     */
+    private val EDGES = listOf("cdn.jsdelivr.net", "fastly.jsdelivr.net", "gcore.jsdelivr.net")
 
     /** The library's file of one game (its title ID, upper case: the library names its files that way) */
     fun url(titleId: String): String = "$CDN/${titleId.uppercase()}.json"
+
+    /** The same file on every edge (the download tries them in turn) */
+    fun urls(titleId: String): List<String> =
+        EDGES.map { "https://$it/gh/HamletDuFromage/switch-cheats-db@master/cheats/${titleId.uppercase()}.json" }
 
     /** The folder the app keeps the cheats of one game in (app-private: a rebuilt data pack does not touch it) */
     fun dir(filesDir: File, titleId: String): File = File(filesDir, "cheats/$titleId")
@@ -31,6 +41,22 @@ object CheatRepo {
 
     /** The line of credit beside the file (what the library says about it) */
     fun creditFile(dir: File, build: String): File = File(dir, "${build.uppercase()}.credit")
+
+    /**
+     * The build ID the cheat files are named by, read from the data pack's rewriter table (its head line:
+     * `# BUILD_ID <hex>`). The host knows the same value once it has loaded the modules; this is how to know it
+     * before that. The first 16 hex digits, upper case: the name the cheat files carry.
+     */
+    fun buildIdOf(pack: File): String? {
+        val file = File(pack, "mods/main.fixups.tsv")
+        if (!file.isFile) return null
+        val line = runCatching {
+            file.useLines { lines -> lines.firstOrNull { it.trimStart().startsWith("#") && it.contains("BUILD_ID") } }
+        }.getOrNull() ?: return null
+        val id = line.trim().split(Regex("\\s+")).lastOrNull() ?: return null
+        return id.takeIf { it.length >= 16 && it.all { c -> c.isDigit() || c in 'a'..'f' || c in 'A'..'F' } }
+            ?.take(16)?.uppercase()
+    }
 
     /**
      * The Atmosphère text of the build's cheats, or null when the library holds no file for it.
@@ -75,11 +101,15 @@ object CheatRepo {
      * another build of it: a cheat file of another build would write the wrong places).
      */
     fun download(titleId: String, build: String, dir: File): Result<File> =
-        downloadFrom(url(titleId), build, dir)
+        downloadFrom(urls(titleId), build, dir)
 
-    /** The same, from a URL of one's own (the test uses it with a local server) */
-    internal fun downloadFrom(url: String, build: String, dir: File): Result<File> = runCatching {
-        val text = body(url)
+    /** The same, from URLs of one's own (the test uses it with a local server) */
+    internal fun downloadFrom(url: String, build: String, dir: File): Result<File> =
+        downloadFrom(listOf(url), build, dir)
+
+    /** The same, from a list of URLs (the edges of the CDN, one after another) */
+    internal fun downloadFrom(urls: List<String>, build: String, dir: File): Result<File> = runCatching {
+        val text = fetch(urls)
         val section = pick(text, build) ?: throw NoSuchBuild("the library has no file for this build")
         val line = credit(text)
         if (!dir.isDirectory && !dir.mkdirs()) throw IOException("the folder could not be made")
@@ -95,6 +125,24 @@ object CheatRepo {
 
     /** The library holds no file for this build (the game is not in it, or it has another build of it) */
     class NoSuchBuild(message: String) : Exception(message)
+
+    /**
+     * The library's answer: the first URL that answers. A network that fails is tried again on the next edge;
+     * an answer that says "no file of this game" is final (it is not a network problem).
+     */
+    private fun fetch(urls: List<String>): String {
+        var last: IOException = IOException("the library did not answer")
+        for (u in urls) {
+            try {
+                return body(u)
+            } catch (e: NoSuchBuild) {
+                throw e
+            } catch (e: IOException) {
+                last = e
+            }
+        }
+        throw last
+    }
 
     /** The library's file (its JSON): the body of the answer */
     private fun body(url: String): String {
