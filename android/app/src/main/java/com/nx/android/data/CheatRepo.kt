@@ -43,6 +43,18 @@ object CheatRepo {
     fun creditFile(dir: File, build: String): File = File(dir, "${build.uppercase()}.credit")
 
     /**
+     * The toggles of the cheats (the host writes them beside the file): the names of the cheats that are on, one a
+     * line. Deleting that file turns them all off.
+     *
+     * Returns whether there was one (nothing to turn off when there was none).
+     */
+    fun clearToggles(dir: File, build: String): Boolean {
+        val file = File(dir, "${build.uppercase()}.enabled")
+        if (!file.isFile) return false
+        return file.delete()
+    }
+
+    /**
      * The build ID the cheat files are named by, read from the data pack's rewriter table (its head line:
      * `# BUILD_ID <hex>`). The host knows the same value once it has loaded the modules; this is how to know it
      * before that. The first 16 hex digits, upper case: the name the cheat files carry.

@@ -396,6 +396,9 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         prepareStep = ""
         prepareReason = ""
         prepareJob = prepareScope.launch {
+            // 每次进游戏，单条金手指都从关开始：上一局开过的不再自动生效。金手指是社区的代码，
+            // 有时会把游戏弄闪退——玩家闪退后重进要是还开着那条，就进不来了，也关不掉。
+            clearCheatToggles()
             val outcome = prepareRuntime(File(pack))
             withContext(Dispatchers.Main) {
                 if (outcome.ok) {
@@ -660,6 +663,22 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun packBuildId(): String? {
         val pack = packPath ?: return null
         return CheatRepo.buildIdOf(File(pack))
+    }
+
+    /**
+     * 清掉这个 build 的单条金手指开关（它们记在下载来的文件旁边，宿主启动时读）：
+     * 单条开关不跨游戏次数——每次进游戏都从关开始。
+     *
+     * 在准备阶段做（宿主还没起，那时的编号从数据包的表里读）。
+     */
+    private fun clearCheatToggles() {
+        val tid = packTitleId ?: return
+        val build = packBuildId() ?: return
+        val dir = CheatRepo.dir(filesDir, tid)
+        if (!dir.isDirectory) return
+        if (CheatRepo.clearToggles(dir, build)) {
+            AppLog.line("cheats: this session starts with all cheats off ($build)")
+        }
     }
 
     /**

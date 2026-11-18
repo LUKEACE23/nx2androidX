@@ -106,8 +106,18 @@ class CheatRepoTest {
     }
 
     @Test
-    fun `the build id comes from the pack's rewriter table`() {
-        val pack = folder()
+    fun `the toggles of the cheats are cleared when the game starts again`() {
+        val dir = folder()
+        val toggles = File(dir, "DF3766A2BB651A3E.enabled")
+        toggles.writeText("Inf HP\n")
+        assertTrue(CheatRepo.clearToggles(dir, "df3766a2bb651a3e"))
+        assertFalse(toggles.exists())
+        // 没有开关文件时没什么可清的
+        assertFalse(CheatRepo.clearToggles(dir, "df3766a2bb651a3e"))
+    }
+
+    @Test
+    fun `the build id comes from the pack's rewriter table`() {        val pack = folder()
         val mods = File(pack, "mods")
         mods.mkdirs()
         File(mods, "main.fixups.tsv").writeText(
