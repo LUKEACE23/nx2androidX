@@ -35,6 +35,13 @@ data class GameEntry(
     /** 这张卡是导入的（不是 App 自己移植的） */
     val isImported: Boolean get() = imported != null
 
+    /**
+     * 这个游戏能不能导出成文件夹：导出的意义是把 App 自己做的移植写成可带走的文件夹
+     * （数据包 + 散装游戏文件）。导入的包已经是那个文件夹了，还是玩家自己的文件——
+     * 再导出只是把玩家自己的文件夹原样拷一遍，没有意义。
+     */
+    val exportable: Boolean get() = pack != null && !isImported
+
     /** 卡片的稳定标识：导入的卡按自己的路径认，本地的卡按 title ID 认 */
     val key: String get() = imported?.path ?: titleId
 

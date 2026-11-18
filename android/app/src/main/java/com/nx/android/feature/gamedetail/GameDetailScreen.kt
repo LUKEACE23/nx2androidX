@@ -477,11 +477,14 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                                 )
                             }
                             // 导出：把这个移植变成一个文件夹（数据包 + 散装的游戏文件）
-                            androidx.compose.material3.DropdownMenuItem(
-                                text = { Text(locale.str(R.string.lib_pack_export_action)) },
-                                leadingIcon = { Icon(Icons.Filled.FolderOpen, null, Modifier.size(18.dp)) },
-                                onClick = { menuOpen = false; askExport() },
-                            )
+                            // 导入的包本身就是那个文件夹了（还是玩家自己的文件）：再导出只是原样拷一遍
+                            if (e.exportable) {
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(locale.str(R.string.lib_pack_export_action)) },
+                                    leadingIcon = { Icon(Icons.Filled.FolderOpen, null, Modifier.size(18.dp)) },
+                                    onClick = { menuOpen = false; askExport() },
+                                )
+                            }
                             if (!cacheLocked && !e.isImported) {
                                 androidx.compose.material3.DropdownMenuItem(
                                     text = { Text(locale.str(R.string.lib_remove_cache_action)) },

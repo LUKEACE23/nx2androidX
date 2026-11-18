@@ -2,6 +2,7 @@ package com.nx.android.domain
 
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -76,5 +77,29 @@ class PortablePackLibraryTest {
 
         assertEquals("Test Game", entry.label)
         assertEquals(dir.absolutePath, entry.key)
+    }
+
+    /**
+     * 导入的包不能导出成文件夹：它已经是那个文件夹了（玩家自己的文件），
+     * 再导出只是原样拷一遍。
+     */
+    @Test
+    fun `an imported pack cannot be exported as a folder`() {
+        val dir = importedFolder()
+        val imported = GameEntry("0100000000010000", fakePort(dir), null, null,
+            PortablePack.Imported(dir.absolutePath, "0100000000010000", "Test Game"))
+
+        assertFalse(imported.exportable)
+    }
+
+    /** App 自己做的移植能导出成文件夹：私有目录的与搬去卡上的都算 */
+    @Test
+    fun `the app's own pack can be exported as a folder`() {
+        val local = GameEntry("0100000000010000", fakePort(tmpDir()), null, "/sdcard/Games/Test.nsp")
+        assertTrue(local.exportable)
+
+        val onCard = GameEntry("0100000000010000",
+            fakePort(File("/storage/1234-5678/nx2android/ports/Test Game-data")), null, null)
+        assertTrue(onCard.exportable)
     }
 }
