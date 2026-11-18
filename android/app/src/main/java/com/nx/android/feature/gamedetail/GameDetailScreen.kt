@@ -468,8 +468,9 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                                     actions.onSendToDesktop(e)
                                 },
                             )
-                            // 导入的包已经在玩家自己挑的目录里了：搬它没有意义
-                            if (!e.isImported) {
+                            // 导入的包已经在玩家自己挑的目录里了：搬它没有意义。
+                            // 搬移要有落点：包在卡上（搬回手机），或者有一张插着的卡（搬过去）。
+                            if (!e.isImported && (packOnCard != null || cardDirs.isNotEmpty())) {
                                 androidx.compose.material3.DropdownMenuItem(
                                     text = { Text(locale.str(if (packOnCard != null) R.string.lib_pack_move_back else R.string.lib_pack_move_to_card)) },
                                     leadingIcon = { Icon(Icons.Filled.SdCard, null, Modifier.size(18.dp)) },
