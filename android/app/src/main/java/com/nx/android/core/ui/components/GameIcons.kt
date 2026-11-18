@@ -11,7 +11,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /**
- * 游戏封面：降采样读一张图，主线程之外（capyps5 rememberImage 的手法）。
  *
  * 库页的头图与「存储」分区的缩略图都用它。
  *

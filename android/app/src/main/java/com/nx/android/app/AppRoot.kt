@@ -661,7 +661,6 @@ private fun importFailureText(code: String?): Int = when (code) {
     else -> R.string.lib_pack_import_failed
 }
 
-/** 一行式顶栏：品牌 + 两个纯文字 tab（选中亮/未选灰）+ 环境状态胶囊 + 右侧图标与时钟（capyps5 的骨架，我们的颜色） */
 @Composable
 private fun TopBar(
     selected: Int, onSelect: (Tab) -> Unit, onRefresh: () -> Unit,
@@ -712,7 +711,6 @@ private fun TopBar(
             )
         }
         Spacer(Modifier.weight(1f))
-        // 右侧这一排：按钮彼此相邻，靠每个按钮自己的 10dp 内边距形成均匀的节奏（capyps5 顶栏的排法），
         // 所以这里不插额外的间隔，否则图标会被撑得松散
         // 导入一个别人导出的数据包：先看一句说明，再去选文件夹
         TopIcon(Icons.Filled.Add, stringResource(R.string.lib_pack_import_action), onImportPack)

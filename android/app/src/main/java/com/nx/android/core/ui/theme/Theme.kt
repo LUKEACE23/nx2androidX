@@ -56,7 +56,6 @@ private val NxColors = darkColorScheme(
     outlineVariant = Color(0x15FFFFFF),
 )
 
-/** 主机式排版层级：大标题要敢用大字，正文紧凑（数值照 capyps5 的层级，颜色仍是我们的） */
 private val NxTypography = Typography(
     displaySmall = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp),
     titleLarge = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.SemiBold),
