@@ -295,9 +295,11 @@ static void register_gates(module_t *m, const char *dir) {
     LOG("%s: gates %d patch_off %#llx keys %lu/%lu/%lu/%lu", m->name, ng, m->patch_off, g_key18, g_keytls, g_keytlr, g_keygate);
 }
 
-// The places a cheat must not write: the rewriter changed them or hooked them. It leaves two tables: sites.tsv (the
+// The places a cheat must not write: the rewriter changed them or hooked them. It leaves three tables: sites.tsv (the
 // sites it rewrote or recognized: the svc gates, the branches it fixed, the jump tables, the spin waits, the windows it
-// filled) and cuts.tsv (the words it cut out). The list is sorted by offset so a lookup is a binary search
+// filled), cuts.tsv (the words it cut out) and obs.tsv (the observation gates: the instruction whose place it took with
+// a jump to its own stub - those sites are not in sites.tsv, the rewriter keeps them apart). The stubs themselves live
+// in the patch area, which is refused as well. The list is sorted by offset so a lookup is a binary search
 static void avoid_add(module_t *m, uint32_t off, uint32_t len) {
     if (!len) return;
     dm_avoid_t *a = realloc(m->avoid, sizeof *a * (size_t)(m->n_avoid + 1));
@@ -341,6 +343,16 @@ static void read_avoid(module_t *m, const char *dir) {
             unsigned long off = 0; char orig[64] = "";
             if (sscanf(line, "%lx %63s", &off, orig) != 2) continue;
             avoid_add(m, (uint32_t)off, (uint32_t)(strlen(orig) / 2));
+        }
+        fclose(f);
+    }
+    snprintf(path, sizeof path, "%s/%s.obs.tsv", dir, m->name);
+    f = fopen(path, "r");
+    if (f) {
+        while (fgets(line, sizeof line, f)) {   // offset 	 original id 	 original word 	 why
+            unsigned long off = 0;
+            if (sscanf(line, "%lx", &off) != 1) continue;
+            avoid_add(m, (uint32_t)off, 4);
         }
         fclose(f);
     }

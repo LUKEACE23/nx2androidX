@@ -55,6 +55,7 @@ typedef struct {
     uint32_t fails;      // accesses that failed since the file was loaded (an unmapped page)
     uint8_t pass_fail;   // an access failed in the pass running now
     uint8_t dbg_logged;  // the debug lines of this cheat are already out (DM_CHEATS_DEBUG)
+    uint8_t dbg_run_logged;   // the "running" line is out (it is written when the cheat starts, not on every pass)
     char why[96];        // why it is off, shown by the app
 } cheat_t;
 
@@ -64,6 +65,7 @@ static char g_build[17];        // main's build ID cut to 16 hex digits, upper c
 static module_t *g_main;        // the "main" module (the loader's table)
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static int g_debug;             // DM_CHEATS_DEBUG=1: log what the cheats write (a cheat that runs every frame would flood the log otherwise)
+static uint64_t g_passes;       // the passes the cheats ran: one per game frame (the guest's present), never per displayed image
 
 // The guest memory the host can reach (hle_svc.c): the heap's base and its opened extent (region 1), the alias region's
 // base and size (region 2), the whole block (region 3, the aslr region)
@@ -893,10 +895,12 @@ static void cheats_pass(void) {
         cheat_t *c = &g_cheat[i];
         if (c->label || c->broken || !c->on || !c->nins) continue;
         c->pass_fail = 0;
-        if (g_debug && c->dbg_logged == 0) LOG("cheat \"%s\": running (%d words)", c->name, c->nins);
+        if (g_debug && !c->dbg_run_logged) { c->dbg_run_logged = 1; LOG("cheat \"%s\": running (%d words)", c->name, c->nins); }
         vm_run(c);
     }
     g_keyold = g_held;   // the reference's s_keyold: the keys at the end of the last pass that ran a cheat
+    g_passes++;
+    if (g_debug && g_passes % 300 == 0) LOG("cheats: %llu passes", (unsigned long long)g_passes);
     pthread_mutex_unlock(&g_lock);
 }
 

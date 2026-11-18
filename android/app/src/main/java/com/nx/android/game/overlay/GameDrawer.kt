@@ -207,6 +207,9 @@ fun GameDrawer(
                 // 金手指：老宿主没有这个入口（调用即抛 UnsatisfiedLinkError）——那一页给一句话说明，别留一个空页
                 val cheatsGet = remember { runCatching { Native.cheatsList() } }
                 val cheatsSupported = cheatsGet.isSuccess
+                // 总开关的样子自己记着：宿主那边的开关改了以后这一页未必会重画（金手指一条都没有时列表不变），
+                // 玩家点了开关却看见它没动，就白按了
+                var cheatsMasterOn by remember { mutableStateOf(cheatsMaster()) }
                 // 宿主那边可能自己关掉一条（比如它要改游戏的代码，跑一次就关了），所以开着抽屉时每次轮询都读一遍
                 var cheatList by remember { mutableStateOf(if (cheatsSupported) parseCheats(cheatsGet.getOrDefault("")) else emptyList()) }
                 var tick by remember { mutableIntStateOf(0) }
@@ -224,7 +227,10 @@ fun GameDrawer(
                         // 外接屏：每次都读（插上显示器要立刻看得见）
                         if (externalSupported()) runCatching { extAvailable = externalAvailable() }
                         // 金手指：每次都读（宿主可能自己关掉了一条）
-                        if (cheatsSupported) runCatching { cheatList = parseCheats(Native.cheatsList()) }
+                        if (cheatsSupported) {
+                            runCatching { cheatList = parseCheats(Native.cheatsList()) }
+                            cheatsMasterOn = cheatsMaster()
+                        }
                         tick++
                         delay(500)
                     }
@@ -276,7 +282,8 @@ fun GameDrawer(
                                     // 玩家页：谁玩谁（这个游戏里哪只手柄是几号玩家）
                                     DrawerTab.PLAYERS -> PlayerRows(pads, players, onPlayers)
                                     // 金手指页：这个游戏的金手指与它们的开关（宿主那边跑，App 只显示与下发）
-                                    DrawerTab.CHEATS -> CheatRows(cheatList, cheatsMaster(), cheatsSupported, onCheatsMaster, onCheatToggle)
+                                    DrawerTab.CHEATS -> CheatRows(cheatList, cheatsMasterOn, cheatsSupported,
+                                        { on -> cheatsMasterOn = on; onCheatsMaster(on) }, onCheatToggle)
                                 }
                             }
                             Spacer(Modifier.height(8.dp))
