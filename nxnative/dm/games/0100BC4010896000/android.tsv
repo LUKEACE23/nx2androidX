@@ -1,0 +1,10 @@
+# Catherine: Full Body (0100BC4010896000), the Korean / Chinese v0 release: Atlus's GFD engine (xrd758) on SDK 8.2.1, NVN, with CRI middleware (CPK archives, ADX2 sound, Sofdec2 movies through the SDK's movie library).
+# Tested 2026-11-17 on the Legion Y700 (TB322FC, Snapdragon 8 Elite, Adreno 830, Android 16): the boot, the network prompt, the title with its puzzle type choice, the anime opening with its sound, the Golden Playhouse, the first Nightmare stage's difficulty and puzzle type menus, its cutscenes and its block puzzle (the gameplay screen), at a held 30 fps (as on the Switch: the game's present interval 2) with no red line. Not checked yet: the stick, the pause menu, a save and the text entry.
+# The constants are the ones upstream's profile of the 1.0.1a release (0100BF00112C0000, brought up on the Mac and the iPhone) found: the 4 GB layout, the 96 MB of used memory, the five CPK archives and the two shaders the game compiles at boot with its own GLSLC. This release's own build row and shader tables are its own (main differs from 1.0.1a; the GLSLC, the movie library and the SDK are the same builds, so the two run-time shaders are the same).
+# What it needed from the core: the run-time shader capture on the device (the porter's GLSLC capture stage: the game's own GLSLC runs in the headless host on the phone and its outputs are what the split reads), the picture's time from the decoder instead of the game's own (the player stops feeding the decoder when the picture it shows does not move: dm/android/movie_avc.c), and the end-of-stream flag on an output without a picture (CRI Sofdec2 drops a picture flagged end-of-stream and then waits for it: dm/host/hle_movie.c).
+# An experimental port: the game reaches its first Nightmare stage and plays, but the playthrough (the stick, the pause menu, a save, the text entry) is not checked yet, so it is not called playable.
+status	experimental
+tested	v0 Legion Y700 TB322FC (Snapdragon 8 Elite, Adreno 830, Android 16)
+package	org.nx2a.t0100bc4010896000
+orientation	landscape
+graphics	nvn
