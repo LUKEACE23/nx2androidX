@@ -2,6 +2,8 @@ package com.nx.android.data
 
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
+import java.io.EOFException
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.math.BigInteger
@@ -21,6 +23,7 @@ import java.security.interfaces.RSAPrivateCrtKey
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.RSAPublicKeySpec
 import java.text.SimpleDateFormat
+import java.util.Base64
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -29,6 +32,7 @@ import javax.crypto.Mac
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLEngine
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.X509ExtendedKeyManager
 import javax.net.ssl.X509TrustManager
@@ -72,7 +76,7 @@ class AdbWire(private val key: RSAPrivateCrtKey, private val tls: Tls, private v
             System.arraycopy(pub, 0, info, 1, pub.size)
             writePacket(out, 1, gcm.encrypt(info))
             // A wrong code fails here: the device's answer does not decrypt (or it hangs up).
-            val reply = try { readPacket(inp, 1) } catch (e: java.io.EOFException) {
+            val reply = try { readPacket(inp, 1) } catch (e: EOFException) {
                 throw PairingRejected()
             }
             if (runCatching { gcm.decrypt(reply) }.isFailure) throw PairingRejected()
@@ -89,7 +93,7 @@ class AdbWire(private val key: RSAPrivateCrtKey, private val tls: Tls, private v
         plain.use {
             writeMsg(plain.outputStream, CNXN, VERSION, MAX_DATA, "host::\u0000".toByteArray())
             val first = readMsg(DataInputStream(plain.inputStream))
-            if (first.cmd != STLS) throw java.io.IOException("adbd answered ${cmdName(first.cmd)}, not STLS (not a TLS port?)")
+            if (first.cmd != STLS) throw IOException("adbd answered ${cmdName(first.cmd)}, not STLS (not a TLS port?)")
             writeMsg(plain.outputStream, STLS, STLS_VERSION, 0, ByteArray(0))
             val s = context().socketFactory.createSocket(plain, host, port, true) as SSLSocket
             s.useClientMode = true
@@ -99,7 +103,7 @@ class AdbWire(private val key: RSAPrivateCrtKey, private val tls: Tls, private v
             val out = s.outputStream
             var m = readMsg(inp)
             while (m.cmd != CNXN) {
-                if (m.cmd == AUTH) throw java.io.IOException("adbd asked for AUTH: this key is not paired")
+                if (m.cmd == AUTH) throw IOException("adbd asked for AUTH: this key is not paired")
                 m = readMsg(inp)
             }
             val localId = 1
@@ -126,7 +130,7 @@ class AdbWire(private val key: RSAPrivateCrtKey, private val tls: Tls, private v
             override fun chooseServerAlias(t: String?, i: Array<out Principal>?, s: Socket?) = null
             override fun getCertificateChain(alias: String?) = arrayOf(cert)
             override fun getPrivateKey(alias: String?): PrivateKey = key
-            override fun chooseEngineClientAlias(t: Array<out String>, i: Array<out Principal>, e: javax.net.ssl.SSLEngine) = "adb"
+            override fun chooseEngineClientAlias(t: Array<out String>, i: Array<out Principal>, e: SSLEngine) = "adb"
         }
         // adbd's certificate is self-signed; pairing (or the paired key) is what authenticates.
         val trustAll = object : X509TrustManager {
@@ -189,7 +193,7 @@ class AdbWire(private val key: RSAPrivateCrtKey, private val tls: Tls, private v
             val version = inp.readUnsignedByte()
             val t = inp.readUnsignedByte()
             val size = inp.readInt()
-            if (version != 1 || t != type || size <= 0 || size > 16384) throw java.io.IOException("bad pairing packet ($version, $t, $size)")
+            if (version != 1 || t != type || size <= 0 || size > 16384) throw IOException("bad pairing packet ($version, $t, $size)")
             return ByteArray(size).also { inp.readFully(it) }
         }
 
@@ -207,7 +211,7 @@ class AdbWire(private val key: RSAPrivateCrtKey, private val tls: Tls, private v
             val hb = ByteArray(24).also { DataInputStream(inp).readFully(it) }
             val h = ByteBuffer.wrap(hb).order(ByteOrder.LITTLE_ENDIAN)
             val cmd = h.int; val a0 = h.int; val a1 = h.int; val len = h.int
-            if (len < 0 || len > MAX_DATA) throw java.io.IOException("bad adb message length $len")
+            if (len < 0 || len > MAX_DATA) throw IOException("bad adb message length $len")
             return Msg(cmd, a0, a1, ByteArray(len).also { DataInputStream(inp).readFully(it) })
         }
 
@@ -245,7 +249,7 @@ class AdbWire(private val key: RSAPrivateCrtKey, private val tls: Tls, private v
             val b = ByteBuffer.allocate(524).order(ByteOrder.LITTLE_ENDIAN)
             b.putInt(words).putInt(n0inv.toInt())
             b.put(le(n, 256)).put(le(rr, 256)).putInt(k.publicExponent.toInt())
-            return java.util.Base64.getEncoder().encodeToString(b.array())
+            return Base64.getEncoder().encodeToString(b.array())
         }
 
         private fun le(v: BigInteger, size: Int): ByteArray {

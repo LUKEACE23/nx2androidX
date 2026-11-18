@@ -324,7 +324,7 @@ private fun DriversSection(drivers: List<Driver>, repository: DriverRepository, 
 @Composable
 private fun DisplaySection(actions: AppActions, onRequest: (PickerRequest) -> Unit) {
     val locale = LocalAppLocale.current
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     var model by remember { mutableStateOf(LosslessDll.ensure(context)?.absolutePath) }
 
     SubtitleRow(stringResource(R.string.fg_section))

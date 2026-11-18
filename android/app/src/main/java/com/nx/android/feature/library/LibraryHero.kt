@@ -1,11 +1,13 @@
 package com.nx.android.feature.library
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -59,7 +61,7 @@ internal fun HeroBackground(sel: GameEntry?) {
         val bitmap = icon
         if (bitmap != null) {
             // 磨砂玻璃：小图标拉满全屏（放大裁掉模糊暗角）+ 高斯模糊，压暗层保持文字可读
-            androidx.compose.foundation.Image(
+            Image(
                 bitmap, null,
                 Modifier.fillMaxSize().scale(1.15f).blur(32.dp, BlurredEdgeTreatment.Unbounded),
                 contentScale = ContentScale.Crop, alpha = 0.6f,
@@ -114,7 +116,7 @@ internal fun HeroRow(
         state = state,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.Top,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(end = 80.dp),
+        contentPadding = PaddingValues(end = 80.dp),
         modifier = Modifier.fillMaxWidth().height(132.dp),
     ) {
         itemsIndexed(entries, key = { _, e -> e.key }) { index, e ->
@@ -159,7 +161,7 @@ private fun HeroTile(
     ) {
         val bitmap = icon
         if (bitmap != null) {
-            androidx.compose.foundation.Image(
+            Image(
                 bitmap, entry.label, Modifier.padding(2.dp).fillMaxSize(),
                 contentScale = ContentScale.Crop,
             )

@@ -58,6 +58,8 @@ import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Waves
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -836,13 +838,13 @@ internal fun OptionRow(icon: ImageVector, label: String, options: List<String>, 
             QuietButton(current, onClick = { open = !open },
                 modifier = Modifier.width(width),
                 trailing = { Icon(Icons.Filled.KeyboardArrowDown, null, Modifier.size(18.dp)) })
-            androidx.compose.material3.DropdownMenu(
+            DropdownMenu(
                 expanded = open,
                 onDismissRequest = { open = false },
                 modifier = Modifier.width(width),
             ) {
                 for (o in options.distinct()) {
-                    androidx.compose.material3.DropdownMenuItem(
+                    DropdownMenuItem(
                         text = { Text(o, fontWeight = if (o == current) FontWeight.Bold else FontWeight.Normal) },
                         onClick = { open = false; onPick(o) },
                     )

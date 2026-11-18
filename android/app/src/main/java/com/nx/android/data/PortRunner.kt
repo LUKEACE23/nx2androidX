@@ -6,6 +6,9 @@ import com.nx.android.domain.GameSource
 import com.nx.android.domain.environment.EnvironmentSetup
 import com.nx.android.domain.environment.GuestProcessLauncher
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Runs the porter and the doctor: the process handling that used to live in the activity, unchanged in its
@@ -42,7 +45,7 @@ class PortRunner(
      * The phone's own language: the pack follows it when the game has it (the porter takes it as a wish: a game
      * without it is packed in its own first language, as before).
      */
-    private fun deviceLanguage(): String = java.util.Locale.getDefault().toLanguageTag()
+    private fun deviceLanguage(): String = Locale.getDefault().toLanguageTag()
 
     companion object {
 
@@ -160,7 +163,7 @@ class PortRunner(
             file.parentFile?.mkdirs()
             val sig = signal(code)
             val what = if (sig != 0) "killed by signal $sig" else "exit code $code"
-            file.writeText("port: $what\ntime: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}\n")
+            file.writeText("port: $what\ntime: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())}\n")
         } catch (e: Exception) {
         }
     }

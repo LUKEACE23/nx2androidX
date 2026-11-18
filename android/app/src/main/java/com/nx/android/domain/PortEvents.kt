@@ -1,5 +1,7 @@
 package com.nx.android.domain
 
+import org.json.JSONObject
+
 /**
  * The porter's progress events (`port --progress json`): one JSON object per line. Parsing is free of Android,
  * so the tests can run on the JVM.
@@ -25,7 +27,7 @@ object PortEvents {
         val t = line.trim()
         if (!t.startsWith("{")) return null
         return try {
-            val o = org.json.JSONObject(t)
+            val o = JSONObject(t)
             PortEvent(
                 kind = o.optString("ev"),
                 message = o.optString("msg"),

@@ -1,7 +1,9 @@
 package com.nx.android.data
 
 import android.content.Context
+import java.io.BufferedWriter
 import java.io.File
+import java.io.FileWriter
 
 /**
  * The app's own log: everything the port and the tools say also lands in a file (files/nx2a/log.txt), so it can
@@ -10,7 +12,7 @@ import java.io.File
 object AppLog {
 
     private var file: File? = null
-    private var writer: java.io.BufferedWriter? = null
+    private var writer: BufferedWriter? = null
 
     fun init(ctx: Context) {
         if (file != null) return
@@ -28,7 +30,7 @@ object AppLog {
     fun line(s: String) {
         val f = file ?: return
         try {
-            val w = writer ?: java.io.BufferedWriter(java.io.FileWriter(f, true)).also { writer = it }
+            val w = writer ?: BufferedWriter(FileWriter(f, true)).also { writer = it }
             w.write(s + "\n")
             w.flush()
         } catch (e: Exception) {

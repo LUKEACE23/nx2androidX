@@ -1,5 +1,6 @@
 package com.nx.android.data
 
+import android.content.Context
 import com.nx.android.input.PadAssignment
 import org.json.JSONObject
 import java.io.File
@@ -14,7 +15,7 @@ import java.io.File
  *
  * 存的是手柄的指纹（不认设备 id）：拔了再插，指纹不变，还是那个玩家。
  */
-class PadPlayers(private val ctx: android.content.Context, private val titleId: String) {
+class PadPlayers(private val ctx: Context, private val titleId: String) {
 
     companion object {
         /** 手柄中心的指派是全局一份（不按游戏分）；游戏抽屉的「谁玩谁」读写同一份 */
@@ -54,7 +55,7 @@ class PadPlayers(private val ctx: android.content.Context, private val titleId: 
         return PadAssignment(values[0], values[1], values[2], values[3])
     }
 
-    private fun legacyPrefs() = ctx.getSharedPreferences(PrefsStore.NAME, android.content.Context.MODE_PRIVATE)
+    private fun legacyPrefs() = ctx.getSharedPreferences(PrefsStore.NAME, Context.MODE_PRIVATE)
 }
 
 /**

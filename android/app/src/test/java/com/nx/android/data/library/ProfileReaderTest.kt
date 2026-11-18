@@ -1,5 +1,6 @@
 package com.nx.android.data.library
 
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -36,11 +37,11 @@ class ProfileReaderTest {
 
     @Test
     fun `the profile folder is the upper case title id`() {
-        val dir = java.io.File.createTempFile("nx2a_profiles", "")
+        val dir = File.createTempFile("nx2a_profiles", "")
         dir.delete(); dir.mkdirs()
         try {
-            val d = java.io.File(dir, "01001300232F4000"); d.mkdirs()
-            java.io.File(d, "android.tsv").writeText("status\tplayable\ngraphics\tnvn\n")
+            val d = File(dir, "01001300232F4000"); d.mkdirs()
+            File(d, "android.tsv").writeText("status\tplayable\ngraphics\tnvn\n")
             assertTrue(profileFile(dir, "01001300232F4000")?.isFile == true)
             assertTrue(profileFile(dir, "01001300232f4000")?.isFile == true)   // 小写也认
             assertEquals(null, profileFile(dir, "0100000000000000"))

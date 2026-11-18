@@ -9,6 +9,7 @@ import com.nx.android.domain.porting.PortCompletion
 import com.nx.android.domain.porting.PortCompletionProcessor
 import javax.inject.Inject
 import javax.inject.Singleton
+import org.json.JSONObject
 
 /** Applies a terminal build result exactly once, independent of whether any screen is observing it. */
 @Singleton
@@ -36,7 +37,7 @@ class PortCompletionCoordinator @Inject constructor(
                 else -> Unit
             }
         }
-        val json = org.json.JSONObject()
+        val json = JSONObject()
         completed.snapshot().forEachIndexed { index, value -> json.put(index.toString(), value) }
         prefs.putJson(PrefsStore.PORT_COMPLETED, json)
     }

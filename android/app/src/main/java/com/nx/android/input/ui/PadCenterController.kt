@@ -1,7 +1,11 @@
 package com.nx.android.input.ui
 
 import android.content.Context
+import android.hardware.input.InputManager
+import android.os.Build
 import android.os.SystemClock
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.view.InputDevice
 import android.view.MotionEvent
 import androidx.compose.runtime.getValue
@@ -219,7 +223,7 @@ class PadCenterController(
         val info = device(deviceId)
         // 列表里没有这只设备（它刚重连，设备 id 变了）：按它自己算档案键
         val key = info?.profileKey
-            ?: android.view.InputDevice.getDevice(deviceId)?.let { PadProfileKey.forDevice(it).key }
+            ?: InputDevice.getDevice(deviceId)?.let { PadProfileKey.forDevice(it).key }
             ?: return null
         val profile = profiles[key]
         val mapping = profile?.bindings ?: emptyMap()
@@ -265,15 +269,15 @@ fun capturableAxes(event: MotionEvent): List<Pair<Int, Float>> =
 
 /** 测振动：设备马达优先，机身兜底（蓝牙手柄常常没有马达）。 */
 fun vibratePad(context: Context, info: GamepadScan.Info) {
-    val manager = context.getSystemService(android.hardware.input.InputManager::class.java)
+    val manager = context.getSystemService(InputManager::class.java)
     val device = manager?.getInputDevice(info.id)
-    val vibrator = if (android.os.Build.VERSION.SDK_INT >= 31) device?.vibratorManager?.defaultVibrator else device?.vibrator
-    val effect = android.os.VibrationEffect.createOneShot(
-        120, android.os.VibrationEffect.DEFAULT_AMPLITUDE,
+    val vibrator = if (Build.VERSION.SDK_INT >= 31) device?.vibratorManager?.defaultVibrator else device?.vibrator
+    val effect = VibrationEffect.createOneShot(
+        120, VibrationEffect.DEFAULT_AMPLITUDE,
     )
     if (vibrator?.hasVibrator() == true) {
         vibrator.vibrate(effect)
     } else {
-        context.getSystemService(android.os.Vibrator::class.java)?.vibrate(effect)   // 没有马达：机身
+        context.getSystemService(Vibrator::class.java)?.vibrate(effect)   // 没有马达：机身
     }
 }

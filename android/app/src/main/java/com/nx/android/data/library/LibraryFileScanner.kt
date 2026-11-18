@@ -3,7 +3,9 @@ package com.nx.android.data.library
 import com.nx.android.domain.GameIdentity
 import com.nx.android.domain.LibraryLogic
 import com.nx.android.domain.Ported
+import com.nx.android.domain.RuntimeBuildMarker
 import java.io.File
+import org.json.JSONObject
 
 /**
  * What the game files and the finished data packs say about a game: its title ID, its display name, the
@@ -79,7 +81,7 @@ object LibraryFileScanner {
      */
     fun portFromPack(pack: File, runtimes: File? = null): Ported? {
         val man = try {
-            org.json.JSONObject(File(pack, "nx2a-data.json").readText())
+            JSONObject(File(pack, "nx2a-data.json").readText())
         } catch (e: Exception) {
             return null
         }
@@ -105,9 +107,9 @@ object LibraryFileScanner {
     }
 
     /** the build marker a runtime folder carries (build.json), or null without one */
-    fun readMarker(dir: File): com.nx.android.domain.RuntimeBuildMarker? = try {
-        val o = org.json.JSONObject(File(dir, "build.json").readText())
-        com.nx.android.domain.RuntimeBuildMarker(
+    fun readMarker(dir: File): RuntimeBuildMarker? = try {
+        val o = JSONObject(File(dir, "build.json").readText())
+        RuntimeBuildMarker(
             playerApiRevision = o.optInt("player_api_revision", 0),
             profileH = o.optString("profile_h"),
             noLsfg = if (o.has("no_lsfg")) o.optBoolean("no_lsfg") else null,
@@ -121,7 +123,7 @@ object LibraryFileScanner {
      * is still a pack that has to be deleted).
      */
     fun manifestTitleId(pack: File): String? = try {
-        org.json.JSONObject(File(pack, "nx2a-data.json").readText())
+        JSONObject(File(pack, "nx2a-data.json").readText())
             .optString("title_id").takeIf { it.isNotEmpty() }
     } catch (e: Exception) {
         null

@@ -1,6 +1,7 @@
 package com.nx.android.domain
 
 import com.nx.android.data.library.LibraryFileScanner
+import com.nx.android.domain.Ported
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -227,7 +228,7 @@ class FolderScannerTest {
         val onPrivate = pack(private, "0100000000010000", "The private one")
         pack(card, "0100000000020000", "Only on the card")
 
-        val byTitle = HashMap<String, com.nx.android.domain.Ported>()
+        val byTitle = HashMap<String, Ported>()
         byTitle.putAll(LibraryFileScanner.outIndex(card))
         byTitle.putAll(LibraryFileScanner.outIndex(private))   // 私有目录后扫：它优先
 

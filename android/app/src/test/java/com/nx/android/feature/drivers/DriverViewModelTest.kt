@@ -2,9 +2,11 @@ package com.nx.android.feature.drivers
 
 import androidx.lifecycle.ViewModelStore
 import com.nx.android.domain.drivers.Driver
+import com.nx.android.domain.drivers.DriverNote
 import com.nx.android.domain.drivers.DriverRelease
 import com.nx.android.domain.drivers.DriverRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -21,7 +23,7 @@ import org.junit.Test
 import java.io.File
 
 class DriverViewModelTest {
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `download failure is exposed as a recoverable page message`() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
@@ -66,6 +68,6 @@ class DriverViewModelTest {
     }
 
     private companion object {
-        val release = DriverRelease("gpu.zip", "GPU", "GPU", com.nx.android.domain.drivers.DriverNote.GPU_8XX, "https://example.invalid/gpu.zip")
+        val release = DriverRelease("gpu.zip", "GPU", "GPU", DriverNote.GPU_8XX, "https://example.invalid/gpu.zip")
     }
 }

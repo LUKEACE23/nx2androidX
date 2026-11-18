@@ -1,6 +1,7 @@
 package com.nx.android.data
 
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.file.Files
@@ -127,7 +128,7 @@ object Tar {
             if (n < 0) break
             out.write(buf, 0, n); left -= n
         }
-        if (left > 0) throw java.io.IOException("the archive ended $left bytes early: a file was cut short")
+        if (left > 0) throw IOException("the archive ended $left bytes early: a file was cut short")
     }
 
     private fun skip(input: InputStream, size: Long) {

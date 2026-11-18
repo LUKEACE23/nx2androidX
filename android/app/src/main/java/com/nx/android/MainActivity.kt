@@ -1,17 +1,34 @@
 package com.nx.android
 
+import android.Manifest
+import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.hardware.input.InputManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
+import com.nx.android.app.GameShortcuts
+import com.nx.android.appstate.LibraryOperationCoordinator
+import com.nx.android.appstate.UpdateState
+import com.nx.android.appstate.porting.PortCompletionCoordinator
+import com.nx.android.data.firmware.FirmwareRepository
+import com.nx.android.domain.drivers.DriverRepository
+import com.nx.android.domain.environment.EnvironmentSetup
+import com.nx.android.game.GameActivity
 import dagger.hilt.android.AndroidEntryPoint
 import com.nx.android.domain.porting.PortPhase
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
@@ -72,7 +89,7 @@ import kotlinx.coroutines.withContext
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    @Inject lateinit var portCompletionCoordinator: com.nx.android.appstate.porting.PortCompletionCoordinator
+    @Inject lateinit var portCompletionCoordinator: PortCompletionCoordinator
 
     companion object {
         const val EXTRA_TAB = "tab"   // the notification's tap lands on the builds page
@@ -86,16 +103,16 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var prefs: PrefsStore
     @Inject lateinit var library: LibraryState
     @Inject lateinit var player: PlayerState
-    @Inject lateinit var operations: com.nx.android.appstate.LibraryOperationCoordinator
+    @Inject lateinit var operations: LibraryOperationCoordinator
     @Inject lateinit var port: PortState
     @Inject lateinit var buildSessions: BuildSessionRepository
     @Inject lateinit var paths: AppPaths
     @Inject lateinit var onboarding: OnboardingState
-    @Inject lateinit var environmentSetup: com.nx.android.domain.environment.EnvironmentSetup
-    @Inject lateinit var drivers: com.nx.android.domain.drivers.DriverRepository
-    @Inject lateinit var firmwareRepo: com.nx.android.data.firmware.FirmwareRepository
+    @Inject lateinit var environmentSetup: EnvironmentSetup
+    @Inject lateinit var drivers: DriverRepository
+    @Inject lateinit var firmwareRepo: FirmwareRepository
     @Inject lateinit var envCheck: EnvCheckState
-    @Inject lateinit var update: com.nx.android.appstate.UpdateState
+    @Inject lateinit var update: UpdateState
 
     /** 界面语言：toast 与分享面板的标题从这里取词 */
     /** Which tab the screen opens on (the notification's tap says the builds page) */
@@ -135,10 +152,10 @@ class MainActivity : ComponentActivity() {
             port.history.firstOrNull { it.phase == PortPhase.INTERRUPTED }?.let(portCompletionCoordinator::complete)
         // 游戏在跑：游戏页是这个任务里压在库页上面的那一页——先把它顶到前面，再画库页（库页画在它下面，
         // 玩家看不见，但游戏结束后它就在那儿）。冷启动问一次进程：`:play` 活着就把游戏页顶回去。
-        if (isLauncherEntry(intent) && player.processAlive(this)) com.nx.android.game.GameActivity.resume(this)
+        if (isLauncherEntry(intent) && player.processAlive(this)) GameActivity.resume(this)
         // 桌面快捷方式的点击（冷启动这一条）：与库页卡片走同一扇门
-        if (intent?.action == com.nx.android.app.GameShortcuts.ACTION) {
-            intent.getStringExtra(com.nx.android.app.GameShortcuts.EXTRA_TITLE_ID)?.let { onShortcut(it) }
+        if (intent?.action == GameShortcuts.ACTION) {
+            intent.getStringExtra(GameShortcuts.EXTRA_TITLE_ID)?.let { onShortcut(it) }
         }
         setContent {
             AppRoot(prefs, locale, port, library, onboarding, drivers, environmentSetup, actions,
@@ -185,7 +202,7 @@ class MainActivity : ComponentActivity() {
         onSendToDesktop = { e ->
             val ported = e.pack
             if (ported == null) toast(locale.str(R.string.lib_artifact_missing))
-            else if (com.nx.android.app.GameShortcuts.request(this, ported, e.label)) {
+            else if (GameShortcuts.request(this, ported, e.label)) {
                 toast(locale.str(R.string.shortcut_added))
             } else toast(locale.str(R.string.shortcut_unsupported))
         },
@@ -250,7 +267,7 @@ class MainActivity : ComponentActivity() {
             })
         },
         titleBuildLog = { id -> port.history.firstOrNull { it.id == id }?.let {
-            "${File(it.game).name} · ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(it.startedAt))}"
+            "${File(it.game).name} · ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(it.startedAt))}"
         } ?: locale.str(R.string.common_log) },
     )
 
@@ -290,10 +307,10 @@ class MainActivity : ComponentActivity() {
         LibraryFileScanner.portFromPack(pack)?.let { ported ->
             when (LibraryLogic.launchDecision(player.processAlive(this), player.currentTitleId(), ported.titleId)) {
                 // 跑的正是这一个：带回前台，不重启
-                LaunchDecision.RESUME -> com.nx.android.game.GameActivity.resume(this)
+                LaunchDecision.RESUME -> GameActivity.resume(this)
                 // 跑的是别的：把在跑的那个带回前台 + 说明，被点的这个不起
                 LaunchDecision.REFUSE -> {
-                    com.nx.android.game.GameActivity.resume(this)
+                    GameActivity.resume(this)
                     toast(if (player.currentName().isBlank()) locale.str(R.string.runtime_busy)
                           else locale.str(R.string.lib_game_still_running, player.currentName()))
                 }
@@ -357,16 +374,16 @@ class MainActivity : ComponentActivity() {
         envCheck.refresh()
         // 回到库页：卡片重扫一遍（游戏页的 prepare 会在背后升级包）
         library.rescan()
-        if (android.os.Build.VERSION.SDK_INT >= 30) {
+        if (Build.VERSION.SDK_INT >= 30) {
             val started = prefs.str(PrefsStore.PLAYER_LAST_START).toLongOrNull() ?: 0L
             // 崩溃检测也问账本：processAlive() 是账本给全 app 的同步出口（账本之外没有第二处进程判断）
             if (started > 0 && !player.processAlive(this)) {
-                val manager = getSystemService(android.app.ActivityManager::class.java)
+                val manager = getSystemService(ActivityManager::class.java)
                 val crash = runCatching {
                     manager.getHistoricalProcessExitReasons(packageName, 0, 16).any {
                         it.processName.endsWith(Player.PROCESS_SUFFIX) && it.timestamp >= started &&
-                            (it.reason == android.app.ApplicationExitInfo.REASON_CRASH ||
-                             it.reason == android.app.ApplicationExitInfo.REASON_CRASH_NATIVE)
+                            (it.reason == ApplicationExitInfo.REASON_CRASH ||
+                             it.reason == ApplicationExitInfo.REASON_CRASH_NATIVE)
                     }
                 }.getOrDefault(false)
                 if (crash) {
@@ -454,7 +471,7 @@ class MainActivity : ComponentActivity() {
 
     /** 这只设备是手柄吗（虚拟设备不算：小米常驻一个 uinput-xiaomi，它说是手柄却从不发输入）。 */
     private fun isGamepad(deviceId: Int): Boolean {
-        val manager = getSystemService(android.hardware.input.InputManager::class.java) ?: return false
+        val manager = getSystemService(InputManager::class.java) ?: return false
         val device = manager.getInputDevice(deviceId) ?: return false
         return GamepadScan.isGamepad(device)
     }
@@ -471,10 +488,10 @@ class MainActivity : ComponentActivity() {
             launchTab = intent.getIntExtra(EXTRA_TAB, 0)
             launchBuildId = intent.getStringExtra(EXTRA_BUILD_ID).orEmpty()
         }
-        if (isLauncherEntry(intent) && player.processAlive(this)) com.nx.android.game.GameActivity.resume(this)
+        if (isLauncherEntry(intent) && player.processAlive(this)) GameActivity.resume(this)
         // 桌面快捷方式的点击（热启动这一条）
-        if (intent.action == com.nx.android.app.GameShortcuts.ACTION) {
-            intent.getStringExtra(com.nx.android.app.GameShortcuts.EXTRA_TITLE_ID)?.let { onShortcut(it) }
+        if (intent.action == GameShortcuts.ACTION) {
+            intent.getStringExtra(GameShortcuts.EXTRA_TITLE_ID)?.let { onShortcut(it) }
         }
     }
 
@@ -486,7 +503,7 @@ class MainActivity : ComponentActivity() {
         i?.action == Intent.ACTION_MAIN && i.hasCategory(Intent.CATEGORY_LAUNCHER)
 
     /** The phone's language changed (configChanges holds it): the app's words are read again */
-    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+    override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         locale.configurationChanged()
     }
@@ -497,7 +514,7 @@ class MainActivity : ComponentActivity() {
      * not enough: the app needs the all-files access, which the user gives once */
     private fun storageGranted(): Boolean {
         if (Build.VERSION.SDK_INT >= 30) return Environment.isExternalStorageManager()
-        return checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+        return checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
     }
 
     fun askStorage() {
@@ -505,8 +522,8 @@ class MainActivity : ComponentActivity() {
             if (Build.VERSION.SDK_INT >= 30) {
                 startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
             } else {
-                requestPermissions(arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE,
-                                          android.Manifest.permission.WRITE_EXTERNAL_STORAGE), 1)
+                requestPermissions(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE,
+                                          Manifest.permission.WRITE_EXTERNAL_STORAGE), 1)
             }
         } catch (e: Exception) {
             try {
@@ -528,7 +545,7 @@ class MainActivity : ComponentActivity() {
      * gate, so nothing depends on the answer being right.
      */
     private fun batteryUnrestricted(): Boolean = try {
-        val pm = getSystemService(android.os.PowerManager::class.java)
+        val pm = getSystemService(PowerManager::class.java)
         pm == null || pm.isIgnoringBatteryOptimizations(packageName)
     } catch (e: Exception) {
         true

@@ -5,13 +5,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
@@ -21,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -77,9 +82,9 @@ fun NxTheme(content: @Composable () -> Unit) {
         // 为什么不要：抽屉画在跑着的游戏之上，水波纹那层按住的每一帧都要重绘整个界面层，
         // 跟游戏抢 GPU（120Hz 的屏上就是每秒 120 次）。而这层反馈本来就看不见——选中、开关
         // 都是元素自己的颜色在说话。
-        androidx.compose.runtime.CompositionLocalProvider(
-            androidx.compose.material3.LocalContentColor provides NxColors.onBackground,
-            androidx.compose.material3.LocalRippleConfiguration provides null,
+        CompositionLocalProvider(
+            LocalContentColor provides NxColors.onBackground,
+            LocalRippleConfiguration provides null,
             content = content
         )
     }
@@ -94,7 +99,7 @@ fun NxTheme(content: @Composable () -> Unit) {
 fun GlassPanel(
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(20.dp),
-    contentPadding: androidx.compose.ui.unit.Dp = 16.dp,
+    contentPadding: Dp = 16.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Box(modifier.clip(shape).border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)) {
@@ -109,7 +114,7 @@ fun GlassPanel(
                 Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.05f), Color.Transparent))
             )
         )
-        androidx.compose.foundation.layout.Column(Modifier.padding(contentPadding), content = content)
+        Column(Modifier.padding(contentPadding), content = content)
     }
 }
 

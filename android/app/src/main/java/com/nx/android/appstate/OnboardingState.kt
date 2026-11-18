@@ -1,6 +1,7 @@
 package com.nx.android.appstate
 
 import android.os.Environment
+import android.os.StatFs
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -145,7 +146,7 @@ class OnboardingState @Inject constructor(
 
     /** The free space where the environment is unpacked (the app's own, internal storage) */
     fun freeGB(): Long = try {
-        Environment.getDataDirectory().let { android.os.StatFs(it.path).availableBytes } / (1024L * 1024L * 1024L)
+        Environment.getDataDirectory().let { StatFs(it.path).availableBytes } / (1024L * 1024L * 1024L)
     } catch (e: Exception) {
         0L
     }

@@ -1,5 +1,6 @@
 package com.nx.android.feature.drivers
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -42,7 +43,7 @@ import com.nx.android.core.ui.theme.NxPalette
 @Composable
 fun DriverRoute(onClose: () -> Unit, viewModel: DriverViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    androidx.activity.compose.BackHandler { onClose() }
+    BackHandler { onClose() }
     DriverScreen(state, onClose, viewModel::download, viewModel::dismissMessage)
 }
 

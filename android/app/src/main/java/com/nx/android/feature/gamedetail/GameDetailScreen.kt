@@ -40,11 +40,17 @@ import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.outlined.VideogameAsset
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -66,6 +72,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -76,6 +83,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nx.android.R
+import com.nx.android.app.GameShortcuts
 import com.nx.android.appstate.LibraryState
 import com.nx.android.appstate.PortState
 import com.nx.android.domain.drivers.Driver
@@ -172,7 +180,7 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
     val status = lib.statusOf(e)
     // Title ID：游戏的身份（还没构建过的还没有）
     val titleId = detailState.titleId ?: e.titleId
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var menuOpen by remember { mutableStateOf(false) }
     var removal by remember { mutableStateOf<RemovalRequest?>(null) }
@@ -277,7 +285,7 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
             removing = false
             // 游戏从库里删除：它的桌面图标置灰，点下去不再启动（清构建缓存不动桌面图标）
             if (r.outcome == GameCleanup.Outcome.DONE && (req.kind == Removal.DELETE || req.kind == Removal.FORGET)) {
-                com.nx.android.app.GameShortcuts.disable(context, e.titleId, locale.str(R.string.shortcut_disabled))
+                GameShortcuts.disable(context, e.titleId, locale.str(R.string.shortcut_disabled))
             }
             actions.onToast(
                 when (r.outcome) {
@@ -445,11 +453,11 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                         QuietButton(locale.str(R.string.lib_manage), onClick = { menuOpen = !menuOpen },
                             modifier = Modifier.width(112.dp),
                             trailing = { Icon(Icons.Filled.KeyboardArrowDown, null, Modifier.size(18.dp)) })
-                        androidx.compose.material3.DropdownMenu(
+                        DropdownMenu(
                             expanded = menuOpen,
                             onDismissRequest = { menuOpen = false },
                         ) {
-                            androidx.compose.material3.DropdownMenuItem(
+                            DropdownMenuItem(
                                 text = { Text(locale.str(R.string.main_share_log)) },
                                 leadingIcon = { Icon(Icons.Filled.Description, null, Modifier.size(18.dp)) },
                                 onClick = {
@@ -460,7 +468,7 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                                 },
                             )
                             // 发送到桌面：桌面快捷方式（pin shortcut），点击与库页卡片走同一扇门（已完成的游戏才有）
-                            androidx.compose.material3.DropdownMenuItem(
+                            DropdownMenuItem(
                                 text = { Text(locale.str(R.string.lib_pin_shortcut)) },
                                 leadingIcon = { Icon(Icons.Filled.Home, null, Modifier.size(18.dp)) },
                                 onClick = {
@@ -471,7 +479,7 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                             // 导入的包已经在玩家自己挑的目录里了：搬它没有意义。
                             // 搬移要有落点：包在卡上（搬回手机），或者有一张插着的卡（搬过去）。
                             if (!e.isImported && (packOnCard != null || cardDirs.isNotEmpty())) {
-                                androidx.compose.material3.DropdownMenuItem(
+                                DropdownMenuItem(
                                     text = { Text(locale.str(if (packOnCard != null) R.string.lib_pack_move_back else R.string.lib_pack_move_to_card)) },
                                     leadingIcon = { Icon(Icons.Filled.SdCard, null, Modifier.size(18.dp)) },
                                     onClick = { menuOpen = false; askMove() },
@@ -480,14 +488,14 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                             // 导出：把这个移植变成一个文件夹（数据包 + 散装的游戏文件）
                             // 导入的包本身就是那个文件夹了（还是玩家自己的文件）：再导出只是原样拷一遍
                             if (e.exportable) {
-                                androidx.compose.material3.DropdownMenuItem(
+                                DropdownMenuItem(
                                     text = { Text(locale.str(R.string.lib_pack_export_action)) },
                                     leadingIcon = { Icon(Icons.Filled.FolderOpen, null, Modifier.size(18.dp)) },
                                     onClick = { menuOpen = false; askExport() },
                                 )
                             }
                             if (!cacheLocked && !e.isImported) {
-                                androidx.compose.material3.DropdownMenuItem(
+                                DropdownMenuItem(
                                     text = { Text(locale.str(R.string.lib_remove_cache_action)) },
                                     leadingIcon = { Icon(Icons.Filled.CleaningServices, null, Modifier.size(18.dp)) },
                                     onClick = { menuOpen = false; askRemoval(Removal.CACHE) },
@@ -495,13 +503,13 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                             }
                             if (e.isImported) {
                                 // 移出：只忘路径，那个文件夹里的文件原地不动（那是玩家的文件）
-                                androidx.compose.material3.DropdownMenuItem(
+                                DropdownMenuItem(
                                     text = { Text(locale.str(R.string.lib_forget_action), color = NxPalette.Danger) },
                                     leadingIcon = { Icon(Icons.Filled.Delete, null, Modifier.size(18.dp), tint = NxPalette.Danger) },
                                     onClick = { menuOpen = false; askRemoval(Removal.FORGET) },
                                 )
                             } else {
-                                androidx.compose.material3.DropdownMenuItem(
+                                DropdownMenuItem(
                                     text = { Text(locale.str(R.string.lib_remove_action), color = NxPalette.Danger) },
                                     leadingIcon = { Icon(Icons.Filled.Delete, null, Modifier.size(18.dp), tint = NxPalette.Danger) },
                                     onClick = { menuOpen = false; askRemoval(Removal.DELETE) },
@@ -605,7 +613,7 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
 
     // 搬移的确认框：写明后果（拔卡后不能玩、卸载会连同删掉它）
     moveTarget?.let { target ->
-        androidx.compose.material3.AlertDialog(
+        AlertDialog(
             onDismissRequest = { moveTarget = null },
             title = { Text(locale.str(if (packOnCard != null) R.string.lib_pack_move_back_title else R.string.lib_pack_move_title)) },
             text = {
@@ -619,12 +627,12 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                 }
             },
             confirmButton = {
-                androidx.compose.material3.TextButton(onClick = { doMove(target) }) {
+                TextButton(onClick = { doMove(target) }) {
                     Text(locale.str(R.string.lib_pack_move_confirm))
                 }
             },
             dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { moveTarget = null }) {
+                TextButton(onClick = { moveTarget = null }) {
                     Text(locale.str(R.string.common_cancel))
                 }
             },
@@ -633,13 +641,13 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
 
     // 多张卡：问搬到哪一张
     if (choosingVolume) {
-        androidx.compose.material3.AlertDialog(
+        AlertDialog(
             onDismissRequest = { choosingVolume = false },
             title = { Text(locale.str(R.string.lib_pack_choose_volume_title)) },
             text = {
                 Column {
                     cardDirs.forEach { (name, dir) ->
-                        androidx.compose.material3.TextButton(
+                        TextButton(
                             onClick = { choosingVolume = false; moveTarget = dir },
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(name) }
@@ -647,7 +655,7 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                 }
             },
             confirmButton = {
-                androidx.compose.material3.TextButton(onClick = { choosingVolume = false }) {
+                TextButton(onClick = { choosingVolume = false }) {
                     Text(locale.str(R.string.common_cancel))
                 }
             },
@@ -666,7 +674,7 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                 GameCleanup.Kind.RUNTIME -> locale.str(R.string.lib_remove_item_runtime)
             }
         }
-        androidx.compose.material3.AlertDialog(
+        AlertDialog(
             onDismissRequest = { removal = null },
             title = {
                 Text(locale.str(when (req.kind) {
@@ -715,7 +723,7 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                 }
             },
             confirmButton = {
-                androidx.compose.material3.TextButton(onClick = { doRemoval() }) {
+                TextButton(onClick = { doRemoval() }) {
                     Text(locale.str(when (req.kind) {
                         Removal.CACHE -> R.string.common_clear
                         Removal.FORGET -> R.string.lib_forget_confirm_action
@@ -725,7 +733,7 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                 }
             },
             dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { removal = null }) {
+                TextButton(onClick = { removal = null }) {
                     Text(locale.str(R.string.common_cancel))
                 }
             },
@@ -748,12 +756,12 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                 if (exporting) {
                     val p = exportProgress
                     if (p != null) {
-                        androidx.compose.material3.LinearProgressIndicator(
+                        LinearProgressIndicator(
                             progress = { p.fraction },
                             modifier = Modifier.width(220.dp),
                         )
                     } else {
-                        androidx.compose.material3.CircularProgressIndicator()
+                        CircularProgressIndicator()
                     }
                     Text(locale.str(R.string.lib_pack_export_working),
                          style = MaterialTheme.typography.bodyMedium)
@@ -766,12 +774,12 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                 } else if (moving) {
                     val p = moveProgress
                     if (p != null) {
-                        androidx.compose.material3.LinearProgressIndicator(
+                        LinearProgressIndicator(
                             progress = { p.fraction },
                             modifier = Modifier.width(220.dp),
                         )
                     } else {
-                        androidx.compose.material3.CircularProgressIndicator()
+                        CircularProgressIndicator()
                     }
                     Text(locale.str(R.string.lib_pack_moving),
                          style = MaterialTheme.typography.bodyMedium)
@@ -783,7 +791,7 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                              color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    androidx.compose.material3.CircularProgressIndicator()
+                    CircularProgressIndicator()
                     Text(locale.str(R.string.lib_cleanup_working),
                          style = MaterialTheme.typography.bodyMedium)
                 }
@@ -825,7 +833,7 @@ private fun RunOptions(
             onSelect = { value -> onSelectDriver(value) }, fallback = systemDriver,
             hint = stringResource(R.string.driver_pick_hint))
     } else {
-        androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
     }
     failure?.let { Hint(failureText(LocalAppLocale.current, it), size = 11.sp) }
 }
@@ -910,17 +918,17 @@ private fun RunOptions(
 
         // 换进去就是换掉现在的进度：没有备份可退，先问一遍
         pendingImport?.let { source ->
-            androidx.compose.material3.AlertDialog(
+            AlertDialog(
                 onDismissRequest = { pendingImport = null },
                 title = { Text(locale.str(R.string.lib_import_confirm)) },
                 text = { Text(locale.str(R.string.lib_import_confirm_body, source.name)) },
                 confirmButton = {
-                    androidx.compose.material3.TextButton(onClick = {
+                    TextButton(onClick = {
                         pendingImport = null
                         doImport(source)
                     }) { Text(locale.str(R.string.common_import), color = NxPalette.Building) }
                 },
-                dismissButton = { androidx.compose.material3.TextButton(onClick = { pendingImport = null }) { Text(locale.str(R.string.common_cancel)) } },
+                dismissButton = { TextButton(onClick = { pendingImport = null }) { Text(locale.str(R.string.common_cancel)) } },
             )
         }
     }

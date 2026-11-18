@@ -52,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -209,7 +210,7 @@ fun AppRoot(
             var buildLogId by remember { mutableStateOf("") }
             var envCheckOpen by remember { mutableStateOf(false) }
             var ossNotice by rememberSaveable { mutableStateOf(false) }
-            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val ctx = LocalContext.current
             val onboardingViewModel: OnboardingViewModel = hiltViewModel()
             val onboardingUiState by onboardingViewModel.uiState.collectAsStateWithLifecycle()
             val environmentCheckViewModel: EnvironmentCheckViewModel = hiltViewModel()
@@ -473,7 +474,7 @@ fun MainScreen(
     // 手柄中心：从顶栏的手柄按钮进来，盖住整屏（跟设置页一样）。开着不开着是活动那边
     // 的一份（分发层也要知道：手柄的键该进中心还是进页面）
     val padDevices by GamepadScan.devices.collectAsStateWithLifecycle()
-    val padCtx = androidx.compose.ui.platform.LocalContext.current
+    val padCtx = LocalContext.current
     val lib = library
     // 手柄导航归谁：谁在最上面，谁拿走手柄。
     // 手柄中心开着的时候，手柄的键进中心（活动层就不发了），外面还盖着东西的时候也一样。

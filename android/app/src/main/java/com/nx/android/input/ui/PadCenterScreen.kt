@@ -1,5 +1,6 @@
 package com.nx.android.input.ui
 
+import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
@@ -588,7 +589,7 @@ private fun CalibrationSlider(
 }
 
 /** 打开蓝牙设置（没接手柄时给玩家一条路）。 */
-private fun openBluetoothSettings(context: android.content.Context) {
+private fun openBluetoothSettings(context: Context) {
     runCatching { context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
         .onFailure { context.startActivity(Intent(Settings.ACTION_SETTINGS)) }
 }

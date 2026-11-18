@@ -1,6 +1,7 @@
 package com.nx.android.data
 
 import com.nx.android.domain.Ported
+import java.io.IOException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -35,7 +36,7 @@ class RuntimeLibrariesTest {
         }
     }
 
-    @Test(expected = java.io.IOException::class)
+    @Test(expected = IOException::class)
     fun `incomplete generation cannot use old hooks`() {
         val root = Files.createTempDirectory("runtime-incomplete").toFile()
         try {

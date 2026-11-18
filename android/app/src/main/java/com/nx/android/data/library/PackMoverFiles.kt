@@ -3,6 +3,7 @@ package com.nx.android.data.library
 import com.nx.android.domain.PackMover
 import java.io.File
 import java.io.IOException
+import java.util.ArrayDeque
 
 /**
  * 把一个数据包搬到另一个卷（可移动卡上 App 自己的目录），或者搬回来。
@@ -91,7 +92,7 @@ object PackMoverFiles {
     private fun measure(src: File): Count {
         var files = 0
         var bytes = 0L
-        val stack = java.util.ArrayDeque<File>()
+        val stack = ArrayDeque<File>()
         stack.addLast(src)
         while (stack.isNotEmpty()) {
             val dir = stack.removeLast()
@@ -121,7 +122,7 @@ object PackMoverFiles {
         if (!dst.isDirectory) return null
         var files = 0
         var bytes = 0L
-        val stack = java.util.ArrayDeque<File>()
+        val stack = ArrayDeque<File>()
         stack.addLast(src)
         while (stack.isNotEmpty()) {
             val dir = stack.removeLast()

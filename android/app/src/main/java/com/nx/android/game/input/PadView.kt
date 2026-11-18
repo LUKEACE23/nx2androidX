@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Toast
@@ -517,12 +518,12 @@ class PadView(context: Context, private val prefs: PrefsStore, private val pack:
             text = {
                 runCatching {
                     this.context.assets.open("$DEFAULT_THEME_DIR/theme.tsv").use { it.readBytes().toString(Charsets.UTF_8) }
-                }.onFailure { android.util.Log.w(TAG, "the default theme pack is not in the assets ($DEFAULT_THEME_DIR): $it") }.getOrNull()
+                }.onFailure { Log.w(TAG, "the default theme pack is not in the assets ($DEFAULT_THEME_DIR): $it") }.getOrNull()
             },
             atlas = { name ->
                 runCatching {
                     this.context.assets.open("$DEFAULT_THEME_DIR/$name").use { BitmapFactory.decodeStream(it) }
-                }.onFailure { android.util.Log.w(TAG, "the default theme pack has no $name: $it") }.getOrNull()
+                }.onFailure { Log.w(TAG, "the default theme pack has no $name: $it") }.getOrNull()
             },
         )
     }

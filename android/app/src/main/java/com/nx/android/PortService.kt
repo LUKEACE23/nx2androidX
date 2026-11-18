@@ -7,11 +7,14 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.os.Handler
 import android.os.IBinder
 import android.widget.Toast
 import androidx.core.content.ContextCompat
+import com.nx.android.appstate.LibraryOperationCoordinator
 import com.nx.android.appstate.PortState
 import com.nx.android.appstate.porting.PortCompletionCoordinator
+import com.nx.android.core.storage.AppPaths
 import com.nx.android.data.AppLocale
 import com.nx.android.data.AppLog
 import com.nx.android.data.PortRunner
@@ -88,7 +91,7 @@ class PortService : Service() {
         }
     }
 
-    @Inject lateinit var operations: com.nx.android.appstate.LibraryOperationCoordinator
+    @Inject lateinit var operations: LibraryOperationCoordinator
 
     private var runner: PortRunner? = null
     private lateinit var nm: NotificationManager
@@ -103,7 +106,7 @@ class PortService : Service() {
     @Inject
     lateinit var completionCoordinator: PortCompletionCoordinator
     @Inject
-    lateinit var paths: com.nx.android.core.storage.AppPaths
+    lateinit var paths: AppPaths
 
     /** Nothing binds to it: the service is started with Intents only. 没有谁绑定它：服务只用 Intent 启动 */
     override fun onBind(intent: Intent?): IBinder? = null
@@ -161,7 +164,7 @@ class PortService : Service() {
         }
         val taskId = port.buildId
         startForeground(1, notification())
-        val handler = android.os.Handler(mainLooper)
+        val handler = Handler(mainLooper)
         lateinit var taskRunner: PortRunner
         taskRunner = PortRunner(environmentSetup, guestLauncher, locale, File(paths.files, "nx2a/port_exit.txt")) { line ->
             handler.post {

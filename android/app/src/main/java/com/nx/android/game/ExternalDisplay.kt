@@ -13,6 +13,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import androidx.core.view.WindowCompat
 
 /**
  * 外接屏：App 在一块接上的显示器（平板的 USB-C DP 输出、扩展坞）上开一个 presentation，
@@ -101,7 +102,7 @@ class ExternalDisplay(private val activity: Activity, private val listener: List
         next.setContentView(view)
         // 那块屏上只留画面：系统的状态栏与任务栏让给游戏
         next.window?.let { w ->
-            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(w, false)
+            WindowCompat.setDecorFitsSystemWindows(w, false)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) w.insetsController?.let {
                 it.hide(WindowInsets.Type.systemBars())
                 it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE

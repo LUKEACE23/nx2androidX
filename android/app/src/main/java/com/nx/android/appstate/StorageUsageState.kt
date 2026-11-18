@@ -1,5 +1,6 @@
 package com.nx.android.appstate
 
+import android.os.Process
 import android.os.StatFs
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,7 +48,7 @@ class StorageUsageState @Inject constructor(
     private val background: CoroutineDispatcher = Executors.newSingleThreadExecutor { r ->
         Thread({
             runCatching {
-                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+                Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
             }
             r.run()
         }, "storage-usage-scan").apply { priority = Thread.MIN_PRIORITY }

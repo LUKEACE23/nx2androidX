@@ -2,7 +2,9 @@ package com.nx.android.game
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.GameManager
 import android.content.Intent
+import android.content.res.Configuration
 import android.hardware.input.InputManager
 import android.os.Build
 import android.os.Bundle
@@ -34,7 +36,11 @@ import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -46,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
@@ -65,9 +72,14 @@ import com.nx.android.data.PadPlayers
 import com.nx.android.data.PrefsStore
 import com.nx.android.data.RatePin
 import com.nx.android.data.RateSettings
+import com.nx.android.data.RuntimeCompiler
+import com.nx.android.data.RuntimeLibraries
+import com.nx.android.data.RuntimeStorage
 import com.nx.android.data.drivers.Drivers
 import com.nx.android.data.hasGyroscope
+import com.nx.android.data.library.LibraryFileScanner
 import com.nx.android.data.playback.PackEnvStore
+import com.nx.android.domain.RuntimeBuildMarker
 import com.nx.android.game.GameActivity.Companion.prepareScope
 import com.nx.android.game.hud.HudField
 import com.nx.android.game.hud.HudOverlay
@@ -82,6 +94,8 @@ import com.nx.android.input.PadProfileStore
 import com.nx.android.input.PadSpec
 import com.nx.android.input.ui.PadCenterController
 import dagger.hilt.android.AndroidEntryPoint
+import java.io.File
+import java.lang.ref.WeakReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -136,7 +150,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         internal var prepareReason by mutableStateOf("")     // the failure's own reason (why the rebuild stopped)
         @Volatile private var preparedHostPath = ""          // where the prepared host landed (READY)
         @Volatile private var startClaimed = false           // exactly one instance turns a READY prepare into a game
-        private var currentInstance = java.lang.ref.WeakReference<GameActivity?>(null)
+        private var currentInstance = WeakReference<GameActivity?>(null)
 
         /** the game again (back from the app): the running page comes to the front, no new one is made */
         fun resume(activity: Activity) {
@@ -145,8 +159,8 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
     }
 
-    @Inject lateinit var compiler: com.nx.android.data.RuntimeCompiler
-    @Inject lateinit var runtimeStorage: com.nx.android.data.RuntimeStorage
+    @Inject lateinit var compiler: RuntimeCompiler
+    @Inject lateinit var runtimeStorage: RuntimeStorage
 
     /** 界面语言：toast 与抽屉里的词从这里取 */
     private val locale: AppLocale get() = (application as NxApp).locale
@@ -237,7 +251,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
      */
     private fun loadPadProfiles() {
         padController = PadCenterController(
-            PadProfileStore(java.io.File(filesDir, "pads/${PadProfileStore.FILE_NAME}")),
+            PadProfileStore(File(filesDir, "pads/${PadProfileStore.FILE_NAME}")),
             onChanged = { pushPadMapping() },   // 档案改了：新表推给宿主（改完即时生效，不用重启游戏）
         )
     }
@@ -278,7 +292,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        currentInstance = java.lang.ref.WeakReference(this)
+        currentInstance = WeakReference(this)
         packPath = intent.getStringExtra(EXTRA_PACK)
         packTitleId = intent.getStringExtra(EXTRA_TITLE_ID)?.ifEmpty { null }
         packName = intent.getStringExtra(EXTRA_NAME) ?: ""
@@ -316,7 +330,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         setContentView(loading)
     }
 
-    @androidx.compose.runtime.Composable
+    @Composable
     private fun LoadingPage() {
         val name = packName
         Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
@@ -326,34 +340,34 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             ) {
                 if (name.isNotBlank()) {
                     Text(name, color = Color.White,
-                         style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
+                         style = MaterialTheme.typography.titleLarge,
                          maxLines = 1)
                     Spacer(Modifier.height(18.dp))
                 }
                 when (preparePhase) {
                     PreparePhase.RUNNING -> {
-                        androidx.compose.material3.CircularProgressIndicator(color = NxPalette.Cream)
+                        CircularProgressIndicator(color = NxPalette.Cream)
                         Spacer(Modifier.height(14.dp))
                         Text(stringResource(R.string.runtime_rebuilding), color = Color.White.copy(alpha = 0.75f),
-                             style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                             style = MaterialTheme.typography.bodyMedium)
                         // 进度来自同进程读 porter 子进程的 stdout：它说到哪儿了，这里就写到哪儿
                         if (prepareStep.isNotBlank()) Text(prepareStep, color = Color.White.copy(alpha = 0.5f),
-                             style = androidx.compose.material3.MaterialTheme.typography.bodySmall, maxLines = 2)
+                             style = MaterialTheme.typography.bodySmall, maxLines = 2)
                         Spacer(Modifier.height(10.dp))
                         Text(stringResource(R.string.runtime_rebuild_hint), color = Color.White.copy(alpha = 0.5f),
-                             style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                             textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                             style = MaterialTheme.typography.bodySmall,
+                             textAlign = TextAlign.Center)
                     }
                     PreparePhase.FAILED -> {
                         Text(prepareReason.ifBlank { stringResource(R.string.runtime_update_failed) },
-                             color = Color.White, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                             textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                             color = Color.White, style = MaterialTheme.typography.bodyMedium,
+                             textAlign = TextAlign.Center)
                         Spacer(Modifier.height(22.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            androidx.compose.material3.Button(onClick = { startPrepare() }) {   // 重试：重新判断一次并再准备
+                            Button(onClick = { startPrepare() }) {   // 重试：重新判断一次并再准备
                                 Text(stringResource(R.string.runtime_retry))
                             }
-                            androidx.compose.material3.Button(onClick = { endProcess() }) {
+                            Button(onClick = { endProcess() }) {
                                 Text(stringResource(R.string.drawer_exit))
                             }
                         }
@@ -374,7 +388,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         prepareStep = ""
         prepareReason = ""
         prepareJob = prepareScope.launch {
-            val outcome = prepareRuntime(java.io.File(pack))
+            val outcome = prepareRuntime(File(pack))
             withContext(Dispatchers.Main) {
                 if (outcome.ok) {
                     // 成功：Loading 收起。由「当下活着的那份实例」开跑（重建期间的新实例接手）
@@ -394,8 +408,8 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private data class PrepareOutcome(val ok: Boolean = false, val hostPath: String = "", val reason: String = "")
 
-    private suspend fun prepareRuntime(pack: java.io.File): PrepareOutcome {
-        val ported = com.nx.android.data.library.LibraryFileScanner.portFromPack(pack)
+    private suspend fun prepareRuntime(pack: File): PrepareOutcome {
+        val ported = LibraryFileScanner.portFromPack(pack)
             ?: return PrepareOutcome(reason = locale.str(R.string.main_cannot_run_not_a_pack, pack.name))
         val dir = runtimeStorage.dir(ported.titleId)
         // 旧格式的包（清单带 host，运行库在包里）：目录里那份对得上就直接用（旧包也能零拷贝）；
@@ -408,11 +422,11 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                 try {
                     prepareStep = locale.str(R.string.runtime_promoting)
                     withContext(Dispatchers.IO) {
-                        com.nx.android.data.RuntimeLibraries.copyForLaunch(ported, dir)
+                        RuntimeLibraries.copyForLaunch(ported, dir)
                     }
                     // 拷完由 App 写入构建标记（否则下次启动无从判版本）。旧包的清单没有记 lsfg，
                     // 晋升出来的运行库标记里就留着这一项不参与比对。
-                    runtimeStorage.writeMarker(dir, com.nx.android.domain.RuntimeBuildMarker(
+                    runtimeStorage.writeMarker(dir, RuntimeBuildMarker(
                         playerApiRevision = ported.playerApiRevision, profileH = ported.profileH, noLsfg = null))
                 } catch (e: Exception) {
                     return PrepareOutcome(reason = e.message.orEmpty().ifBlank { e.javaClass.simpleName })
@@ -432,7 +446,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             rebuild(pack)?.let { return it }
         }
         // 重建之后（或目录里已就位的那份）：清单与标记都核对过了，这里只认目录
-        val fresh = com.nx.android.data.library.LibraryFileScanner.portFromPack(pack) ?: ported
+        val fresh = LibraryFileScanner.portFromPack(pack) ?: ported
         val freshMarker = runtimeStorage.readMarker(ported.titleId)
         if (!runtimeStorage.complete(dir) || !runtimeStorage.matches(fresh, freshMarker)) {
             return PrepareOutcome(reason = locale.str(R.string.game_needs_report))
@@ -441,7 +455,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     /** 就地重建（porter 子进程，stdout 读进来就是 Loading 的进度）；成功返回 null，失败返回原因 */
-    private suspend fun rebuild(pack: java.io.File): PrepareOutcome? {
+    private suspend fun rebuild(pack: File): PrepareOutcome? {
         val result = compiler.rebuild(pack.absolutePath) { line ->
             prepareStep = line
             AppLog.line(line)
@@ -475,7 +489,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         GamepadScan.start(this)
         // the default driver: a game whose driver was never picked runs on the app's built-in one (the row goes
         // into the pack's env.txt, which the host reads). A driver the player picked is left alone.
-        applyDefaultDriver(java.io.File(pack))
+        applyDefaultDriver(File(pack))
         // the performance HUD's own preferences: the two lines, the fields, the temperature's unit
         val prefs = PrefsStore(this)
         hudStats = prefs.bool(PrefsStore.HUD_STATS, false)
@@ -513,7 +527,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         screenBlank = View(this).apply { setBackgroundColor(android.graphics.Color.BLACK); visibility = View.GONE }
         frame.addView(screenBlank, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         // 虚拟手柄绘制层（android-virtual-pad）：画在游戏画面之上、抽屉之下；不消费触点——命中与分流在宿主
-        padView = PadView(this, PrefsStore(this), packPath?.let { java.io.File(it) }, packTitleId)
+        padView = PadView(this, PrefsStore(this), packPath?.let { File(it) }, packTitleId)
         padView.onMenuTapped = { runOnUiThread { drawerOpen = !drawerOpen } }   // ☰ 按钮：App 开自己的抽屉
         frame.addView(padView, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         // the drawer's layer: a ComposeView over the game's surface (the composition needs the activity's owners on the view)
@@ -586,7 +600,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
      * never picked a driver for this game. The row is written once — a driver the player picked (the device's own
      * one included) stays what it is.
      */
-    private fun applyDefaultDriver(pack: java.io.File) {
+    private fun applyDefaultDriver(pack: File) {
         val builtIn = Drivers.list(this).firstOrNull { it.shipped } ?: return
         PackEnvStore.ensureDriverDefault(pack, builtIn.library.absolutePath)
     }
@@ -670,7 +684,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     /** the drawer's tree: the HUD, the panel, and the paused overlay (the surface keeps presenting through it) */
-    @androidx.compose.runtime.Composable
+    @Composable
     private fun DrawerRoot() {
         // 手柄：接着的设备与它们此刻的输入（中心的面板用）
         val padDevices by GamepadScan.devices.collectAsState()
@@ -679,9 +693,9 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)).clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null) { paused = false; Native.lifecycle(1) },
-                    contentAlignment = androidx.compose.ui.Alignment.Center,
-                ) { androidx.compose.material3.Text(locale.str(R.string.drawer_paused_overlay), color = Color.White,
-                    style = androidx.compose.material3.MaterialTheme.typography.titleLarge) }
+                    contentAlignment = Alignment.Center,
+                ) { Text(locale.str(R.string.drawer_paused_overlay), color = Color.White,
+                    style = MaterialTheme.typography.titleLarge) }
             }
             // 性能 HUD：画在游戏画面之上（App 自己画，宿主不再往画面里画东西）；顶中，避开刘海与挖孔。
             // 它排在抽屉之前：抽屉是前景的面板，HUD 该在它下面——否则读数会压在抽屉的顶上。
@@ -872,7 +886,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     /** 系统现在给的档位（2 = 性能，1 = 标准，-1 = 不支持；没有那个服务就是 0） */
     private fun systemGameMode(): Int {
         if (Build.VERSION.SDK_INT < 31) return 0   // GameManager is Android 12 and later
-        val gm = getSystemService(android.app.GameManager::class.java) ?: return 0
+        val gm = getSystemService(GameManager::class.java) ?: return 0
         return runCatching { gm.gameMode }.getOrDefault(0)
     }
 
@@ -880,12 +894,12 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun packGraphics(): String {
         val pack = packPath ?: return ""
         return runCatching {
-            com.nx.android.data.library.LibraryFileScanner.portFromPack(java.io.File(pack))?.graphics ?: ""
+            LibraryFileScanner.portFromPack(File(pack))?.graphics ?: ""
         }.getOrDefault("")
     }
 
     /** The phone's language changed (configChanges holds it): the app's words are read again */
-    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+    override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         locale.configurationChanged()
     }

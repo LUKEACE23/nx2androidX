@@ -1,5 +1,7 @@
 package com.nx.android.domain
 
+import java.time.Instant
+import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ensureActive
 import org.json.JSONArray
@@ -227,9 +229,9 @@ object StorageUsage {
     /** 这个时刻是不是今天（设备本地时区） */
     fun isToday(at: Long): Boolean {
         if (at <= 0L) return false
-        val zone = java.time.ZoneId.systemDefault()
-        val day = java.time.Instant.ofEpochMilli(at).atZone(zone).toLocalDate()
-        val today = java.time.Instant.ofEpochMilli(System.currentTimeMillis()).atZone(zone).toLocalDate()
+        val zone = ZoneId.systemDefault()
+        val day = Instant.ofEpochMilli(at).atZone(zone).toLocalDate()
+        val today = Instant.ofEpochMilli(System.currentTimeMillis()).atZone(zone).toLocalDate()
         return day == today
     }
 

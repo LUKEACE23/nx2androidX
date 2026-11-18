@@ -21,7 +21,10 @@ import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -176,13 +179,13 @@ fun PickRow(label: String, options: List<Pair<String, String>>, current: String?
                 QuietButton(shown, onClick = { open = !open },
                     modifier = Modifier.width(200.dp),
                     trailing = { Icon(Icons.Filled.KeyboardArrowDown, null, Modifier.size(18.dp)) })
-                androidx.compose.material3.DropdownMenu(
+                DropdownMenu(
                     expanded = open,
                     onDismissRequest = { open = false },
                     modifier = Modifier.width(200.dp),
                 ) {
                     for ((value, name) in options.distinctBy { it.first }) {
-                        androidx.compose.material3.DropdownMenuItem(
+                        DropdownMenuItem(
                             text = { Text(name, fontWeight = if (value == current) FontWeight.Bold else FontWeight.Normal) },
                             onClick = { open = false; onSelect(value) },
                         )
@@ -190,7 +193,7 @@ fun PickRow(label: String, options: List<Pair<String, String>>, current: String?
                 }
             }
             if (hint != null) {
-                androidx.compose.material3.IconButton(onClick = { hintOpen = !hintOpen },
+                IconButton(onClick = { hintOpen = !hintOpen },
                     modifier = Modifier.size(28.dp)) {
                     Icon(Icons.Filled.HelpOutline, stringResource(R.string.common_hint),
                         modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)

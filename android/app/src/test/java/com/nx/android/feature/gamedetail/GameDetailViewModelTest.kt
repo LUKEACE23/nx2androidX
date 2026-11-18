@@ -10,6 +10,7 @@ import com.nx.android.domain.saves.SaveRepository
 import com.nx.android.domain.saves.SaveSource
 import com.nx.android.domain.saves.SaveTarget
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -21,7 +22,7 @@ import org.junit.Test
 import java.io.File
 
 class GameDetailViewModelTest {
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `title keyed details keep per game options separate and clear on close`() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))

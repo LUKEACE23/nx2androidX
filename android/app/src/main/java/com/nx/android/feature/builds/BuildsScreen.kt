@@ -1,5 +1,6 @@
 package com.nx.android.feature.builds
 
+import androidx.compose.material3.Checkbox
 import com.nx.android.domain.porting.PortPhase
 
 import androidx.compose.foundation.background
@@ -668,7 +669,7 @@ private fun statusLabel(s: GameStatus): String = when (s) {
 @Composable
 private fun ConfigRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        androidx.compose.material3.Checkbox(checked = checked, onCheckedChange = onChange)
+        Checkbox(checked = checked, onCheckedChange = onChange)
         Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }

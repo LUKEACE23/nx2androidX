@@ -1,6 +1,7 @@
 package com.nx.android.data.playback
 
 import com.nx.android.domain.drivers.Driver
+import com.nx.android.domain.drivers.DriverNote
 import com.nx.android.domain.drivers.DriverRelease
 import com.nx.android.domain.drivers.DriverRepository
 import kotlinx.coroutines.Dispatchers
@@ -112,7 +113,7 @@ private class FakeDrivers(private val builtIn: File?) : DriverRepository {
     override val drivers: StateFlow<List<Driver>> = mutable
     override val releases: List<DriverRelease> = emptyList()
     override val shippedRelease: DriverRelease =
-        DriverRelease("none.zip", "None", "None", com.nx.android.domain.drivers.DriverNote.GPU_8XX, "")
+        DriverRelease("none.zip", "None", "None", DriverNote.GPU_8XX, "")
     override suspend fun refresh(): List<Driver> = mutable.value
     override suspend fun ensureShipped(): Boolean = builtIn != null
     override suspend fun builtIn(): Driver? = builtIn?.let {

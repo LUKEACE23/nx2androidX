@@ -11,6 +11,7 @@ import android.content.Intent
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
 import androidx.annotation.StringRes
@@ -19,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.nx.android.R
 import com.nx.android.domain.PhantomCheck
+import java.security.interfaces.RSAPrivateCrtKey
 import org.conscrypt.Conscrypt
 import java.io.File
 import java.net.InetAddress
@@ -210,7 +212,7 @@ object PhantomFix {
     }
 
     /** The App's adb key, made once; kept out of backups. */
-    private fun key(app: Context): java.security.interfaces.RSAPrivateCrtKey {
+    private fun key(app: Context): RSAPrivateCrtKey {
         val f = File(app.noBackupFilesDir, "adb-key.pk8")
         if (f.isFile) runCatching { return AdbWire.loadKey(f.readBytes()) }
         val k = AdbWire.newKey()
@@ -240,7 +242,7 @@ object PhantomFix {
         val key = "toggle_adb_wireless"
         val dev = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
             .putExtra(":settings:fragment_args_key", key)
-            .putExtra(":settings:show_fragment_args", android.os.Bundle().apply { putString(":settings:fragment_args_key", key) })
+            .putExtra(":settings:show_fragment_args", Bundle().apply { putString(":settings:fragment_args_key", key) })
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         val about = Intent(Settings.ACTION_DEVICE_INFO_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         runCatching { ctx.startActivity(if (developerOptionsOn(ctx)) dev else about) }

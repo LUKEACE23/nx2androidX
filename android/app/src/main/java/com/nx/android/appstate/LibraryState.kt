@@ -3,6 +3,8 @@ package com.nx.android.appstate
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.nx.android.data.library.GameProfile
+import com.nx.android.data.library.ProfileReader
 import com.nx.android.domain.GameCleanup
 import com.nx.android.domain.GameConfig
 import com.nx.android.domain.library.GameConfigRepository
@@ -46,7 +48,7 @@ class LibraryState @Inject constructor(private val port: PortState,
                    private val libraryRepository: GameLibraryRepository,
                    private val configRepository: GameConfigRepository,
                    private val operations: LibraryOperationCoordinator,
-                   private val profiles: com.nx.android.data.library.ProfileReader) {
+                   private val profiles: ProfileReader) {
 
     /** 库里的卡：一个游戏一张 */
     var games by mutableStateOf(listOf<GameEntry>()); private set
@@ -110,7 +112,7 @@ class LibraryState @Inject constructor(private val port: PortState,
     fun packsOf(e: GameEntry): List<File> = libraryRepository.packsOf(e)
 
     /** 这个游戏需要什么：App 自带的档案（图形接口、联机、设备要求） */
-    fun profileOf(titleId: String): com.nx.android.data.library.GameProfile? = profiles.of(titleId)
+    fun profileOf(titleId: String): GameProfile? = profiles.of(titleId)
 
     /** 这个游戏的状态 */
     fun statusOf(e: GameEntry): GameStatus =

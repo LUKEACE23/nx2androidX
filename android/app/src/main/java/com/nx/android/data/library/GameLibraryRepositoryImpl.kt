@@ -145,7 +145,7 @@ class GameLibraryRepositoryImpl @Inject constructor(
     override fun internalPortsDir(): File = paths.ports
     override fun workRoot(): File = paths.work
     override fun existingWorkspace(titleId: String): File? =
-        com.nx.android.domain.GameCleanup.workspaceOf(titleId, paths.work)?.takeIf(File::exists)
+        GameCleanup.workspaceOf(titleId, paths.work)?.takeIf(File::exists)
     override fun runtimeDir(titleId: String): File = File(paths.runtimes, titleId.lowercase())
     override fun partialPacks(): List<File> = portsDirs().flatMap(LibraryFileScanner::partials)
     override fun workFolderIn(from: Long, to: Long): String? = LibraryFileScanner.workFolderIn(paths.work, from, to)

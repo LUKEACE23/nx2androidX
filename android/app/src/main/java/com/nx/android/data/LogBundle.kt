@@ -3,6 +3,7 @@ package com.nx.android.data
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
+import android.os.SystemClock
 import java.io.File
 import java.io.RandomAccessFile
 import java.text.SimpleDateFormat
@@ -193,7 +194,7 @@ object LogBundle {
             val f = after.trim().split(Regex("\\s+"))
             val ticks = f[11].toLong() + f[12].toLong()      // utime, stime
             val started = f[19].toLong()                     // when it started, in ticks
-            val age = android.os.SystemClock.elapsedRealtime() / 1000.0 - started / 100.0
+            val age = SystemClock.elapsedRealtime() / 1000.0 - started / 100.0
             "cpu ${"%.1f".format(ticks / 100.0)} s, ${"%.0f".format(age)} s old"
         } catch (e: Exception) {
             ""

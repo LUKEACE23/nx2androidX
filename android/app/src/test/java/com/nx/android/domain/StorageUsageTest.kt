@@ -1,5 +1,6 @@
 package com.nx.android.domain
 
+import java.nio.file.Files
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -62,7 +63,7 @@ class StorageUsageTest {
         val target = t.file("target.bin", 4096)
         val link = File(t.root, "link.bin")
         val made = try {
-            java.nio.file.Files.createSymbolicLink(link.toPath(), target.toPath())
+            Files.createSymbolicLink(link.toPath(), target.toPath())
             true
         } catch (e: Exception) {
             false   // the phone does not allow it: the test skips itself
@@ -87,7 +88,7 @@ class StorageUsageTest {
         val a = t.file("a.bin", 1000)
         val b = File(t.root, "b.bin")
         val made = try {
-            java.nio.file.Files.createLink(b.toPath(), a.toPath())
+            Files.createLink(b.toPath(), a.toPath())
             true
         } catch (e: Exception) {
             false

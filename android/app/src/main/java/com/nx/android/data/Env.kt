@@ -2,6 +2,7 @@ package com.nx.android.data
 
 import android.content.Context
 import android.util.Log
+import com.nx.android.domain.PlayerApiRevision
 import java.io.File
 import java.io.IOException
 import java.util.zip.GZIPInputStream
@@ -15,6 +16,7 @@ import dagger.hilt.components.SingletonComponent
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import org.json.JSONObject
 
 /**
  * The environment the porter runs in.
@@ -84,7 +86,7 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
             // the runtimes folder: the runtime a port builds goes here (one folder per title ID, with its
             // build marker), not into the pack — the launch loads it in place, no per-launch copy
             "NX2A_RUNTIMES" to paths.runtimes.absolutePath,
-            "NX2A_PLAYER_API_REVISION" to com.nx.android.domain.PlayerApiRevision.CURRENT.toString(),
+            "NX2A_PLAYER_API_REVISION" to PlayerApiRevision.CURRENT.toString(),
             "PYTHONUNBUFFERED" to "1",
             "PYTHONIOENCODING" to "utf-8",
             "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT" to "1",
@@ -249,7 +251,7 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
         try {
             ctx.assets.open("modes.json").use { raw ->
                 val text = raw.readBytes().toString(Charsets.UTF_8)
-                val json = org.json.JSONObject(text)
+                val json = JSONObject(text)
                 val out = HashMap<String, Long>()
                 val keys = json.keys()
                 while (keys.hasNext()) {

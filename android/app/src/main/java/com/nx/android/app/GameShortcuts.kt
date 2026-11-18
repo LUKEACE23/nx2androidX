@@ -7,6 +7,7 @@ import android.graphics.BitmapFactory
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
+import com.nx.android.MainActivity
 import com.nx.android.R
 import com.nx.android.domain.Ported
 
@@ -34,7 +35,7 @@ object GameShortcuts {
         val bitmap = ported.icon?.absolutePath?.let { path -> runCatching { BitmapFactory.decodeFile(path) }.getOrNull() }
         val icon = if (bitmap != null) IconCompat.createWithBitmap(bitmap)
                    else IconCompat.createWithResource(activity, R.mipmap.ic_launcher)
-        val intent = Intent(activity, com.nx.android.MainActivity::class.java)
+        val intent = Intent(activity, MainActivity::class.java)
             .setAction(ACTION)
             .putExtra(EXTRA_TITLE_ID, ported.titleId)
         val info = ShortcutInfoCompat.Builder(activity, id(ported.titleId))
