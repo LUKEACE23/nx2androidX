@@ -121,7 +121,7 @@ The shader translator's existing native-perspective compensation rule accepts ei
 
 ## Game profiles on Android
 
-A profile is offered for Android when it has an `android.tsv`; the profiles without one (upstream's games, synced in bulk) show as "not ported": an experimental port can still try them ([UPSTREAM_PROFILES.md](UPSTREAM_PROFILES.md)). The app does not carry the profiles - they are half a gigabyte of shader tables - so the player imports a package of them into their own folder (the environment check has the button), and the porter finds them there (DM_GAMES_DIR). `android.tsv` holds, one `key<TAB>value` row each:
+A profile is offered for Android when it has an `android.tsv`; the profiles without one (upstream's games, synced in bulk) show as "not ported": an experimental port can still try them ([UPSTREAM_PROFILES.md](UPSTREAM_PROFILES.md)). The app does not carry the profiles - they are half a gigabyte of shader tables - so the player imports a package of them into their own folder (the environment check has the button), and the porter finds them there (porter.profiles asks the layer for the profiles the tree does not have). The tools that look in `dm/games` find nothing on the phone: the rewriter reads a profile's `patches.py` (its cuts, without which a game runs on the wrong allocator) only there, and so does the host's profile header. A port therefore copies the imported profile into `dm/games` before it reads the profile and removes the copy when the port is done, so `dm/games` keeps only the profiles the tree itself has. `android.tsv` holds, one `key<TAB>value` row each:
 
 | Key | Meaning |
 |---|---|

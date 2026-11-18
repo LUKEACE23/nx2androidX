@@ -7,10 +7,10 @@
 # hash of the game_profile.h it was built with (nx2a-data.json profile_h, which porter port writes) this checkout's, or this checkout's without defines added since (ADDED_DEFINES) that are at their off value. A derived profile (a version the profile does not register, with
 # its automatic alias headroom) or --alias-headroom compiled another DM_GAME_MEM_ALIAS into libdmhost.so, and the repository's would give the game a smaller alias region. Nor does a change in sdk_patches.py for other SDK builds: the cuts and observation gates it and the game's patches.py give the build IDs of
 # the port's modules are checked against those mods/<module>.cuts.tsv and .obs.tsv list. A changed shader translator or data pack is not carried over either: a port again does that.
-import hashlib, json, os, re, shlex, subprocess, sys, tempfile
+import hashlib, json, os, re, shlex, shutil, subprocess, sys, tempfile
 from pathlib import Path
 
-from porter import datapack, paths, toolchain
+from porter import datapack, paths, profiles_layer, toolchain
 from porter.adb import AdbError
 from porter.driver import installed_apk
 from porter.paths import DM
@@ -141,8 +141,18 @@ def update(adb, package, jobs=os.cpu_count() or 8):
     if not title_id: raise BuildError(f'{package}: no title ID in {files}/nx2a-data.json (a data pack made before nx2android wrote one): port the game again')
     if not isinstance(title_id, str) or not TITLE_ID.fullmatch(title_id): raise BuildError(f'{package}: {title_id!r} in {files}/nx2a-data.json is not a title ID (16 hexadecimal digits)')
     title_id = title_id.upper()
+    # The profile the host is built from is the one in dm/games; on the phone it is the player's imported profile, which a port copies there for as long as it runs
+    copied = profiles_layer.copy_to_games(title_id)
     if not (DM / 'games' / title_id / 'game.tsv').is_file():
         raise BuildError(f'{package}: no profile of {title_id} in this checkout (an experimental port\'s profile stays in its build folder): port the game again')
+    try:
+        return _update(adb, package, title_id, jobs, manifest, files)
+    finally:
+        if copied: shutil.rmtree(copied, ignore_errors=True)   # the copy of the imported profile goes when the host is built
+
+
+def _update(adb, package, title_id, jobs, manifest, files):
+    """The rest of update(): the host is built from the profile in dm/games and put in place of the installed APK's"""
     check_profile(package, manifest, title_id)
     record = adb.read_text(f'{files}/mods/build_src.sha256')
     if not record.strip(): raise BuildError(f'{package}: no mods/build_src.sha256 on the device: port the game again')

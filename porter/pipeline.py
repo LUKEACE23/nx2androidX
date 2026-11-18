@@ -193,6 +193,7 @@ def registered_patches():
     return out
 
 
+
 def lost_patches(builds, exefs, mods, table=None):
     """The modules of a derived port whose build has no registered patch while the profile's tested builds of it have some: the rewriter applies a module's patches by its build ID
     only, so the module runs without them. Unpacking's base game v0 ships sdk 2d369d99… (no cuts until GitHub issue #26) where update 2.01's sdk 357efc19… has the node-area and
@@ -405,9 +406,6 @@ class Port:
         os.environ['DOTNET_ROOT'] = str(toolchain.dotnet_root(self.tools['dotnet']))   # where nx_extract.exe's apphost looks for the runtime (else the system's, which may lack .NET 10)
         # PYTHONUTF8: the engine's tools write their tables with open() and no encoding, which is the ANSI code page on Windows (shader_split.py's "→" failed)
         self.env = dict(os.environ, J=str(o.jobs), PYTHONIOENCODING='utf-8', PYTHONUTF8='1', DOTNET_CLI_TELEMETRY_OPTOUT='1')
-        # The player's own game profiles (the package they imported) join DM_GAMES_DIR: game.py finds them there, and so does every tool the
-        # port starts (the shader tools, the host build), which take the variable from this environment.
-        profiles_layer.activate(self.env)
         # The build tools' own libraries (the toolchain's libshaderc for glslc): the tools are run with the environment the
         # guest has, whose library path holds the rootfs's libraries only, and the tools' own RPATH may point elsewhere
         if tc := Path(os.environ.get('NX2A_REPO', '')) / 'toolchain':
@@ -415,27 +413,29 @@ class Port:
                 self.env['LD_LIBRARY_PATH'] = os.pathsep.join([str(tc / 'lib'), self.env.get('LD_LIBRARY_PATH', '')]).rstrip(os.pathsep)
 
         try:
-            self.inputs()
-            PROG.plan(1 + len(self.versions) + bool(self.fam['dlc']) + bool(o.firmware and self.ap.sysdata) + bool(o.fps60) + 6 + bool(o.install))   # nx_extract, the versions, the DLC, the system data, 60 fps, rewrite / split / Vulkan shaders / host / APK / data, install (unpack adds its own)
-            self.extract()
-        finally: self.drop_unpacked()   # a failed run leaves no decompressed dumps behind either
-        self.check_graphics()
-        self.fps_unlock()
-        self.rewrite()
-        if o.install: self.pull_captures()
-        self.shaders()
-        self.host()
-        self.apk()
-        self.data()
-        if o.install: self.install()
-        nsp.rmtree(self.work / 'tmp')
-        self.result.update(title_id=self.g.id, name=self.app_name, package=self.package, version=self.pkg_ver, display=self.display, language=self.lang,
-                           status=self.ap.status, derived=bool(self.derived), installed=bool(o.install))
-        say(f'done: {self.result.get("apk", "no APK (the app runs it)") + ", " if "apk" in self.result else ""}{self.result["data"]}')
-        if self.derived: say(f'[RED] {self.derived}: the port is built from a derived profile and may not run as the profile\'s tested version does'
-                             + (f'; {self.derived_mem}' if self.derived_mem else ''))
-        for x in self.lost: say(f'[RED] {x}')
-        return self.result
+            try:
+                self.inputs()
+                PROG.plan(1 + len(self.versions) + bool(self.fam['dlc']) + bool(o.firmware and self.ap.sysdata) + bool(o.fps60) + 6 + bool(o.install))   # nx_extract, the versions, the DLC, the system data, 60 fps, rewrite / split / Vulkan shaders / host / APK / data, install (unpack adds its own)
+                self.extract()
+            finally: self.drop_unpacked()   # a failed run leaves no decompressed dumps behind either
+            self.check_graphics()
+            self.fps_unlock()
+            self.rewrite()
+            if o.install: self.pull_captures()
+            self.shaders()
+            self.host()
+            self.apk()
+            self.data()
+            if o.install: self.install()
+            nsp.rmtree(self.work / 'tmp')
+            self.result.update(title_id=self.g.id, name=self.app_name, package=self.package, version=self.pkg_ver, display=self.display, language=self.lang,
+                               status=self.ap.status, derived=bool(self.derived), installed=bool(o.install))
+            say(f'done: {self.result.get("apk", "no APK (the app runs it)") + ", " if "apk" in self.result else ""}{self.result["data"]}')
+            if self.derived: say(f'[RED] {self.derived}: the port is built from a derived profile and may not run as the profile\'s tested version does'
+                                 + (f'; {self.derived_mem}' if self.derived_mem else ''))
+            for x in self.lost: say(f'[RED] {x}')
+            return self.result
+        finally: self.drop_profile()   # the copy of the imported profile goes when the port is done
 
     # ---- inputs: the folder's games and versions, the profile, the version to pack ----
     def inputs(self):
@@ -443,6 +443,7 @@ class Port:
         say(f'game folder: {o.folder}' + (f' (game: {o.game.name})' if o.game else ''))
         self.app, self.fam = nsp.scan_nsps(o.folder, dumps.EXTS, o.keys, o.game)
         tid = f'{self.app:016X}'
+        self.sync_profile(tid)   # the player's imported profile into dm/games, before the profile is read (a copy of an older import would hide the newer one)
         # the build folder: where the port's own programs run and where the game is unpacked. On a phone it
         # cannot be next to the game (Android does not let an app run a program on the shared storage), so
         # NX2A_WORK points at the app's own folder.
@@ -516,6 +517,23 @@ class Port:
         self.env['DM_GAMES_DIR'] = os.environ['DM_GAMES_DIR'] = os.pathsep.join(dirs)
         if first: self.env['DM_GAMES_FIRST'] = os.environ['DM_GAMES_FIRST'] = '1'
 
+    def sync_profile(self, tid):
+        """The player's imported profile into the tool tree's dm/games (profiles_layer.copy_to_games): the rewriter's patches.py and the host's profile header are looked up
+        there, and not in the folder the player imported them into. The copy goes when the port is done (drop_profile)"""
+        try:
+            dst = profiles_layer.copy_to_games(tid)
+        except OSError as e:
+            say(f'[RED] the imported profile of {tid} could not be copied into dm/games ({e}): the rewriter applies none of its patches'); return
+        self.synced_profile = dst
+        if dst: say(f'game profile {tid}: copied into dm/games ({dst}), so the rewriter applies its patches')
+
+    def drop_profile(self):
+        """The copy of the imported profile goes when the port is done: dm/games holds the tree's own profiles only"""
+        dst = getattr(self, 'synced_profile', None)
+        if not dst: return
+        self.synced_profile = None
+        nsp.rmtree(dst)
+
     def experimental_profile(self, g, tid):
         """A profile for a game not ported to Android, in <build folder>/profile/<id>/ (outside the repository): upstream's survey and provisional profile when the game has
         none (scripts/build_ipa_from_nsp.py survey / write_profile, dm/games/profile_guess.py), or a copy of its iOS profile; plus an android.tsv with status experimental.
@@ -536,7 +554,7 @@ class Port:
             self.provisional = True
             say('[RED] provisional game profile: values guessed from the survey, the game may not start')
         elif not (d / 'game.tsv').is_file() or (g.dir / 'game.tsv').stat().st_mtime > (d / 'game.tsv').stat().st_mtime:   # the iOS profile as it is now
-            nsp.rmtree(d); shutil.copytree(g.dir, d, ignore=shutil.ignore_patterns('patches.py', '__pycache__'))   # patches.py stays in dm/games, where patch_nso.py finds it
+            nsp.rmtree(d); shutil.copytree(g.dir, d, ignore=shutil.ignore_patterns('patches.py', '__pycache__'))   # patches.py stays in dm/games, where patch_nso.py finds it (the imported profile's copy is there: sync_profile)
         if not (d / 'android.tsv').is_file():
             (d / 'android.tsv').write_text(f'# Written by porter for an experimental port: the game has not been brought up on Android\nstatus\texperimental\n'
                                           f'package\torg.nx2a.t{tid.lower()}\norientation\tlandscape\n', encoding='utf-8')
@@ -614,7 +632,8 @@ class Port:
 
     def mem_profile(self):
         """The player's --alias-headroom on a version the profile was brought up on (or a provisional or experimental profile): a copy of the profile in
-        <build folder>/profile-mem/ with the bigger guest block, which every tool takes first. patches.py stays in dm/games, where patch_nso.py finds it. extract() removes
+        <build folder>/profile-mem/ with the bigger guest block, which every tool takes first. patches.py stays in dm/games, where patch_nso.py finds it (the imported
+        profile's copy is there: sync_profile). extract() removes
         an earlier run's copy before it, so the build folder keeps none without the option"""
         pdir = self.work / 'profile-mem'
         if not self.o.alias_headroom: return

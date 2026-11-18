@@ -45,16 +45,14 @@ class ProfilesLayerTest(unittest.TestCase):
         self.assertEqual(profiles_layer.imported(), ['0100000000010000'])
         self.assertTrue((profiles_layer.layer_dir() / '0100000000010000' / 'game.tsv').is_file())
 
-    def test_the_layer_joins_the_search_path(self):
-        profiles_layer.activate()
-        self.assertIn(str(profiles_layer.layer_dir()), os.environ['DM_GAMES_DIR'].split(os.pathsep))
-        profiles_layer.activate()   # twice: the layer is not added twice
-        self.assertEqual(os.environ['DM_GAMES_DIR'].split(os.pathsep).count(str(profiles_layer.layer_dir())), 1)
-
-    def test_the_environment_the_tools_get_carries_the_layer(self):
-        env = {}
-        profiles_layer.activate(env)
-        self.assertIn(str(profiles_layer.layer_dir()), env['DM_GAMES_DIR'].split(os.pathsep))
+    def test_the_layer_stays_out_of_the_search_path(self):
+        """The layer is not part of DM_GAMES_DIR (that variable keeps upstream's meaning: the provisional and derived profiles of a port);
+        the games the tool knows are the tree's own plus the layer's (porter.profiles)."""
+        self.assertFalse(hasattr(profiles_layer, 'activate'))
+        os.environ.pop('DM_GAMES_DIR', None)
+        self.a_package()  # a package the layer can hold
+        profiles_layer.import_zip(self.a_package())
+        self.assertNotIn(str(profiles_layer.layer_dir()), os.environ.get('DM_GAMES_DIR', ''))
 
     def test_a_package_that_leaves_the_layer_is_refused(self):
         path = package({'../../etc/passwd': b'x', '0100000000010000/game.tsv': b'title_id\t0100000000010000\n'})
