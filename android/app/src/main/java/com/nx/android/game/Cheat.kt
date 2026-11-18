@@ -41,4 +41,6 @@ data class CheatStatus(
     val download: CheatDownload = CheatDownload.NONE,
     /** 出处：社区库自己写的 */
     val credit: String = "",
+    /** 能不能下载：得知道这个游戏的 title ID 与它这个 build 的编号 */
+    val canDownload: Boolean = false,
 )

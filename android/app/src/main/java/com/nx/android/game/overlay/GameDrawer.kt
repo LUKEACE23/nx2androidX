@@ -747,6 +747,11 @@ private fun CheatRows(
         HintRow(stringResource(R.string.drawer_cheats_off_hint))
         return
     }
+    if (!status.canDownload) {
+        // 不知道这个游戏的编号：下不了（这一页只说明没有金手指）
+        HintRow(stringResource(R.string.drawer_cheats_none))
+        return
+    }
     // 下载这一行：社区库里按 build 编号放文件（每个 build 一份）
     val downloading = status.download == CheatDownload.DOWNLOADING
     val title = when {

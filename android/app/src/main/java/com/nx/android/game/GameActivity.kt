@@ -653,7 +653,9 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             val note = CheatRepo.creditFile(file.parentFile, file.name.removeSuffix(".txt"))
             if (note.isFile) credit = runCatching { note.readText() }.getOrDefault("").trim()
         }
-        cheatStatus = cheatStatus.copy(downloaded = downloaded, credit = credit)
+        // 能不能下载：得有这个游戏的 title ID（库的地址用它）与它这个 build 的编号（挑哪一节用它）
+        val canDownload = packTitleId != null && cheatBuild() != null
+        cheatStatus = cheatStatus.copy(downloaded = downloaded, credit = credit, canDownload = canDownload)
     }
 
     /**
