@@ -1,16 +1,18 @@
-"""The player's imported profile copied into the tool tree's dm/games: the rewriter finds a profile's patches.py only there (without them a profile's cuts are not
-applied), and so do the host's profile header and the runtime update. The copy is refreshed at every port and left out of a checkout and of a tree that has a profile of
-its own."""
+"""The player's imported profile copied into the tool tree's dm/games for as long as a port runs: the rewriter finds a profile's patches.py only there (without them a
+profile's cuts are not applied), and so do the host's profile header and the runtime update. The layer is not part of DM_GAMES_DIR; the games the tool knows come from
+the tree and the layer (porter.profiles)."""
 import os
 from pathlib import Path
+import shutil
 import tempfile
 import types
 import unittest
 from unittest import mock
 
-from porter import pipeline, profiles_layer
+from porter import pipeline, profiles, profiles_layer
 
 TID = '0100B8A026F14000'
+OTHER = '0100999999999000'
 
 
 class ProfileSyncTest(unittest.TestCase):
@@ -30,45 +32,86 @@ class ProfileSyncTest(unittest.TestCase):
         self.games.mkdir(parents=True)
 
     def test_the_imported_profile_is_copied_into_the_games_folder(self):
-        dst = pipeline.copy_imported_profile(TID, self.games)
+        dst = profiles_layer.copy_to_games(TID, self.games)
         self.assertEqual(dst, self.games / TID)
         self.assertTrue((dst / 'patches.py').is_file())       # the rewriter's patches: the reason for the copy
         self.assertTrue((dst / 'android.tsv').is_file())
-        self.assertTrue((dst / pipeline.IMPORTED).is_file())   # the marker: the copy is ours to replace
 
-    def test_the_copy_is_refreshed_at_every_port(self):
-        pipeline.copy_imported_profile(TID, self.games)
-        (self.games / TID / 'patches.py').write_text("CUTS = {'aa': []}\n", encoding='utf-8')   # a copy of an older import
-        dst = pipeline.copy_imported_profile(TID, self.games)
-        self.assertEqual((dst / 'patches.py').read_text(encoding='utf-8'), 'CUTS = {}\n')
+    def test_the_copy_is_made_fresh(self):
+        profiles_layer.copy_to_games(TID, self.games)
+        (self.games / TID / 'game.tsv').write_text('a stale import\n', encoding='utf-8')   # an older import left in place
+        dst = profiles_layer.copy_to_games(TID, self.games)   # a copy of ours is refreshed from the layer
+        self.assertEqual((dst / 'game.tsv').read_text(encoding='utf-8'), f'title_id\t{TID}\n')
 
     def test_a_profile_the_tree_has_of_its_own_is_left_alone(self):
         own = self.games / TID
         own.mkdir()
         (own / 'game.tsv').write_text(f'title_id\t{TID}\n', encoding='utf-8')
-        self.assertIsNone(pipeline.copy_imported_profile(TID, self.games))
-        self.assertFalse((own / pipeline.IMPORTED).exists())
+        self.assertIsNone(profiles_layer.copy_to_games(TID, self.games))
         self.assertEqual((own / 'game.tsv').read_text(encoding='utf-8'), f'title_id\t{TID}\n')
+        self.assertFalse((own / profiles_layer.MARKER).exists())   # the tree's own profile is never marked or replaced
 
     def test_a_game_the_player_imported_no_profile_of_is_not_copied(self):
-        self.assertIsNone(pipeline.copy_imported_profile('0100999999999000', self.games))
-        self.assertFalse((self.games / '0100999999999000').exists())
+        self.assertIsNone(profiles_layer.copy_to_games(OTHER, self.games))
+        self.assertFalse((self.games / OTHER).exists())
 
     def test_a_checkout_is_not_written_to(self):
         (self.games / '.git').mkdir()
-        self.assertIsNone(pipeline.copy_imported_profile(TID, self.games))
+        self.assertIsNone(profiles_layer.copy_to_games(TID, self.games))
         self.assertFalse((self.games / TID).exists())
 
-    def test_the_port_copies_the_profile_before_it_reads_it(self):
-        port = types.SimpleNamespace(g=types.SimpleNamespace(dir=self.layer, id=TID))
-        with mock.patch.object(pipeline, 'DM', self.dm):
+    def test_the_port_copies_the_profile_and_removes_it_when_it_is_done(self):
+        port = types.SimpleNamespace(g=None, synced_profile=None)
+        with mock.patch.object(profiles_layer, 'DM', self.dm):
             pipeline.Port.sync_profile(port, TID)
         self.assertTrue((self.games / TID / 'patches.py').is_file())
+        pipeline.Port.drop_profile(port)
+        self.assertFalse((self.games / TID).exists())
 
     def test_a_failure_to_copy_is_a_warning_not_an_error(self):
-        port = types.SimpleNamespace(g=types.SimpleNamespace(dir=self.layer, id=TID))
-        with mock.patch.object(pipeline, 'DM', self.dm), mock.patch.object(pipeline, 'copy_imported_profile', side_effect=OSError('read-only')):
+        port = types.SimpleNamespace(g=None, synced_profile=None)
+        with mock.patch.object(profiles_layer, 'DM', self.dm), mock.patch.object(profiles_layer, 'copy_to_games', side_effect=OSError('read-only')):
             pipeline.Port.sync_profile(port, TID)   # no exception: the port goes on without the profile's patches
+        self.assertIsNone(port.synced_profile)
+
+
+class ProfilesLayerFallbackTest(unittest.TestCase):
+    """The layer is not in DM_GAMES_DIR: the games the tool knows are the tree's own plus the layer's."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.home = Path(self.temp.name)
+        patch = mock.patch.dict(os.environ, dict(os.environ, NX2A_HOME=str(self.home)), clear=False)
+        patch.start(); self.addCleanup(patch.stop)
+        os.environ.pop('DM_GAMES_DIR', None)
+        for tid, name, status in ((TID, '最终幻想 共鸣', 'playable'), (OTHER, '另一款游戏', 'wip')):
+            d = profiles_layer.layer_dir() / tid
+            d.mkdir(parents=True)
+            (d / 'game.tsv').write_text(f'title_id\t{tid}\nname\t{name}\n', encoding='utf-8')
+            (d / 'android.tsv').write_text(f'status\t{status}\n', encoding='utf-8')
+
+    def test_by_title_finds_a_profile_only_the_layer_has(self):
+        g, p = profiles.by_title(int(OTHER, 16))
+        self.assertIsNotNone(g)
+        self.assertEqual(g.id, OTHER)
+        self.assertIsNotNone(p)
+        self.assertEqual(p.status, 'wip')
+
+    def test_the_games_the_tool_knows_include_the_layer(self):
+        ids = {e.id for e in profiles.all_entries(android_only=False)}
+        self.assertIn(TID, ids)
+        self.assertIn(OTHER, ids)
+
+    def test_a_game_without_android_tsv_is_not_listed_as_ported(self):
+        third = '0100AAAAAAAAA000'
+        d = profiles_layer.layer_dir() / third
+        d.mkdir(parents=True)
+        (d / 'game.tsv').write_text(f'title_id\t{third}\nname\t只有 iOS 档案的游戏\n', encoding='utf-8')
+        self.assertEqual([e for e in profiles.all_entries() if e.id == third], [])   # android_only hides it
+        rows = [e for e in profiles.all_entries(android_only=False) if e.id == third]
+        self.assertEqual(len(rows), 1)
+        self.assertFalse(rows[0].android)
 
 
 if __name__ == '__main__':

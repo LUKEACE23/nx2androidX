@@ -1,22 +1,23 @@
 # The player's own game profiles: the profiles they imported (a package of nxnative/dm/games/<title ID>/ folders) into their own folder.
 #
 # The layer lives in the player's nx2android folder, not in the tool tree the app unpacks, so an app update never touches it: the player imports
-# the package once and keeps it. game.py finds the profiles through DM_GAMES_DIR (dm/games/game.py "DM_GAMES_DIR"), so the layer joins that
-# variable and every tool that reads a profile - the porter, the shader tools, the host build - sees the imported ones.
+# the package once and keeps it. It is not part of DM_GAMES_DIR (that variable keeps upstream's meaning: the provisional and derived profiles of a
+# port); the tools that read a profile find the layer's own ones through it (porter.profiles).
 #
-# The tools that do not read that variable look in dm/games: the rewriter (patch_nso.py finds the profiles' patches.py only there) and the host's profile
-# header. A port copies the imported profile there (porter.pipeline.copy_imported_profile); the copy is refreshed at every port and put back after an
-# app update wiped the tool tree.
+# The tools that look in dm/games find nothing there on the phone (the app carries no profiles): the rewriter (patch_nso.py finds a profile's
+# patches.py only there) and the host's profile header. A port copies the imported profile there (profiles_layer.copy_to_games) and removes the
+# copy when it is done.
 #
 # The package's layout is checked before anything is written: an entry that is not a profile folder, or that tries to leave the layer, is
 # refused, and every profile folder has to hold a game.tsv. The layer's receipt records what came in.
 import hashlib, json, os, re, shutil, time, zipfile
 from pathlib import Path
 
-from porter.paths import user_dir
+from porter.paths import DM, user_dir
 from porter.revision import PROFILES_COMMIT, PROFILES_REVISION
 
 RECEIPT = 'manifest.json'          # what the import wrote: the package's revision and commit, and the profiles it holds
+MARKER = '.nx2a-imported'          # the file in a profile folder that copy_to_games copied: the tree's own profiles have none
 ID = re.compile(r'[0-9A-F]{16}')    # a profile folder's name: the base game's title ID
 
 
@@ -29,19 +30,42 @@ def layer_dir():
     return user_dir() / 'profiles'
 
 
-def activate(env=None):
-    """The layer joins DM_GAMES_DIR, so game.py finds the profiles there. Returns the variable's value.
+def layer_profile(tid):
+    """The player's imported profile of a game (its folder), None when the layer holds none"""
+    tid = f'{int(tid):016X}' if isinstance(tid, int) else str(tid).upper()
+    d = layer_dir() / tid
+    return d if (d / 'game.tsv').is_file() else None
 
-    The layer is searched after the repository's own profiles (DM_GAMES_DIR's own order), so on a desktop the checkout wins and the layer
-    fills the gaps; on the phone, where the app carries no profiles, the layer is the only place they are.
-    """
-    dirs = [d for d in os.environ.get('DM_GAMES_DIR', '').split(os.pathsep) if d]
-    layer = str(layer_dir())
-    if layer not in dirs:
-        dirs.append(layer)
-        os.environ['DM_GAMES_DIR'] = os.pathsep.join(dirs)
-    if env is not None: env['DM_GAMES_DIR'] = os.environ['DM_GAMES_DIR']
-    return os.environ['DM_GAMES_DIR']
+
+def layer_profiles():
+    """Every profile folder the player imported"""
+    d = layer_dir()
+    if not d.is_dir(): return []
+    return sorted(p for p in d.iterdir() if p.is_dir() and ID.fullmatch(p.name) and (p / 'game.tsv').is_file())
+
+
+def in_checkout(path):
+    """The path is inside a git checkout (the repository's own tree: not ours to write)"""
+    for d in [Path(path), *Path(path).parents]:
+        if (d / '.git').exists(): return True
+    return False
+
+
+def copy_to_games(tid, games=None):
+    """The player's imported profile into the tool tree's dm/games, where the tools that look there find it: the rewriter (patch_nso.py finds a
+    profile's patches.py only there, so without the copy a profile's cuts are not applied) and the host's profile header. A profile the tree has
+    of its own (the desktop bundle, a checkout) is left alone, and a checkout is never written to. The caller removes the copy when it is done
+    with it. → the copy's folder, or None when there was nothing to copy"""
+    src = layer_profile(tid)
+    if not src: return None
+    games = Path(games or DM / 'games')
+    dst = games / tid
+    if (dst / 'game.tsv').is_file() and not (dst / MARKER).is_file(): return None   # the tree's own profile: not ours to replace
+    if in_checkout(games): return None   # a checkout: its profiles are the ones to use, and they are not ours to write
+    shutil.rmtree(dst, ignore_errors=True)
+    shutil.copytree(src, dst, ignore=shutil.ignore_patterns('__pycache__'))
+    (dst / MARKER).write_text(f'copied from {src}\n', encoding='utf-8')
+    return dst
 
 
 def receipt():

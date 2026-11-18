@@ -144,7 +144,6 @@ def cmd_profiles(a):
             print(f'[RED] {e}', file=sys.stderr); return 2
         print(f'imported {rec["count"]} game profile(s) (r{rec["revision"]}, {str(rec["commit"])[:8]}) into {profiles_layer.layer_dir()}')
         return 0
-    profiles_layer.activate()
     rows = profiles.all_entries(android_only=not a.all)
     if a.json: _print_json([r.as_dict() for r in rows]); return 0
     for r in rows: print(f'{r.id}  {r.status:12} {r.name}' + (f'  ({r.tested})' if r.tested else ''))
@@ -342,7 +341,4 @@ def cmd_driver(a):   # porter driver and porter host: the installed APK rebuilt 
 def main(argv):
     if hasattr(sys.stdout, 'reconfigure'): sys.stdout.reconfigure(encoding='utf-8', errors='replace')   # game names and progress bars on a Windows console
     a = _parser().parse_args(argv)
-    # The player's own game profiles (the package they imported) are found by every command that reads a profile
-    from porter import profiles_layer
-    profiles_layer.activate()
     return {'doctor': cmd_doctor, 'profiles': cmd_profiles, 'inspect': cmd_inspect, 'port': cmd_port, 'rebuild-runtime': cmd_rebuild_runtime, 'install': cmd_install, 'devices': cmd_devices, 'tools': cmd_tools, 'config': cmd_config, 'saves': cmd_saves, 'driver': cmd_driver, 'host': cmd_driver}[a.cmd](a)
