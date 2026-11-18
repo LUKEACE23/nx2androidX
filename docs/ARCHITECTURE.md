@@ -144,7 +144,14 @@ Per-build knowledge stays where upstream keeps it: the rewriter's cuts in `patch
 
 The host runs the Atmosphère-format cheat codes (the dmnt cheat VM of Atmosphère 1.12.1) that the cheat sites share: the file of a build is named by the first 16 hex digits of main's build ID, and the host loads the file of the build it runs (`dm/host/hle_cheats.c`).
 
-The files are not ours: the app downloads the one of the build it runs from the community library (switch-cheats-db) and keeps it in its own folder (`files/cheats/<title ID>/<build ID>.txt`, the app's private storage - a rebuilt data pack does not touch it). The library holds one JSON file per game (`cheats/<title ID>.json`) with one section per build; the app asks the host for the running build (`dm_cheats_build`), picks that section, and writes the cheats out as one Atmosphère file. A cheat file belongs to one build, so the library's file of another build is never used (it would write the wrong places), and the player sees that as "the library has no file for this version". The library's own credit is shown under the list.
+The files are not ours: the app downloads the one of the build it runs from the community libraries and keeps it in its own folder (`files/cheats/<title ID>/<build ID>.txt`, the app's private storage - a rebuilt data pack does not touch it). Two libraries are asked, in order, and the first one with a usable file wins (nothing is merged across them: two files that patch the same place would fight):
+
+- **switch-cheats-db** (the aggregator): one JSON file per game (`cheats/<title ID>.json`) with one section per build; the app picks that section and writes the cheats out as one Atmosphère file.
+- **MyNXCheats** (one author's own collection): the files are already in the Atmosphère format, but the folders are named by the game, so the repository's file tree (the CDN's index) says which file belongs to which game and build; the file is written out as it is.
+
+The app asks the host for the running build (`dm_cheats_build`), so the file is the one of the build the game runs. A cheat file belongs to one build, so a library's file of another build is never used (it would write the wrong places), and the player sees that as "the library has no file for this version". The library's own credit is shown under the list.
+
+The resolution patches are skipped: the app has its own render scale (the drawer's), and a community patch of the same setting would fight it. A file that holds nothing else is not written at all - the player sees "the library has nothing usable for this version".
 
 The player turns the cheats on in the game's drawer (the "Cheats" tab); the app then points the host at the folder (`DM_CHEATS`) and the host loads the file of the build it runs. The host runs the enabled cheats once per game frame (at the game's own present, `hle_nvn.c`), and it remembers each cheat's switch in `<build ID>.enabled` beside the file.
 

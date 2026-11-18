@@ -1,23 +1,33 @@
 package com.nx.android.data
 
+import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * The community cheat library (switch-cheats-db), fetched over the network.
+ * The community cheat libraries, fetched over the network.
  *
- * The library holds one JSON file per game (named by its title ID), and inside it one section per build: the keys are
- * the cheat names ("[Inf HP]"), the values the text of the cheat. A cheat file belongs to one build, so the app picks
- * the section of the build it runs and writes it out as the Atmosphère-format file the host reads.
+ * The files are the community's, not ours, and they come from two places:
  *
- * The file lands in the app's own folder (files/cheats/<title ID>/<build ID>.txt): a rebuilt data pack does not touch
- * that folder, so the cheats the player downloaded stay where they are.
+ *  - **switch-cheats-db** (the aggregator): one JSON per game (its title ID), with one section per build - the
+ *    keys are the cheat names ("[Inf HP]"), the values the text of the cheat. The section of the build the game
+ *    runs is the file the host reads, its texts one after another (each one starts with its own [Name] header,
+ *    so the file is the community's .txt byte for byte).
+ *  - **MyNXCheats** (one author's own collection): the files are already in the Atmosphère format, but the
+ *    folders are named by the game, so the repository's file tree says which file belongs to which game and
+ *    build.
+ *
+ * The sources are tried in that order and the first one with a usable file wins. Nothing is merged across the
+ * sources: two files that patch the same place would fight, and the player would not know which one won.
+ *
+ * The cheat file lands in the app's own folder (files/cheats/<title ID>/<build ID>.txt): a rebuilt data pack does
+ * not touch that folder, so the cheats the player downloaded stay where they are.
  */
 object CheatRepo {
 
-    /** The library's CDN: the community's files, one JSON per game */
+    /** The library's CDN (the community's files, one JSON per game) */
     const val CDN = "https://cdn.jsdelivr.net/gh/HamletDuFromage/switch-cheats-db@master/cheats"
 
     /**
@@ -25,6 +35,26 @@ object CheatRepo {
      * on some carriers), so the download walks the list and takes the first that answers.
      */
     private val EDGES = listOf("cdn.jsdelivr.net", "fastly.jsdelivr.net", "gcore.jsdelivr.net")
+
+    /** The second source: one author's collection (its files are already in the Atmosphère format) */
+    private const val MYNX_OWNER = "Arch9SK7"
+    private const val MYNX_REPO = "MyNXCheats"
+    private const val MYNX_REF = "master"
+
+    /** The library's own file tree (the CDN's index of the second source): it names the folders by the game */
+    private const val MYNX_TREE = "https://data.jsdelivr.com/v1/packages/gh/$MYNX_OWNER/$MYNX_REPO@$MYNX_REF?structure=flat"
+
+    /**
+     * The entries we skip: the resolution patches. The app has its own render scale (the drawer), and the two
+     * change the same thing in the game - with both on, the result is not the one the player expects.
+     */
+    private val RESOLUTION = Regex("""\b\d{3,4}\s*p\b|downscale|upscale|resolution""", RegexOption.IGNORE_CASE)
+
+    /** One cheat entry: its name (with the brackets) and its text. */
+    data class Entry(val name: String, val text: String)
+
+    /** The file of one build: the text the host reads, the credit of the source and the source's name. */
+    data class CheatFile(val text: String, val credit: String, val source: String)
 
     /** The library's file of one game (its title ID, upper case: the library names its files that way) */
     fun url(titleId: String): String = "$CDN/${titleId.uppercase()}.json"
@@ -71,30 +101,53 @@ object CheatRepo {
     }
 
     /**
-     * The Atmosphère text of the build's cheats, or null when the library holds no file for it.
+     * The library's entries for the build (the section of that build), or null when it has no file for it.
      *
-     * The section of the build is a map of cheat names to their text; the file is those texts one after another (each
-     * one starts with its own [Name] header, so the file keeps the order the library lists them in).
+     * The section is a map of cheat names to their text; the file the host reads is those texts one after
+     * another (each one starts with its own [Name] header, so the order the library lists them in is kept).
      */
-    fun pick(json: String, build: String): String? {
+    fun entriesOf(json: String, build: String): List<Entry>? {
         val root = runCatching { OrderedJson.parse(json) }.getOrNull() ?: return null
         val want = build.trim().uppercase()
         // the library's credit is a member of its own, not a build
         val section = root.entries.firstOrNull { it.key.uppercase() == want && it.key.uppercase() != "ATTRIBUTION" }
             ?.value as? Map<*, *> ?: return null
-        val out = StringBuilder()
-        for ((_, body) in section) {
+        val out = ArrayList<Entry>()
+        for ((name, body) in section) {
             val text = body as? String ?: continue
             if (text.isEmpty()) continue
-            out.append(text)
-            if (!text.endsWith("\n")) out.append('\n')
+            out.add(Entry(name.toString(), if (text.endsWith("\n")) text else "$text\n"))
         }
-        return out.toString().ifEmpty { null }
+        return out
     }
 
     /**
-     * The library's line of credit for the file: the first line of each file it names (the rest is the author's own
-     * notes), or "" when it has none.
+     * The entries of an Atmosphère file: the blocks that start with a [Name] or {Name} header. The text before
+     * the first header is prose (the host ignores it, so it is dropped here too).
+     */
+    fun fileEntries(text: String): List<Entry> {
+        val out = ArrayList<Entry>()
+        var name: String? = null
+        val block = StringBuilder()
+        for (line in text.lines()) {
+            val header = headerOf(line)
+            if (header != null) {
+                if (name != null) out.add(Entry(name!!, block.toString()))
+                name = header
+                block.setLength(0)
+            }
+            if (name != null) block.append(line).append('\n')
+        }
+        if (name != null) out.add(Entry(name!!, block.toString()))
+        return out
+    }
+
+    /** Is this entry a resolution patch (the ones we skip: the app's own render scale does that)? */
+    fun isResolution(name: String): Boolean = RESOLUTION.containsMatchIn(name)
+
+    /**
+     * The library's line of credit for the file: the first line of each file it names (the rest is the author's
+     * own notes), or "" when it has none.
      */
     fun credit(json: String): String {
         val root = runCatching { OrderedJson.parse(json) }.getOrNull() ?: return ""
@@ -106,42 +159,169 @@ object CheatRepo {
     }
 
     /**
-     * Downloads the file of the build into [dir]: the library's JSON, the section of the build, written out as the
-     * file the host reads (with the library's line of credit beside it).
+     * Downloads the file of the build into [dir]: the first source that has a usable one, written out as the
+     * file the host reads (with the source's credit beside it).
      *
-     * Fails with [NoSuchBuild] when the library holds no file for the build (the game is not in the library, or it has
-     * another build of it: a cheat file of another build would write the wrong places).
+     * Fails with [NoSuchBuild] when no source has a file for the build (the game is not in them, or they have
+     * another build of it: a cheat file of another build would write the wrong places) and with [NothingUsable]
+     * when the file they have holds nothing but resolution patches.
      */
     fun download(titleId: String, build: String, dir: File): Result<File> =
-        downloadFrom(urls(titleId), build, dir)
+        downloadFrom(sources, titleId, build, dir)
 
-    /** The same, from URLs of one's own (the test uses it with a local server) */
-    internal fun downloadFrom(url: String, build: String, dir: File): Result<File> =
-        downloadFrom(listOf(url), build, dir)
-
-    /** The same, from a list of URLs (the edges of the CDN, one after another) */
-    internal fun downloadFrom(urls: List<String>, build: String, dir: File): Result<File> = runCatching {
-        val text = fetch(urls)
-        val section = pick(text, build) ?: throw NoSuchBuild("the library has no file for this build")
-        val line = credit(text)
-        if (!dir.isDirectory && !dir.mkdirs()) throw IOException("the folder could not be made")
-        val file = file(dir, build)
-        val tmp = File(file.path + ".part")
-        tmp.writeText(section, Charsets.UTF_8)
-        if (file.exists() && !file.delete()) throw IOException("the old file could not be replaced")
-        if (!tmp.renameTo(file)) throw IOException("the file could not be put in place")
-        // the credit is a note, not the file: a failure to write it must not fail the download
-        runCatching { creditFile(dir, build).writeText(line, Charsets.UTF_8) }
-        file
-    }
+    /** The same, from sources of one's own (the tests use it) */
+    internal fun downloadFrom(sources: List<Source>, titleId: String, build: String, dir: File): Result<File> =
+        runCatching {
+            val cheat = fetchFile(sources, titleId, build)
+            if (!dir.isDirectory && !dir.mkdirs()) throw IOException("the folder could not be made")
+            val out = file(dir, build)
+            val tmp = File(out.path + ".part")
+            tmp.writeText(cheat.text, Charsets.UTF_8)
+            if (out.exists() && !out.delete()) throw IOException("the old file could not be replaced")
+            if (!tmp.renameTo(out)) throw IOException("the file could not be put in place")
+            // the credit is a note, not the file: a failure to write it must not fail the download
+            runCatching { creditFile(dir, build).writeText(cheat.credit, Charsets.UTF_8) }
+            out
+        }
 
     /** The library holds no file for this build (the game is not in it, or it has another build of it) */
     class NoSuchBuild(message: String) : Exception(message)
 
+    /** The file the library has for this build holds nothing but resolution patches (the app does that itself) */
+    class NothingUsable(message: String) : Exception(message)
+
+    /** Where the cheat files come from (the tests use their own). */
+    internal interface Source {
+        /** The name of the source (it goes into the credit) */
+        val label: String
+
+        /** The file of the build, or null when this source has none for it */
+        fun fileOf(titleId: String, build: String): RawFile?
+    }
+
+    /** What a source holds of one build: its entries and its credit. */
+    internal data class RawFile(val entries: List<Entry>, val credit: String)
+
     /**
-     * The library's answer: the first URL that answers. A network that fails is tried again on the next edge;
-     * an answer that says "no file of this game" is final (it is not a network problem).
+     * The file of the build from the first source that has a usable one: the sources in order, and the first
+     * with entries left after the resolution patches are skipped wins.
      */
+    internal fun fetchFile(sources: List<Source>, titleId: String, build: String): CheatFile {
+        var onlyResolution = false
+        var networkError: IOException? = null
+        for (source in sources) {
+            val raw = try {
+                source.fileOf(titleId, build)
+            } catch (e: NoSuchBuild) {
+                continue
+            } catch (e: IOException) {
+                networkError = e
+                continue
+            } ?: continue
+            val kept = raw.entries.filterNot { isResolution(it.name) }
+            if (kept.isEmpty()) { onlyResolution = true; continue }
+            val credit = listOf(source.label, raw.credit).filter { it.isNotEmpty() }.joinToString(" · ")
+            return CheatFile(kept.joinToString("") { it.text }, credit, source.label)
+        }
+        if (onlyResolution) throw NothingUsable("the library's file for this build is all resolution patches")
+        // a network that failed is a failure, not an empty library
+        networkError?.let { throw it }
+        throw NoSuchBuild("no source has a file for this build")
+    }
+
+    /** Where the files come from, in order: the aggregator first, then one author's collection. */
+    private val sources = listOf(DbSource, MyNxSource)
+
+    /**
+     * The aggregator: the community's cheat files, one JSON per game, with one section per build.
+     */
+    private object DbSource : Source {
+        override val label = "switch-cheats-db"
+
+        override fun fileOf(titleId: String, build: String): RawFile? {
+            val text = fetch(urls(titleId))
+            val entries = entriesOf(text, build) ?: return null
+            return RawFile(entries, credit(text))
+        }
+    }
+
+    /**
+     * One author's own collection: the files are already in the Atmosphère format, but the folders are named by
+     * the game, so the repository's file tree says which file belongs to which game and build.
+     */
+    private object MyNxSource : Source {
+        override val label = "MyNXCheats"
+
+        override fun fileOf(titleId: String, build: String): RawFile? {
+            val path = mynxPath(titleId, build) ?: return null
+            val text = fetchMynx(path)
+            return RawFile(fileEntries(text), "")
+        }
+    }
+
+    /** The second source's file tree (once per session: it says which file belongs to which game and build) */
+    @Volatile
+    private var mynxTree: List<String>? = null
+
+    /**
+     * The path of the build's file in the second source, or null when it has none.
+     *
+     * The tree is read from the network the first time it is needed: a network that fails is an error (the
+     * player is told the download failed), not an empty library.
+     */
+    private fun mynxPath(titleId: String, build: String): String? {
+        val tree = mynxTree ?: mynxTreeOf().also { mynxTree = it }
+        return mynxFilePath(tree, titleId, build)
+    }
+
+    /**
+     * The path of the build's file in the second source's tree, or null when it has none.
+     *
+     * The tree's paths start with the game's folder (`/Pokemon Legends Z-A/0100F43008C44000/cheats/<build>.txt`),
+     * so the game's title ID and the build's file name are what the path ends with.
+     */
+    internal fun mynxFilePath(tree: List<String>, titleId: String, build: String): String? {
+        val want = "/$titleId/cheats/${build.uppercase()}.txt"
+        return tree.firstOrNull { it.endsWith(want, ignoreCase = true) }
+    }
+
+    /** Every .txt file of the second source (the paths start with the game's folder) */
+    private fun mynxTreeOf(): List<String> {
+        val text = try {
+            body(MYNX_TREE)
+        } catch (e: NoSuchBuild) {
+            throw IOException("the file tree of the library is not there")
+        }
+        val files = runCatching { JSONObject(text).optJSONArray("files") }.getOrNull() ?: return emptyList()
+        val out = ArrayList<String>(files.length())
+        for (i in 0 until files.length()) {
+            val name = files.optJSONObject(i)?.optString("name") ?: continue
+            if (name.endsWith(".txt", ignoreCase = true)) out.add(name)
+        }
+        return out
+    }
+
+    /** The second source's file: the first edge that answers */
+    private fun fetchMynx(path: String): String {
+        var last: IOException = IOException("the library did not answer")
+        for (edge in EDGES) {
+            val url = "https://$edge/gh/$MYNX_OWNER/$MYNX_REPO@$MYNX_REF${encodePath(path)}"
+            try {
+                return body(url)
+            } catch (e: IOException) {
+                last = e
+            }
+        }
+        throw last
+    }
+
+    /** A path for the CDN: the spaces and the few odd characters the folder names carry. */
+    internal fun encodePath(path: String): String = path.split('/').joinToString("/") { segment ->
+        segment.replace(" ", "%20").replace("[", "%5B").replace("]", "%5D")
+            .replace("#", "%23").replace("?", "%3F").replace("&", "%26")
+    }
+
+    /** The first URL that answers (a network that fails is tried again on the next edge) */
     private fun fetch(urls: List<String>): String {
         var last: IOException = IOException("the library did not answer")
         for (u in urls) {
@@ -156,7 +336,7 @@ object CheatRepo {
         throw last
     }
 
-    /** The library's file (its JSON): the body of the answer */
+    /** The library's answer: the body of it */
     private fun body(url: String): String {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15000
@@ -172,5 +352,16 @@ object CheatRepo {
         } finally {
             conn.disconnect()
         }
+    }
+
+    /** The name of an entry's header ([Name] / {Name}), or null when the line is not a header. */
+    private fun headerOf(line: String): String? {
+        val trimmed = line.trim()
+        if (trimmed.length < 3) return null
+        val c = trimmed[0]
+        if (c != '[' && c != '{') return null
+        val end = trimmed.lastIndexOf(if (c == '[') ']' else '}')
+        if (end < 2) return null
+        return trimmed.substring(1, end)
     }
 }

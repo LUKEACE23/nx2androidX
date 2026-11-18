@@ -655,8 +655,10 @@
     <string name="drawer_cheats_redownload">重新下载</string>
     <string name="drawer_cheats_retry">重试下载</string>
     <string name="drawer_cheats_no_build">社区库里没有这个版本</string>
-    <string name="drawer_cheats_download_hint">从 switch-cheats-db 下载这个 build 的文件（需要联网）</string>
+    <string name="drawer_cheats_no_usable">社区库里没有可用的金手指</string>
+    <string name="drawer_cheats_download_hint">从社区库（switch-cheats-db、MyNXCheats）下载这个 build 的文件（需要联网）</string>
     <string name="drawer_cheats_no_build_hint">社区库里没有这个游戏这个版本的金手指</string>
+    <string name="drawer_cheats_no_usable_hint">这个版本的金手指都是分辨率类的，跟内置的渲染比例重复</string>
     <string name="drawer_cheats_failed_hint">下载失败：检查网络后再试</string>
     <string name="drawer_cheats_credit">出处：%1$s</string>
     <string name="drawer_player_n">玩家 %1$d</string>

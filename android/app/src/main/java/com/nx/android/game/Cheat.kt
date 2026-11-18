@@ -30,6 +30,7 @@ enum class CheatDownload {
     DOWNLOADING, // 正在下
     DONE,        // 下好了
     NO_BUILD,    // 社区库里没有这个 build 的文件
+    NO_USABLE,   // 库里有这个 build 的文件，但里面能用的没有（都是分辨率类的）
     FAILED,      // 下载失败（网络）
 }
 

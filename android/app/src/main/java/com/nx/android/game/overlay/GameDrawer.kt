@@ -724,7 +724,7 @@ private fun PlayerRows(
  * 总开关关着的时候宿主不加载也不执行任何金手指（这一页不列条目）；打开后每条一个开关。
  * 不能跑的那条（要改游戏的代码）开关是灰的，小字写着原因。
  *
- * 金手指文件不在 App 里，是从社区库（switch-cheats-db）按这个 build 下载的：上面是下载那一行，
+ * 金手指文件不在 App 里，是从社区库（switch-cheats-db、MyNXCheats）按这个 build 下载的：上面是下载那一行，
  * 下好了才列出条目（出处写在最后一行小字里）。
  */
 @Composable
@@ -758,12 +758,14 @@ private fun CheatRows(
     val title = when {
         downloading -> stringResource(R.string.drawer_cheats_downloading)
         status.download == CheatDownload.NO_BUILD -> stringResource(R.string.drawer_cheats_no_build)
+        status.download == CheatDownload.NO_USABLE -> stringResource(R.string.drawer_cheats_no_usable)
         status.download == CheatDownload.FAILED -> stringResource(R.string.drawer_cheats_retry)
         status.downloaded -> stringResource(R.string.drawer_cheats_redownload)
         else -> stringResource(R.string.drawer_cheats_download)
     }
     val hint = when {
         status.download == CheatDownload.NO_BUILD -> stringResource(R.string.drawer_cheats_no_build_hint)
+        status.download == CheatDownload.NO_USABLE -> stringResource(R.string.drawer_cheats_no_usable_hint)
         status.download == CheatDownload.FAILED -> stringResource(R.string.drawer_cheats_failed_hint)
         else -> stringResource(R.string.drawer_cheats_download_hint)
     }

@@ -48,31 +48,34 @@ class CheatRepoTest {
             "[Inf HP]\n04000000 011A1D00 52800108\n04000000 011A1D04 3909DC08\n\n" +
                 "[Human 99]\n04000000 004C095C 52800C69\n\n" +
                 "[Aura]\n04000000 0024F7CC 1E2E1008\n\n",
-            CheatRepo.pick(library, "DF3766A2BB651A3E"),
+            CheatRepo.entriesOf(library, "DF3766A2BB651A3E")!!.joinToString("") { it.text },
         )
     }
 
     @Test
     fun `the cheats keep the order the library lists them in`() {
-        val text = CheatRepo.pick(library, "DF3766A2BB651A3E")!!
+        val text = CheatRepo.entriesOf(library, "DF3766A2BB651A3E")!!.joinToString("") { it.text }
         assertTrue("Inf HP comes first", text.indexOf("[Inf HP]") < text.indexOf("[Human 99]"))
         assertTrue("Aura comes last", text.indexOf("[Human 99]") < text.indexOf("[Aura]"))
     }
 
     @Test
     fun `the build is found in either case`() {
-        assertEquals(CheatRepo.pick(library, "DF3766A2BB651A3E"), CheatRepo.pick(library, "df3766a2bb651a3e"))
+        assertEquals(
+            CheatRepo.entriesOf(library, "DF3766A2BB651A3E")!!.size,
+            CheatRepo.entriesOf(library, "df3766a2bb651a3e")!!.size,
+        )
     }
 
     @Test
     fun `a build the library does not have gives nothing`() {
-        assertNull(CheatRepo.pick(library, "040AD650120B583A"))
+        assertNull(CheatRepo.entriesOf(library, "040AD650120B583A"))
     }
 
     @Test
     fun `the credit is not a build`() {
-        assertNull(CheatRepo.pick(library, "attribution"))
-        assertNull(CheatRepo.pick(library, "ATTRIBUTION"))
+        assertNull(CheatRepo.entriesOf(library, "attribution"))
+        assertNull(CheatRepo.entriesOf(library, "ATTRIBUTION"))
     }
 
     @Test
@@ -89,20 +92,16 @@ class CheatRepoTest {
     @Test
     fun `the escapes of the library's text are read`() {
         val text = """{"DF3766A2BB651A3E": {"[A]": "[A]\n04000000 004C095C \"quoted\" \\ back \u00e9\n\n"}}"""
-        assertEquals("[A]\n04000000 004C095C \"quoted\" \\ back \u00e9\n\n", CheatRepo.pick(text, "DF3766A2BB651A3E"))
+        assertEquals(
+            "[A]\n04000000 004C095C \"quoted\" \\ back \u00e9\n\n",
+            CheatRepo.entriesOf(text, "DF3766A2BB651A3E")!!.joinToString("") { it.text },
+        )
     }
 
     @Test
     fun `a broken file gives nothing`() {
-        assertNull(CheatRepo.pick("not json at all", "DF3766A2BB651A3E"))
-        assertNull(CheatRepo.pick("""{"DF3766A2BB651A3E": }""", "DF3766A2BB651A3E"))
-    }
-
-    @Test
-    fun `the file lands in the app's own folder, named by the build`() {
-        val dir = CheatRepo.dir(File("/data/data/com.nx.android/files"), "01004AB00A260000")
-        assertEquals("/data/data/com.nx.android/files/cheats/01004AB00A260000", dir.path)
-        assertEquals("DF3766A2BB651A3E.txt", CheatRepo.file(dir, "df3766a2bb651a3e").name)
+        assertNull(CheatRepo.entriesOf("not json at all", "DF3766A2BB651A3E"))
+        assertNull(CheatRepo.entriesOf("""{"DF3766A2BB651A3E": }""", "DF3766A2BB651A3E"))
     }
 
     @Test
@@ -117,7 +116,8 @@ class CheatRepoTest {
     }
 
     @Test
-    fun `the build id comes from the pack's rewriter table`() {        val pack = folder()
+    fun `the build id comes from the pack's rewriter table`() {
+        val pack = folder()
         val mods = File(pack, "mods")
         mods.mkdirs()
         File(mods, "main.fixups.tsv").writeText(
@@ -152,51 +152,157 @@ class CheatRepoTest {
         for (u in urls) assertTrue(u.startsWith("https://"))
     }
 
+    // ---- the sources, the filter and the download ----
+
     @Test
-    fun `an edge that fails does not stop the download`() {
-        val dir = folder()
-        val result = CheatRepo.downloadFrom(listOf("http://127.0.0.1:1/nope.json", server(library)), "DF3766A2BB651A3E", dir)
-        assertTrue(result.isSuccess)
-        assertTrue(CheatRepo.file(dir, "DF3766A2BB651A3E").isFile)
+    fun `the resolution patches are skipped`() {
+        assertTrue(CheatRepo.isResolution("[Downscale Handheld 504p / Docked 756p]"))
+        assertTrue(CheatRepo.isResolution("[Remain Handheld 720p / Docked 1080p]"))
+        assertTrue(CheatRepo.isResolution("[Downscale]"))
+        assertTrue(CheatRepo.isResolution("[Resolution]"))
+        assertFalse(CheatRepo.isResolution("[Inf HP]"))
+        assertFalse(CheatRepo.isResolution("[60 FPS]"))
+        assertFalse(CheatRepo.isResolution("[Max/Inf Money]"))
     }
 
-    // ---- the download itself (a local server stands in for the library) ----
+    @Test
+    fun `an Atmosphere file is read into its entries`() {
+        val text = """
+            Pokemon Legends Z-A v393216 TID=0100F43008C44000 BID=B1F12FD919EAE86A
+            [Item/Misc]
+            [1. Disable Autosave]
+            04000000 002D4B40 00000001
+
+            [2. Max Money]
+            04000000 00321A00 F4FFFFFF
+        """.trimIndent()
+        val entries = CheatRepo.fileEntries(text)
+        assertEquals(3, entries.size)
+        assertEquals("Item/Misc", entries[0].name)
+        assertEquals("1. Disable Autosave", entries[1].name)
+        assertTrue("the code stays with its entry", entries[1].text.contains("002D4B40"))
+        // 小节标题（没有代码）也在里面，但宿主的解析器把它当标签，不列给玩家
+        assertTrue(entries[0].text.startsWith("[Item/Misc]"))
+    }
+
+    @Test
+    fun `the first source with a usable file wins`() {
+        val first = source("first", "Inf HP" to "04000000 011A1D00 52800108\n")
+        val second = source("second", "Aura" to "04000000 0024F7CC 1E2E1008\n")
+        val file = CheatRepo.fetchFile(listOf(first, second), "01004AB00A260000", "DF3766A2BB651A3E")
+        assertEquals("first", file.source)
+        assertTrue(file.text.contains("011A1D00"))
+    }
+
+    @Test
+    fun `a source without the build gives way to the next one`() {
+        val empty = object : CheatRepo.Source {
+            override val label = "empty"
+            override fun fileOf(titleId: String, build: String): CheatRepo.RawFile? = null
+        }
+        val second = source("second", "Aura" to "04000000 0024F7CC 1E2E1008\n")
+        val file = CheatRepo.fetchFile(listOf(empty, second), "01004AB00A260000", "DF3766A2BB651A3E")
+        assertEquals("second", file.source)
+    }
+
+    @Test
+    fun `a source with only resolution patches gives way to the next one`() {
+        val gfx = source("gfx", "Downscale Handheld 504p / Docked 756p" to "04000000 002D4B40 00000001\n")
+        val second = source("second", "Aura" to "04000000 0024F7CC 1E2E1008\n")
+        val file = CheatRepo.fetchFile(listOf(gfx, second), "01004AB00A260000", "DF3766A2BB651A3E")
+        assertEquals("second", file.source)
+        assertFalse("the resolution patch is not in the file", file.text.contains("002D4B40"))
+    }
+
+    @Test
+    fun `a source with nothing usable says so`() {
+        val gfx = source("gfx", "Downscale Handheld 504p / Docked 756p" to "04000000 002D4B40 00000001\n")
+        val failure = runCatching { CheatRepo.fetchFile(listOf(gfx), "01004AB00A260000", "DF3766A2BB651A3E") }
+        assertTrue(failure.isFailure)
+        assertTrue(failure.exceptionOrNull() is CheatRepo.NothingUsable)
+    }
+
+    @Test
+    fun `no source with the build says so`() {
+        val empty = object : CheatRepo.Source {
+            override val label = "empty"
+            override fun fileOf(titleId: String, build: String): CheatRepo.RawFile? = null
+        }
+        val failure = runCatching { CheatRepo.fetchFile(listOf(empty), "01004AB00A260000", "DF3766A2BB651A3E") }
+        assertTrue(failure.isFailure)
+        assertTrue(failure.exceptionOrNull() is CheatRepo.NoSuchBuild)
+    }
+
+    @Test
+    fun `a network that failed is a failure, not an empty library`() {
+        val broken = object : CheatRepo.Source {
+            override val label = "broken"
+            override fun fileOf(titleId: String, build: String): CheatRepo.RawFile? =
+                throw java.io.IOException("the network is down")
+        }
+        val failure = runCatching { CheatRepo.fetchFile(listOf(broken), "01004AB00A260000", "DF3766A2BB651A3E") }
+        assertTrue(failure.isFailure)
+        assertTrue("it is a network failure, not a missing file",
+            failure.exceptionOrNull() is java.io.IOException)
+        assertFalse(failure.exceptionOrNull() is CheatRepo.NoSuchBuild)
+    }
+
+    @Test
+    fun `the second source's file is found in its tree`() {
+        val tree = listOf(
+            "/Animal Crossing New Horizons/01006F8002326000/cheats/0400F824B4DA556E.txt",
+            "/Pokemon Legends Z-A/0100F43008C44000/cheats/179C3843B984F878.txt",
+            "/Pokemon Legends Z-A/0100F43008C44000/cheats/B1F12FD919EAE86A.txt",
+            "/Pokemon Legends Z-A/0100F43008C44000/cheats/notes.txt",
+        )
+        assertEquals(
+            "/Pokemon Legends Z-A/0100F43008C44000/cheats/B1F12FD919EAE86A.txt",
+            CheatRepo.mynxFilePath(tree, "0100F43008C44000", "B1F12FD919EAE86A"),
+        )
+        assertEquals(
+            "/Pokemon Legends Z-A/0100F43008C44000/cheats/B1F12FD919EAE86A.txt",
+            CheatRepo.mynxFilePath(tree, "0100f43008c44000", "b1f12fd919eae86a"),
+        )
+        assertNull(CheatRepo.mynxFilePath(tree, "0100F43008C44000", "8A1C86C437394B69"))
+        assertNull(CheatRepo.mynxFilePath(tree, "01001F5010DFA000", "AEE8F150DDA1B5A8"))
+    }
+
+    @Test
+    fun `the path of the second source is asked of the CDN with its spaces written out`() {
+        assertEquals(
+            "/Pokemon%20Legends%20Z-A/0100F43008C44000/cheats/B1F12FD919EAE86A.txt",
+            CheatRepo.encodePath("/Pokemon Legends Z-A/0100F43008C44000/cheats/B1F12FD919EAE86A.txt"),
+        )
+    }
 
     @Test
     fun `the download writes the file of the build and the credit beside it`() {
         val dir = folder()
-        val result = CheatRepo.downloadFrom(server(library), "DF3766A2BB651A3E", dir)
+        val result = CheatRepo.downloadFrom(listOf(source("test", "Inf HP" to "04000000 011A1D00 52800108\n")),
+            "01004AB00A260000", "DF3766A2BB651A3E", dir)
         assertTrue(result.isSuccess)
         val file = CheatRepo.file(dir, "DF3766A2BB651A3E")
         assertTrue(file.isFile)
-        assertEquals(
-            "[Inf HP]\n04000000 011A1D00 52800108\n04000000 011A1D04 3909DC08\n\n" +
-                "[Human 99]\n04000000 004C095C 52800C69\n\n" +
-                "[Aura]\n04000000 0024F7CC 1E2E1008\n\n",
-            file.readText(),
-        )
-        assertEquals("By masagrator", CheatRepo.creditFile(dir, "DF3766A2BB651A3E").readText())
+        assertEquals("[Inf HP]\n04000000 011A1D00 52800108\n", file.readText())
+        assertEquals("test", CheatRepo.creditFile(dir, "DF3766A2BB651A3E").readText())
     }
 
     @Test
-    fun `a build the library does not have fails as such`() {
-        val result = CheatRepo.downloadFrom(server(library), "040AD650120B583A", folder())
+    fun `a build no source has fails as such`() {
+        val empty = object : CheatRepo.Source {
+            override val label = "empty"
+            override fun fileOf(titleId: String, build: String): CheatRepo.RawFile? = null
+        }
+        val result = CheatRepo.downloadFrom(listOf(empty), "01004AB00A260000", "DF3766A2BB651A3E", folder())
         assertTrue(result.isFailure)
         assertTrue(result.exceptionOrNull() is CheatRepo.NoSuchBuild)
     }
 
-    @Test
-    fun `a game the library does not have fails as such`() {
-        val result = CheatRepo.downloadFrom(server("", code = 404), "DF3766A2BB651A3E", folder())
-        assertTrue(result.isFailure)
-        assertTrue(result.exceptionOrNull() is CheatRepo.NoSuchBuild)
-    }
-
-    @Test
-    fun `a broken answer fails as a failure`() {
-        val result = CheatRepo.downloadFrom(server("", code = 500), "DF3766A2BB651A3E", folder())
-        assertTrue(result.isFailure)
-        assertFalse(result.exceptionOrNull() is CheatRepo.NoSuchBuild)
+    /** A source that holds one entry (the tests do not need the network) */
+    private fun source(label: String, vararg entries: Pair<String, String>): CheatRepo.Source = object : CheatRepo.Source {
+        override val label = label
+        override fun fileOf(titleId: String, build: String): CheatRepo.RawFile =
+            CheatRepo.RawFile(entries.map { CheatRepo.Entry(it.first, "[${it.first}]\n${it.second}") }, "")
     }
 
     /** A server that answers with the text (the code is 200 unless the test says otherwise) */

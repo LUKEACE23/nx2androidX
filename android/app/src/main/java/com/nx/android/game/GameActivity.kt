@@ -734,7 +734,10 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             val dir = CheatRepo.dir(filesDir, tid)
             val result = withContext(Dispatchers.IO) { CheatRepo.download(tid, build, dir) }
             result.fold(
-                onSuccess = { AppLog.line("cheats: $build downloaded (${it.length()} bytes)") },
+                onSuccess = {
+                    val credit = runCatching { CheatRepo.creditFile(dir, build).readText() }.getOrDefault("")
+                    AppLog.line("cheats: $build downloaded (${it.length()} bytes) from $credit")
+                },
                 onFailure = { AppLog.line("[RED] cheats: the download failed: ${it.message}") },
             )
             if (result.isSuccess && cheatSettings?.master() == true) {
@@ -742,8 +745,11 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             refreshCheatStatus()
             val state = if (result.isSuccess) CheatDownload.DONE
-            else if (result.exceptionOrNull() is CheatRepo.NoSuchBuild) CheatDownload.NO_BUILD
-            else CheatDownload.FAILED
+            else when (result.exceptionOrNull()) {
+                is CheatRepo.NoSuchBuild -> CheatDownload.NO_BUILD
+                is CheatRepo.NothingUsable -> CheatDownload.NO_USABLE
+                else -> CheatDownload.FAILED
+            }
             cheatStatus = cheatStatus.copy(download = state)
         }
     }

@@ -656,8 +656,10 @@
     <string name="drawer_cheats_redownload">Download again</string>
     <string name="drawer_cheats_retry">Try the download again</string>
     <string name="drawer_cheats_no_build">The library has no file for this version</string>
-    <string name="drawer_cheats_download_hint">From switch-cheats-db, the file of this build (needs the network)</string>
+    <string name="drawer_cheats_no_usable">The library has nothing usable for this version</string>
+    <string name="drawer_cheats_download_hint">From the community libraries (switch-cheats-db, MyNXCheats), the file of this build (needs the network)</string>
     <string name="drawer_cheats_no_build_hint">The library has no cheats for this game and version</string>
+    <string name="drawer_cheats_no_usable_hint">The cheats of this build are all resolution patches; the render scale of the app does that</string>
     <string name="drawer_cheats_failed_hint">The download failed: check the network and try again</string>
     <string name="drawer_cheats_credit">From: %1$s</string>
     <string name="drawer_player_n">Player %1$d</string>
