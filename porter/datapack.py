@@ -8,11 +8,10 @@
 #   standard.ttf   the player's font for the system's shared fonts, with --shared-font (env.txt's DM_SHARED_FONT)
 #   env.txt        host switches: the game language, the DLC folder, the profile's env rows, then the port's (--fps60, --mt-replay); on the device the installer adds its
 #                  DM_ROMFS row after them when the app reads its RomFS from another folder (porter/install.py, --romfs-at): that is a fact of one device, not of the pack
-#   cheats/<build ID>.txt  the game's cheat file (android.tsv cheats), named by the build it belongs to; the host runs the file of the build it runs
 #   settings.txt   the pause menu's first-launch defaults (the profile's setting rows, then the port's: --touch); the installer never replaces the player's own
 #   nx2a-data.json what the pack is: the game, the package, the version, the device features the profile requires (android.tsv requires), which the installer checks
 # Big trees are hard links into the extraction when the volume allows, so the pack takes no extra space; the pack is rebuilt whole when anything in it changes.
-import json, os, re, shutil, time
+import json, os, shutil, time
 from pathlib import Path
 from porter.revision import PLAYER_API_REVISION
 
@@ -20,7 +19,6 @@ MANIFEST = 'nx2a-data.json'
 KEEP_ON_DEVICE = ('settings.txt',)          # the player's choices win over the pack's defaults
 OWNED = ('mods', 'RomFS', 'aoc', 'sysdata')            # folders the pack owns on the device: files there that the pack lacks are stale (an older version's) and removed
 ROMFS = 'RomFS'
-CHEATS = 'cheats'
 
 
 def link_or_copy(src, dst):
@@ -39,28 +37,6 @@ def link_tree(src, dst):   # (files, bytes)
 
 
 def files_folder(package): return f'/sdcard/Android/data/{package}/files'
-
-
-def build_id(patched):
-    """The pack's main build ID: the first 16 hex digits of the NSO's build ID (the cheat files are named by it), '' when the rewriter's table has none"""
-    try: text = (Path(patched) / 'main.fixups.tsv').read_text(encoding='utf-8')
-    except OSError: return ''
-    m = re.search(r'^#\s*BUILD_ID\s+([0-9a-fA-F]+)', text, re.M)
-    return m.group(1)[:16].upper() if m else ''
-
-
-def cheat_file(profile, patched):
-    """The profile's cheat file for the build this pack holds, or None.
-
-    The file is an Atmosphère-format one named by the build it belongs to (the first 16 hex digits of main's build ID). A file named after another build is left out:
-    it would write the wrong places."""
-    rel = profile.cheats if profile else ''
-    if not rel: return None
-    src = Path(profile.game.dir) / rel
-    bid = build_id(patched)
-    if not bid or not src.is_file(): return None
-    if not re.fullmatch(r'[0-9A-Fa-f]{16}', src.stem) or src.stem.upper() != bid: return None
-    return src
 
 
 def romfs_sizes(d):   # {path in the RomFS: size} of the pack in d, '/'-separated as the device lists them (install --romfs-at compares a folder on the device with it)
@@ -88,8 +64,6 @@ def build(dst, *, profile, version, display, patched, romfs, shaders, aoc=None, 
         if progress: progress(what)
         dn, db = link_tree(src, tmp / sub); n += dn; b += db
     if shaders: link_or_copy(shaders, tmp / 'shaders.dmsv'); n += 1; b += shaders.stat().st_size   # none for an OpenGL ES game
-    cheat = cheat_file(profile, patched)   # the game's cheat file, when it belongs to this build: the host runs the file of the build it runs
-    if cheat: files = {**(files or {}), f'{CHEATS}/{cheat.name}': cheat}
     for name, src in (files or {}).items():
         f = tmp / name
         f.parent.mkdir(parents=True, exist_ok=True)   # the app's files live in subfolders (host/, drivers/, overlay/)
@@ -115,7 +89,6 @@ def build(dst, *, profile, version, display, patched, romfs, shaders, aoc=None, 
     if profile_h: man['profile_h'] = profile_h
     if no_lsfg is not None: man['no_lsfg'] = bool(no_lsfg)   # the runtime build's lsfg switch: part of the build fingerprint
     if romfs_at: man['romfs_at'] = romfs_at   # the folder the RomFS is read from: the pack does not carry it, so the app checks that folder before the game runs
-    if cheat: man['cheats'] = f'{CHEATS}/{cheat.name}'   # the cheat file the pack carries: the app points the host at its folder when the player turns the cheats on
     man['player_api_revision'] = PLAYER_API_REVISION   # the runtime interface the pack was built against: the app rebuilds the runtime when its own revision differs
     (tmp / MANIFEST).write_text(json.dumps(man, indent=2), encoding='utf-8')
     # the exported saves (the player's backups) are not the build's own: the pack is rebuilt whole, so they are put aside and put back
