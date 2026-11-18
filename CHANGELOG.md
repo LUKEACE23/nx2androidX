@@ -8,6 +8,54 @@ players on the released version are not pushed onto an alpha.
 
 The release page has the APK and the full notes: <https://github.com/zFitness/nx2androidX/releases>.
 
+## v0.3.0-alpha16 - 2026-11-18
+
+### The app (the APK)
+
+#### Fixed
+
+- The patches of a profile the player imported reach the build now. The
+  separate profiles package had broken the ports: the rewriter never saw
+  an imported profile's own cuts, and the port failed - FINAL FANTASY
+  RESONANCE's allocator cut was missing, Unreal's own allocator reserved
+  38 GB of address space, and the port died. A port copies the imported
+  profile into the games folder before it reads it, refreshed at every
+  port, and takes the copy away when it is done.
+
+#### New
+
+- A game that compiles its own shaders at boot can be ported on the
+  phone: the capture stage runs the game's own GLSLC in the headless
+  host on the device. Such games were refused as Mac-only before.
+- A movie's clock follows the decoder's picture: an anime intro no
+  longer freezes on its first frame, and a movie that ends without a
+  final picture ends cleanly instead of on a black screen.
+- The builds page can tell when the player's profile package is older
+  than this build's, and points at the environment check, where the
+  newer package is imported.
+- An imported pack offers no "export" (it already is that folder), and
+  "move to the card" shows only when there is a card to move it to.
+- A style pass over the library and the environment check.
+
+### The game profiles (the package the player imports)
+
+#### New games
+
+- Catherine: Full Body (the Korean / Chinese v0 release) - ported by
+  @zfitness, at a held 30 fps as on the Switch, verified on device
+  (Legion Y700, Snapdragon 8 Elite, Adreno 830).
+
+#### Changed games
+
+- None: no other game's profile changed in this package.
+
+### Community ports
+
+- **@zfitness** - Catherine: Full Body (the Korean / Chinese v0 release),
+  brought up on Android (#28).
+- **@zfitness** - #29: the imported profile reaches the rewriter, and the
+  games folder is left clean when the port is done.
+
 ## v0.3.0-alpha15 - 2026-11-17
 
 ### Before you update
