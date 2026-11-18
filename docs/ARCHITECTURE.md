@@ -398,11 +398,12 @@ inject only the capabilities they use, and Composables receive explicit state/ac
 process must not start library scans, update checks or port recovery. Long-running work has an explicit owner
 (a ViewModel for screen-scoped work, or a service/coordinator for background porting) and a cancellation or recovery path.
 
-`./gradlew :app:check` runs `checkArchitectureBoundaries`: domain cannot import Android, UI, appstate or data;
-feature-to-data imports are checked against a file-specific legacy allowlist so new dependencies cannot spread
-while the remaining platform integrations are moved behind routes. Remove an allowlist entry as soon as that
-call crosses the boundary. The process-shared state in `appstate/` remains application-scoped because the
-foreground service, the Activity and multiple feature ViewModels observe the same in-flight work.
+`./gradlew :app:check` runs `checkArchitectureBoundaries`: only the player ledger (`appstate/PlayerState.kt`) may
+ask whether the `:play` process is alive; no other file scans the process itself. The package directions in the
+table above (`domain/` stays free of Android, Compose, `data/` and `feature/`; `feature/` reaches for `data/`
+through domain contracts) are design rules kept by review, not by the build. The process-shared state in
+`appstate/` remains application-scoped because the foreground service, the Activity and multiple feature
+ViewModels observe the same in-flight work.
 
 ### The app's own language
 

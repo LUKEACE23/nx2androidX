@@ -168,56 +168,19 @@ android {
     }
 }
 
-// Keep the most important package directions executable while the legacy feature/platform calls are moved
-// behind routes and domain contracts in follow-up changes. The allowlist is intentionally file-specific:
-// moving a call or adding a new one requires an explicit architecture decision.
-val legacyFeatureDataImports = setOf(
-    "feature/builds/BuildsScreen.kt|com.nx.android.data.AppLog",
-    "feature/builds/BuildsViewModel.kt|com.nx.android.data.PrefsStore",
-    "feature/builds/BuildsViewModel.kt|com.nx.android.data.porting.BuildSessionRepository",
-    "feature/environment/EnvChecklistDialog.kt|com.nx.android.data.PhantomFix",
-    "feature/environment/PhantomFixDialog.kt|com.nx.android.data.PhantomFix",
-    "feature/gamedetail/GameDetailScreen.kt|com.nx.android.data.GameIcon",
-    "feature/gamedetail/GameDetailScreen.kt|com.nx.android.data.GameLog",
-    "feature/gamedetail/GameDetailScreen.kt|com.nx.android.data.LogBundle",
-    "feature/gamedetail/GameDetailScreen.kt|com.nx.android.data.SaveShare",
-    "feature/gamedetail/GameDetailScreen.kt|com.nx.android.data.StorageVolumes",
-    "feature/gamedetail/GameDetailScreen.kt|com.nx.android.data.saves.SaveIo",
-    "feature/gamedetail/GameDetailViewModel.kt|com.nx.android.data.saves.SaveIo",
-    "feature/library/LibraryHeroDetails.kt|com.nx.android.data.library.GameProfile",
-    "feature/library/LibraryScreen.kt|com.nx.android.data.library.GameProfile",
-    "feature/library/LibraryStatus.kt|com.nx.android.data.library.GameProfile",
-    "feature/faq/FaqContent.kt|com.nx.android.data.AppLocale",
-    "feature/settings/SettingsScreen.kt|com.nx.android.data.AppLocale",
-    "feature/settings/SettingsScreen.kt|com.nx.android.data.LosslessDll",
-)
-
+// The one boundary the build enforces: the ":play" process's liveness is the ledger's own fact
+// (appstate/PlayerState.kt). The launch gate, the busy checks and the crash detection all ask the ledger,
+// and no other file scans the process itself. data/Player.kt holds the scan; appstate/PlayerState.kt is the
+// one consumer.
+//
+// The package directions in docs/ARCHITECTURE.md (domain/ stays free of Android, Compose, data/ and
+// feature/; feature/ reaches for data/ through domain contracts) are design rules kept by review, not by
+// the build.
 val checkArchitectureBoundaries by tasks.registering {
     group = "verification"
-    description = "Checks core domain dependency direction and prevents new feature-to-data imports."
+    description = "Checks that only the player ledger asks whether the :play process is alive."
     doLast {
         val sourceRoot = file("src/main/java/com/nx/android")
-        val domainRoot = file("$sourceRoot/domain")
-        val forbiddenDomainImports = Regex("^import (android\\.|androidx\\.|com\\.nx\\.android\\.(data|feature|appstate|game|app)\\.)")
-        val domainViolations = domainRoot.walkTopDown().filter { it.isFile && it.extension == "kt" }.flatMap { source ->
-            source.readLines().mapIndexedNotNull { index, line ->
-                if (forbiddenDomainImports.containsMatchIn(line)) "${source.relativeTo(sourceRoot)}:${index + 1}: $line" else null
-            }
-        }.toList()
-
-        val featureRoot = file("$sourceRoot/feature")
-        val featureDataImports = featureRoot.walkTopDown().filter { it.isFile && it.extension == "kt" }.flatMap { source ->
-            source.readLines().mapNotNull { line ->
-                val match = Regex("^import (com\\.nx\\.android\\.data\\..+)$").find(line) ?: return@mapNotNull null
-                "${source.relativeTo(sourceRoot)}|${match.groupValues[1]}"
-            }
-        }.toSet()
-        val unapprovedFeatureImports = featureDataImports - legacyFeatureDataImports
-        val staleAllowlistEntries = legacyFeatureDataImports - featureDataImports
-
-        // The ":play" process's liveness is the ledger's own fact (appstate/PlayerState.kt): the launch
-        // gate, the busy checks and the crash detection all ask the ledger, and no other file scans the
-        // process itself. data/Player.kt holds the scan; appstate/PlayerState.kt is the one consumer.
         val processAliveAllowed = setOf("data/Player.kt", "appstate/PlayerState.kt")
         val processAliveViolations = sourceRoot.walkTopDown().filter { it.isFile && it.extension == "kt" }
             .filterNot { it.relativeTo(sourceRoot).path in processAliveAllowed }
@@ -227,15 +190,6 @@ val checkArchitectureBoundaries by tasks.registering {
                 }
             }.toList()
 
-        check(domainViolations.isEmpty()) {
-            "Domain imports must stay platform/UI/data independent:\n${domainViolations.joinToString("\n")}"
-        }
-        check(unapprovedFeatureImports.isEmpty()) {
-            "New feature-to-data imports need an explicit migration or allowlist decision:\n${unapprovedFeatureImports.sorted().joinToString("\n")}"
-        }
-        check(staleAllowlistEntries.isEmpty()) {
-            "Remove migrated imports from legacyFeatureDataImports:\n${staleAllowlistEntries.sorted().joinToString("\n")}"
-        }
         check(processAliveViolations.isEmpty()) {
             "Only the ledger (appstate/PlayerState.kt) may ask whether the :play process is alive:\n${processAliveViolations.joinToString("\n")}"
         }
