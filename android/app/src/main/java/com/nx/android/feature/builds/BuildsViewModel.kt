@@ -1,12 +1,16 @@
 package com.nx.android.feature.builds
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.snapshotFlow
 import com.nx.android.appstate.LibraryState
 import com.nx.android.appstate.PortState
 import com.nx.android.appstate.EnvCheckState
+import com.nx.android.core.storage.AppPaths
+import com.nx.android.data.ProfilesPack
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import com.nx.android.domain.porting.PortPhase
 import com.nx.android.domain.BuildOptions
@@ -54,12 +58,24 @@ class BuildsViewModel @Inject constructor(
     inspector: GameInspector,
     private val prefs: PrefsStore,
     private val envCheck: EnvCheckState,
+    @ApplicationContext app: Context,
+    paths: AppPaths,
 ) : ViewModel() {
     /** The game profiles the player imported (the app does not carry them) */
     val profilesCount: Int get() = envCheck.profilesCount
 
     /** The imported profiles that are ported to Android (the rest are upstream's iOS ones) */
     val profilesPorted: Int get() = envCheck.profilesPorted
+
+    /** The game profiles package of this build against the player's own layer */
+    private val pack = ProfilesPack.of(app, File(paths.nxHome, "profiles"))
+
+    /**
+     * 这一版的档案包里有这个游戏，玩家那一份里没有：玩家的档案包比游戏旧，移植器找不到它的档案。
+     * 只是一句提示（识别卡片下面），不拦着构建。
+     */
+    var packStale by mutableStateOf(false)
+        private set
 
     /** Reads the imported profiles again: a package may have been imported since the page was last on screen */
     fun refreshProfiles() = envCheck.refreshProfiles()
@@ -105,6 +121,15 @@ class BuildsViewModel @Inject constructor(
         viewModelScope.launch {
             snapshotFlow { gameInfo.reads }.collect { applyProfile(gameInfo.info) }
         }
+        // 档案包的时效（与上面那条并列，不动它）：换了游戏、或者玩家导入过档案包之后重算
+        viewModelScope.launch {
+            snapshotFlow { Pair(gameInfo.reads, envCheck.profilesRead) }.collect { checkPack() }
+        }
+    }
+
+    /** 这一版的档案包里有、玩家那一份里没有 */
+    private fun checkPack() {
+        packStale = pack.stale(gameInfo.info?.titleId.orEmpty())
     }
 
     fun setTarget(file: File?, config: GameConfig? = null, savedConfigMissing: Boolean = false) {

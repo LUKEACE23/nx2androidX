@@ -329,6 +329,7 @@
     <string name="builds_profiles_ready_ported">%1$d game profile(s) imported, %2$d of them ported</string>
     <string name="builds_profiles_missing">No game profiles imported</string>
     <string name="builds_profiles_import">Import</string>
+    <string name="builds_profiles_pack_stale">This build\'s profiles package has this game, yours does not: import it from the environment check in the top bar.</string>
     <string name="builds_target">Target</string>
     <string name="builds_source">Source: %1$s</string>
     <string name="builds_options_title">Build options</string>

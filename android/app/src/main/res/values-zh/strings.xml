@@ -328,6 +328,7 @@
     <string name="builds_profiles_ready_ported">已有 %1$d 个游戏档案，其中 %2$d 个已适配</string>
     <string name="builds_profiles_missing">尚未导入游戏档案</string>
     <string name="builds_profiles_import">去导入</string>
+    <string name="builds_profiles_pack_stale">当前版本的档案包里有这个游戏，你的档案包没有，请去顶部环境检查去导入</string>
     <string name="builds_target">目标</string>
     <string name="builds_source">来源：%1$s</string>
     <string name="builds_options_title">构建选项</string>

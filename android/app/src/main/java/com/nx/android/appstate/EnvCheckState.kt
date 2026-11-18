@@ -128,6 +128,15 @@ class EnvCheckState @Inject constructor(
     /** The player's package is not this build's: there is a newer one (or an older one) */
     var profilesDiffer by mutableStateOf(false); private set
 
+    /**
+     * The profiles layer was read again: the number goes up on every read.
+     *
+     * The counts above do not move when the layer's own folders change (a package with the same number of
+     * profiles, a game that gained its android.tsv), so a page that watches the layer watches this instead: it
+     * knows the layer is a new one.
+     */
+    var profilesRead by mutableStateOf(0); private set
+
     /** A package is being imported */
     var importingProfiles by mutableStateOf(false); private set
 
@@ -167,6 +176,7 @@ class EnvCheckState @Inject constructor(
     fun refreshProfiles() = readProfiles()
 
     private fun readProfiles() {
+        profilesRead++
         profilesCount = 0
         profilesLabel = ""
         profilesDiffer = false

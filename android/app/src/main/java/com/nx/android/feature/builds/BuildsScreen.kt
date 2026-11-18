@@ -296,6 +296,12 @@ private fun TargetCard(lib: LibraryState, port: BuildsUiState, viewModel: Builds
                             color = MaterialTheme.colorScheme.onSurface, fontSize = 11.sp)
                     }
                     Hint(stringResource(R.string.builds_files_hint), size = 11.sp)
+                    // 档案包：这一版有、玩家那一份没有（提示去导入，不拦着构建）
+                    if (viewModel.packStale) Text(
+                        stringResource(R.string.builds_profiles_pack_stale),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.sp, color = NxPalette.Building,
+                    )
                 }
             }
         }
