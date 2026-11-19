@@ -56,7 +56,7 @@ with them.
 | `nx_extract` (the NSP reader) and LibHac 0.19.0 | GPL-3.0-or-later (its own code); LibHac is MIT | built from `nxnative/dm/tools/nx_extract/`, restored from NuGet | the repository's [LICENSE](LICENSE); the LibHac package is MIT |
 | The .NET runtime the phone app ships | MIT | the app's payload (`dotnet.pkg`) | the .NET SDK's own terms, fetched from Microsoft |
 
-## Fetched at run time, never shipped
+## Imported by the player, never shipped
 
 | Component | License | Note |
 |---|---|---|
@@ -64,7 +64,7 @@ with them.
 | The Vulkan driver a player picks (Mesa Turnip and others) | their own | The player supplies the driver; the app never ships one it does not have the rights to. |
 | The Android NDK, the .NET SDK and platform-tools | their own terms (Apache-2.0, MIT, Apache-2.0) | Downloaded by the Setup tab from Google and Microsoft. |
 | The Python modules the phone app ships (lz4, capstone, pillow, fonttools, pyyaml, pycryptodome, backports.zstd) | permissive (BSD, MIT, Apache-2.0) | Fetched as wheels at build time into the APK's payload. |
-| The community cheat library (switch-cheats-db) | the cheat files are the community's own work | Fetched at run time, one JSON file per game, when the player asks for the cheats of a game. The app picks the section of the build it runs and shows the library's own credit under the list. Nothing of it is in this repository or in the APK. |
+| The cheat files (the community's Atmosphère codes) | the cheat files are the community's own work | The app carries none of them. The player imports a zip (Settings → Environment → Cheats); the files come from the community libraries and are collected in our own repository (`zFitness/nx2a-cheats`), which keeps each file's author in the credit beside it. Nothing of them is in this repository or in the APK. |
 
 ## The game's own content
 
