@@ -214,7 +214,8 @@ class MainActivity : ComponentActivity() {
         version = { versionName() },
         keys = { prefs.keys },
         // 固件：整机级的一份，导入 zip 解到 App 的私有目录（可选项）
-        firmware = { firmwareRepo.imported },
+        // 名字取自 envCheck 那份状态：导入或清除之后，这一行立刻跟着变（普通读 prefs 不会刷新界面）
+        firmware = { envCheck.firmwareName },
         onImportFirmware = { zip -> importFirmware(zip) },
         // 金手指：社区的 Atmosphère 文件，玩家导入一个 zip（App 不带）
         cheatGames = { cheatGames() },
