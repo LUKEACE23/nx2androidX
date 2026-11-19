@@ -10,3 +10,7 @@ tested	v131072 Lenovo Legion Y700 TB322FC (Snapdragon 8 Elite, Adreno 830, Andro
 package	org.nx2a.viractal
 orientation	landscape
 graphics	nvn
+readme_name	Viractal: Will You Trust Your Party?
+readme_image	docs/images/viractal.jpg
+readme_tag	v0.1.0
+readme_note	update 1.4.5

@@ -1,3 +1,4 @@
+graphics	nvn
 # Super Mario Odyssey on Android (keys in docs/ARCHITECTURE.md "Game profiles on Android")
 # Nintendo EPD's sead / agl engine (NintendoWare G3d / Ui2d / Vfx) on SDK 7.3.2, update 1.4.1; 27,984 shaders, all translated. The upstream profile as it is.
 # Tested 2026-10-30 on the Legion Y700 (TB322FC, Snapdragon 8 Elite, Adreno 830, Android 16), driven with DM_CTL: the controller notice, the title, a new save's opening (the airship,
@@ -32,4 +33,6 @@ status	playable
 tested	v393216 Lenovo Legion Y700 TB322FC (Snapdragon 8 Elite, Adreno 830, Android 16)
 package	org.nx2a.supermarioodyssey
 orientation	landscape
-graphics	nvn
+readme_image	docs/images/super-mario-odyssey.jpg
+readme_tag	v0.2.0
+readme_note	update 1.4.1 · 60 fps · shake the device to throw Cappy

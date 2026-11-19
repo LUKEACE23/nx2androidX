@@ -14,6 +14,10 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import csrc   # perf_android.c asks dm_pacing.c (the frame-pacing policy, upstream's shape since 0.4.0)
 
 ROOT = Path(__file__).resolve().parents[1]
 PRESENT = ROOT / 'nxnative/dm/android/gfx_vk_present.c'
@@ -196,7 +200,7 @@ class AdaptivePace(unittest.TestCase):
 #include <stdlib.h>
 #define LOG(...) do { if (0) printf(__VA_ARGS__); } while (0)
 
-''' + block + r'''
+''' + csrc.PACING_INCLUDE + block + r'''
 int main(void) {
     (void)STEPS;
     (void)g_adapt; (void)g_work_hist; (void)g_nwork; (void)g_last_change; (void)g_last_up; (void)g_up_hold;
@@ -230,9 +234,10 @@ int vk_fg_images(void) { return FG_IMAGES; }   // the images per game frame (1 =
             exe = Path(tmp) / 'check'
             c.write_text(harness, encoding='utf-8')
             fgc.write_text(fg, encoding='utf-8')
+            csrc.pacing_files(tmp)   # dm_pacing.c and its stub game_profile.h, beside the harness
             for images in (1, 2):
                 result = subprocess.run([cc, '-std=gnu11', '-Wall', '-Wextra', '-Werror', '-pthread',
-                                         f'-DFG_IMAGES={images}', str(c), str(fgc), '-lm', '-o', str(exe)],
+                                         f'-DFG_IMAGES={images}', f'-I{tmp}', str(c), str(fgc), '-lm', '-o', str(exe)],
                                         capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 result = subprocess.run([str(exe)], capture_output=True, text=True)

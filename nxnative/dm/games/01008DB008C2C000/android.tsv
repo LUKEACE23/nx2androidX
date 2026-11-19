@@ -1,3 +1,4 @@
+graphics	nvn
 # Pokémon Shield on Android (keys in docs/ARCHITECTURE.md "Game profiles on Android")
 # Game Freak's engine on SDK 7.3.2, update 1.3.2 (v458752): Pokémon Sword's twin (0100ABF008968000/android.tsv has the details). Same game.tsv values, its own main
 # build, and Sword's title-screen cuts carried over in patches.py. NintendoWare Vfx's run-time effect programs are the same as Sword's: the 46 Sword's port captured,
@@ -12,4 +13,6 @@ status	playable
 tested	v458752 AYN Odin 2 (Snapdragon 8 Gen 2, Adreno 740, Android 13)
 package	org.nx2a.pokemonshield
 orientation	landscape
-graphics	nvn
+readme_image	docs/images/pokemon-shield.jpg
+readme_tag	v0.4.0
+readme_note	update 1.3.2 · 30 fps (as on Switch; 60 runs the game twice as fast) · tested on the AYN Odin 2 (Adreno 740) with a Turnip Vulkan driver · **tested to Postwick** and in wild battles

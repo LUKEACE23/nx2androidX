@@ -1,4 +1,4 @@
-# kind: evidence  FINAL FANTASY RESONANCE shaders (Unreal Engine shader code archives in RomFS + main) → control section + code area keys (dm/gfx/tools/shader_split.py)
+# kind: evidence  FINAL FANTASY RESONANCE shaders (provisional profile) (Unreal Engine shader code archives in RomFS + main) → control section + code area keys (dm/gfx/tools/shader_split.py)
 # column 5 records where each key first appears; this game has no PC version to pair with
 package	index	stage	dm_ctl_sha16	source
 ps_game.bin	0	pixel	ed8a444467bb4740	/ue_shaders/ShaderArchive-FFRS-SF_GLSL_SWITCH-SP_GLSL_SWITCH.ushaderbytecode#UE0

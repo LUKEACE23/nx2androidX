@@ -6,7 +6,7 @@
 #   shaders.dmsv   the Vulkan shaders (dm/android/tools/shader_vk.py)
 #   nintendo_ext.ttf  the button-icon font, the stand-in for the Nintendo extension shared font (dm/tools/make_ext_font.py; env.txt's DM_SHARED_FONT_EXT)
 #   standard.ttf   the player's font for the system's shared fonts, with --shared-font (env.txt's DM_SHARED_FONT)
-#   env.txt        host switches: the game language, the DLC folder, the profile's env rows, then the port's (--fps60, --mt-replay); on the device the installer adds its
+#   env.txt        host switches: the game language, the DLC folder, the profile's env rows, then the port's (--fps60, --mt-replay, --no-menu-button); on the device the installer adds its
 #                  DM_ROMFS row after them when the app reads its RomFS from another folder (porter/install.py, --romfs-at): that is a fact of one device, not of the pack
 #   settings.txt   the pause menu's first-launch defaults (the profile's setting rows, then the port's: --touch); the installer never replaces the player's own
 #   nx2a-data.json what the pack is: the game, the package, the version, the device features the profile requires (android.tsv requires), which the installer checks
@@ -14,6 +14,8 @@
 import json, os, shutil, time
 from pathlib import Path
 from porter.revision import PLAYER_API_REVISION
+
+from porter.upstream import settings_registry
 
 MANIFEST = 'nx2a-data.json'
 KEEP_ON_DEVICE = ('settings.txt',)          # the player's choices win over the pack's defaults
@@ -37,6 +39,21 @@ def link_tree(src, dst):   # (files, bytes)
 
 
 def files_folder(package): return f'/sdcard/Android/data/{package}/files'
+
+
+SEEDABLE = ('RomFS', 'aoc')   # parts another port of the same game version on the device can give a new install (porter/install.py seed_from_sibling)
+
+
+def part_key(d, part):
+    """{'files', 'bytes', 'key'} of a pack part (RomFS, aoc): the key is a hash of its paths and sizes. Two packs of one game version have the same key for the same
+    files (a RomFS is the game's own, the same in every port of that version; a packed RomFS has other sizes), which lets an install copy the part on the device
+    from another port of the game instead of pushing it again. None when the part is not in the pack"""
+    import hashlib
+    r = Path(d) / part
+    if not r.is_dir(): return None
+    files = sorted((p.relative_to(r).as_posix(), p.stat().st_size) for p in r.rglob('*') if p.is_file())
+    h = hashlib.sha256(''.join(f'{rel}\t{size}\n' for rel, size in files).encode('utf-8')).hexdigest()
+    return {'files': len(files), 'bytes': sum(s for _, s in files), 'key': h}
 
 
 def romfs_sizes(d):   # {path in the RomFS: size} of the pack in d, '/'-separated as the device lists them (install --romfs-at compares a folder on the device with it)
@@ -76,6 +93,7 @@ def build(dst, *, profile, version, display, patched, romfs, shaders, aoc=None, 
     if aoc: rows.append(f'DM_AOC_DIR={base}/aoc')   # the pack's own folder
     if sysdata: rows.append(f'DM_SYSDATA={base}/sysdata')
     rows += profile.env + list(env)
+    if bad := settings_registry.check_env(rows, ('profile', 'porter'), 'env.txt '): raise ValueError('; '.join(bad))   # nxnative/dm/settings.tsv
     (tmp / 'env.txt').write_text('\n'.join(rows) + '\n', encoding='utf-8', newline='\n')
     if sets := {**profile.settings, **(settings or {})}: (tmp / 'settings.txt').write_text(''.join(f'{k}={v}\n' for k, v in sets.items()), encoding='utf-8', newline='\n')
     man = dict(title_id=profile.id, name=profile.name, package=package, version=version, display=display, language=language, requires=profile.requires,
@@ -90,6 +108,7 @@ def build(dst, *, profile, version, display, patched, romfs, shaders, aoc=None, 
     if no_lsfg is not None: man['no_lsfg'] = bool(no_lsfg)   # the runtime build's lsfg switch: part of the build fingerprint
     if romfs_at: man['romfs_at'] = romfs_at   # the folder the RomFS is read from: the pack does not carry it, so the app checks that folder before the game runs
     man['player_api_revision'] = PLAYER_API_REVISION   # the runtime interface the pack was built against: the app rebuilds the runtime when its own revision differs
+    if parts := {p: k for p in SEEDABLE if (k := part_key(tmp, p))}: man['parts'] = parts   # the content keys install's seeding compares
     (tmp / MANIFEST).write_text(json.dumps(man, indent=2), encoding='utf-8')
     # the exported saves (the player's backups) are not the build's own: the pack is rebuilt whole, so they are put aside and put back
     keep = dst.with_name(dst.name + '.saves-keep')

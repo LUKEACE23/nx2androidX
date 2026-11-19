@@ -8,7 +8,7 @@ Left out because they have an official Android release: Unpacking (ported here a
 
 "Profile here": `nxnative/dm/games/<title ID>/` has the game's profile from nxnative, synced from upstream (see [UPSTREAM_PROFILES.md](UPSTREAM_PROFILES.md)): the profile is here, the game is not necessarily ported to Android yet. A game without an `android.tsv` can still be tried as an experimental port (`porter build --experimental`). "60 fps with X" is upstream's note: they run that update at 60 fps (30 on the Switch).
 
-**60 / 112 ported**
+**64 / 112 ported**
 
 **Credit.** A ported game names the person who brought it up (`ported by @handle`), taken from the commit that added its profile. The ports from before this was written down are credited to the author of the commit that introduced them.
 
@@ -44,9 +44,9 @@ Left out because they have an official Android release: Unpacking (ported here a
 - [ ] DRAGON QUEST VII Reimagined · `0100A9D01C446000` · profile here
 - [ ] DRAGON QUEST XI S: Echoes of an Elusive Age – Definitive Edition · `01006C300E9F0000` · profile here · 60 fps with 1.0.4
 - [x] FINAL FANTASY RESONANCE · `0100606026F12000`
-- [x] FINAL FANTASY RESONANCE (Asian release) · `0100B8A026F14000` · ported by @zFitness
-- [ ] FINAL FANTASY TACTICS - The Ivalice Chronicles · `010038B015560000` · profile here
-- [ ] FINAL FANTASY X/X-2 HD Remaster · `0100BC300CB48000` · profile here
+- [x] FINAL FANTASY RESONANCE (Asian release) · `0100B8A026F14000` · needs a Turnip driver · ported by @zFitness
+- [x] FINAL FANTASY TACTICS - The Ivalice Chronicles · `010038B015560000` · profile here
+- [ ] FINAL FANTASY X/X-2 HD Remaster · `0100BC300CB48000` · upstream profile
 - [x] Fire Emblem Engage · `0100A6301214E000` · profile here · 60 fps with 2.0.0
 - [ ] Fire Emblem: Three Houses · `010055D009F78000` · profile here · 60 fps with 1.2.0
 - [x] FM24 Touch · `01008B101B87A000`
@@ -70,8 +70,8 @@ Left out because they have an official Android release: Unpacking (ported here a
 - [ ] Monster Hunter Rise · `0100B04011742000` · profile here · 60 fps with 16.0.2
 - [ ] Monster Train 2 · `010051701FB46000` · profile here · 60 fps with 1.1.1 · only the first Monster Train is on mobile
 - [x] NEO: The World Ends with You · `010043B013C5C000` · ported by @shirai91
-- [ ] NieR:Automata The End of YoRHa Edition · `010056B015FE8000` · profile here · 60 fps with 1.0.3
-- [ ] OCTOPATH TRAVELER · `010057D006492000` · profile here
+- [x] NieR:Automata The End of YoRHa Edition · `010056B015FE8000` · profile here · boots with 1.0.3; save-loaded map and geometry corrected; broader gameplay checks pending; [test record](NIER_AUTOMATA_ANDROID_PORT.md)
+- [x] OCTOPATH TRAVELER · `010057D006492000` · profile here
 - [x] Octopath Traveler 0 · `01005270232F2000`
 - [x] Octopath Traveler 0 (Chinese release) · `01001300232F4000` · ported by @zFitness
 - [ ] Octopath Traveler II · `0100A3501946E000` · profile here · 60 fps with 1.1.1
@@ -110,7 +110,7 @@ Left out because they have an official Android release: Unpacking (ported here a
 - [ ] The Great Ace Attorney Chronicles · `010036E00FB20000` · profile here
 - [x] The Legend of Zelda: Breath of the Wild · `01007EF00011E000` · profile here · 60 fps with 1.9.0 · Galaxy S25 Ultra / Turnip; tested in the opening and on the Great Plateau
 - [x] The Legend of Zelda: Echoes of Wisdom · `01008CF01BAAC000` · Retroid Pocket 6 / PurpleVK; playable with minor transparency artifacts around rifts
-- [ ] The Legend of Zelda: Link's Awakening · `01006BB00C6F0000` · profile here
+- [x] The Legend of Zelda: Link's Awakening · `01006BB00C6F0000` · Lenovo TB323FU; dynamic 30/60 fps by default (optional stable-60fps NOPs commented out in `patches.py` to avoid slow-motion/judder on weaker chips); needs `--firmware` (without it, crashes at startup because the fallback font lacks `U+25A1`); startup `main+0x1c180` OOB read fixed in `patches.py`; area loads can hitch
 - [x] The Legend of Zelda: Tears of the Kingdom · `0100F2C0115B6000` · ported by @shirai91
 - [x] The World Ends with You -Final Remix- · `0100C1500B82E000`
 - [x] Tomodachi Life: Living the Dream · `010051F0207B2000`

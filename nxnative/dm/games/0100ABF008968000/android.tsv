@@ -1,3 +1,4 @@
+graphics	nvn
 # Pokémon Sword on Android (keys in docs/ARCHITECTURE.md "Game profiles on Android")
 # Game Freak's engine on SDK 7.3.2, update 1.3.2 (v458752); game.tsv and the shader tables come from the survey, checked by hand. Its GFPAK archives are LZ4 (no Oodle):
 # a port needs no device for the shaders. NintendoWare Vfx builds some effect programs at run time (46 in the opening, in no game file): the app captures them
@@ -20,4 +21,6 @@ status	playable
 tested	v458752 AYN Odin 2 (Snapdragon 8 Gen 2, Adreno 740, Android 13)
 package	org.nx2a.pokemonsword
 orientation	landscape
-graphics	nvn
+readme_image	docs/images/pokemon-sword.jpg
+readme_tag	v0.4.0
+readme_note	update 1.3.2 · 30 fps (as on Switch; 60 runs the game twice as fast) · tested on the AYN Odin 2 (Adreno 740) with a Turnip Vulkan driver · **tested to the Wild Area**, wild battles included; handheld mode draws blurred (docked is the default)

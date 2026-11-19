@@ -1,3 +1,4 @@
+graphics	nvn
 # Hollow Knight: Silksong on Android (keys in docs/ARCHITECTURE.md "Game profiles on Android")
 # Unity 6000.0.50f1 IL2CPP on SDK 20.5.8, update 1.0.30000; 2,450 shaders from its Addressables bundles, all translated; subsdk0 plays the MP4 cinematics through MediaCodec.
 # Tested 2026-10-29 on the Legion Y700 (TB322FC, Snapdragon 8 Elite, Adreno 830, Android 16), driven with DM_CTL: the title, a new save, the opening poem and the 80 s
@@ -11,4 +12,6 @@ status	playable
 tested	v655360 Lenovo Legion Y700 TB322FC (Snapdragon 8 Elite, Adreno 830, Android 16)
 package	org.nx2a.hollowknightsilksong
 orientation	landscape
-graphics	nvn
+readme_image	docs/images/hollow-knight-silksong.jpg
+readme_tag	v0.1.3
+readme_note	update 1.0.30000 · 60 fps
