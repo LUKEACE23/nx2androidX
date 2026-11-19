@@ -1,5 +1,15 @@
 [
   {
+    "group": "hot",
+    "title": "The build dies",
+    "items": [
+      {
+        "q": "The app disappears mid-build and the history says \"Interrupted\" - what do I do?",
+        "a": "The phone's battery manager killed the app: a build runs the CPU flat out for many minutes, which looks like abnormal power drain. The port itself did not fail. In order: 1) system Settings → Battery → set nx2androidX's battery policy to \"No restrictions\" (MIUI: \"App smart battery\"; Huawei/Honor: switch \"App launch management\" to Manual; Samsung: take the app out of the \"Sleeping apps\" list); 2) the phone manager (Security app) → App management → allow background runs and autostart; 3) lock the app's card in the recents screen; 4) keep the screen on and the app in front while it builds. Then start the port again: every finished stage is cached, it catches up in seconds."
+      }
+    ]
+  },
+  {
     "group": "prepare",
     "title": "Getting ready",
     "items": [
