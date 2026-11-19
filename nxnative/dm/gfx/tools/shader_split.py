@@ -174,7 +174,20 @@ def mem_mb():
         import resource
         r = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         return r / (1024 * 1024) if sys.platform == 'darwin' else r / 1024
-    except Exception: return 0
+    except Exception: pass
+    if sys.platform == 'win32':
+        # the desktop bundle runs on Windows too: the process's own peak working set (GetProcessMemoryInfo; ru_maxrss's shape)
+        import ctypes
+        from ctypes import wintypes
+        class PMC(ctypes.Structure):
+            _fields_ = [('cb', wintypes.DWORD), ('PageFaultCount', wintypes.DWORD), ('PeakWorkingSetSize', ctypes.c_size_t),
+                        ('WorkingSetSize', ctypes.c_size_t), ('QuotaPeakPagedPoolUsage', ctypes.c_size_t),
+                        ('QuotaPagedPoolUsage', ctypes.c_size_t), ('QuotaPeakNonPagedPoolUsage', ctypes.c_size_t),
+                        ('QuotaNonPagedPoolUsage', ctypes.c_size_t), ('PagefileUsage', ctypes.c_size_t), ('PeakPagefileUsage', ctypes.c_size_t)]
+        pmc = PMC(); pmc.cb = ctypes.sizeof(PMC)
+        if ctypes.windll.kernel32.GetProcessMemoryInfo(ctypes.windll.kernel32.GetCurrentProcess(), ctypes.byref(pmc), pmc.cb):
+            return pmc.PeakWorkingSetSize / (1024 * 1024)
+    return 0
 
 def check_budget(done, total):
     """The split's memory budget: over it, the split stops with a clear error instead of being killed by the system (a phone)"""
