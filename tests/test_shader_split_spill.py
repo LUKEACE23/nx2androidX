@@ -89,6 +89,7 @@ class Spill(unittest.TestCase):
         self.assertGreater(spills[0].stat().st_size, 0)
         self.assertTrue((out / 'pkg' / 'vs_other.bin').is_file())
 
+    @unittest.skipIf(sys.platform == 'win32', 'no /proc and no resource module: the memory measurement says 0 and the budget guard passes')
     def test_over_the_budget_the_split_stops_with_an_error(self):
         r, out = self.split('d', budget=1)   # a budget of 1 MB: the split is over it at once
         self.assertNotEqual(r.returncode, 0)
