@@ -53,6 +53,8 @@ import com.nx.android.app.AppActions
 import com.nx.android.core.ui.LocalAppLocale
 import com.nx.android.core.ui.components.ActionRow
 import com.nx.android.core.ui.components.ChoiceRow
+import com.nx.android.core.ui.components.CheatsHint
+import com.nx.android.core.ui.components.CheatsRow
 import com.nx.android.core.ui.components.CloseIcon
 import com.nx.android.core.ui.components.FirmwareHint
 import com.nx.android.core.ui.components.FirmwareRow
@@ -228,6 +230,17 @@ private fun EnvironmentSection(ob: OnboardingState, actions: AppActions, onReque
         onClear = { actions.onClearFirmware() },
     )
     FirmwareHint()
+    // 金手指：玩家导入的一份（App 不带金手指：社区的 Atmosphère 文件由玩家自己导入）
+    CheatsRow(
+        games = actions.cheatGames(),
+        files = actions.cheatFiles(),
+        onImport = {
+            onRequest(PickerRequest(PickerMode.FILE, setOf("zip"), null, locale.str(R.string.cheats_pick),
+                onPicked = { f -> actions.onImportCheats(f) }))
+        },
+        onClear = { actions.onClearCheats() },
+    )
+    CheatsHint()
     ActionRow(title = stringResource(R.string.settings_diagnostic_log), label = stringResource(R.string.builds_log_view),
         onClick = onDiagnosticLog)
     ActionRow(title = stringResource(R.string.settings_diagnostic_log), label = stringResource(R.string.common_share),

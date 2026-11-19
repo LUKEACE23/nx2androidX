@@ -170,6 +170,11 @@ data class AppActions(
     val firmware: () -> String = { "" },
     val onImportFirmware: (File) -> Unit = {},
     val onClearFirmware: () -> Unit = {},
+    // the cheats: the community's files, imported from a zip into the app's own folder (the app carries none)
+    val cheatGames: () -> Int = { 0 },
+    val cheatFiles: () -> Int = { 0 },
+    val onImportCheats: (File) -> Unit = {},
+    val onClearCheats: () -> Unit = {},
     // the game profiles: the app does not carry them, the player imports a package into their own folder
     val onImportProfiles: (File) -> Unit = {},
     // the file provider: the app's own folders are visible to the file managers (on by default)
