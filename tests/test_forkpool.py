@@ -12,6 +12,7 @@ sys.path.insert(0, str(TOOLS))
 from forkpool import fork_map   # noqa: E402
 
 
+@unittest.skipUnless(hasattr(os, 'fork'), 'forkpool is the POSIX fallback (os.fork); Windows runs the ProcessPoolExecutor path')
 class Pool(unittest.TestCase):
 
     def test_the_results_come_back_in_the_items_order(self):
