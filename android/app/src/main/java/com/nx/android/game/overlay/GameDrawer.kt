@@ -722,8 +722,9 @@ private fun PlayerRows(
  * 总开关关着的时候宿主不加载也不执行任何金手指（这一页不列条目）；打开后每条一个开关。
  * 不能跑的那条（要改游戏的代码）开关是灰的，小字写着原因。
  *
- * 金手指文件不在 App 里，是玩家导入的（设置 → 环境 → 金手指，导入一个 zip）：没有导入过就说明去导入，
- * 导入过但这个 build 没有文件就说这个版本没有金手指；有文件才列出条目（出处写在最后一行小字里）。
+ * 金手指文件不在 App 里，是玩家导入的（设置 → 环境 → 金手指，导入一个 zip）：那一行提示一直都在
+ * （总开关开不开都看得见——玩家先要知道去哪儿导入），没有导入过就说还没有，导入过但这个 build
+ * 没有文件就说这个版本没有；有文件才列出条目（出处写在最后一行小字里）。
  */
 @Composable
 private fun CheatRows(
@@ -741,12 +742,14 @@ private fun CheatRows(
     GroupLabel(stringResource(R.string.drawer_group_cheats))
     ToggleRow(Icons.Filled.Extension, stringResource(R.string.drawer_cheats_master),
         stringResource(R.string.drawer_cheats_master_hint), master, onChange = onMaster)
+    // 怎么导入：一直写着（总开关关着的时候玩家也得知道去哪儿导入）
+    HintRow(stringResource(R.string.drawer_cheats_import_hint))
     if (!master) {
         HintRow(stringResource(R.string.drawer_cheats_off_hint))
         return
     }
     if (!status.anyImported) {
-        // 手机上还没有导入过金手指：说清楚去哪儿导入
+        // 手机上还没有导入过金手指
         HintRow(stringResource(R.string.drawer_cheats_not_imported))
         return
     }

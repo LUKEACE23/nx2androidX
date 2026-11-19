@@ -659,7 +659,8 @@
     <string name="drawer_cheats_off_hint">打开后才能看到并使用这个游戏的金手指</string>
     <string name="drawer_cheats_none">这个游戏没有金手指</string>
     <string name="drawer_cheats_unsupported">这个运行库没有金手指功能</string>
-    <string name="drawer_cheats_not_imported">还没有导入金手指：到「设置 → 环境 → 金手指」导入一个 zip</string>
+    <string name="drawer_cheats_import_hint">金手指不在 App 里：到「设置 → 环境 → 金手指」导入一个 zip（社区仓库或论坛上的包都可以）</string>
+    <string name="drawer_cheats_not_imported">还没有导入过金手指</string>
     <string name="drawer_cheats_no_build">这个版本没有金手指（导入的包里没有这个 build）</string>
     <string name="drawer_cheats_credit">出处：%1$s</string>
     <string name="drawer_player_n">玩家 %1$d</string>

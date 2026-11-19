@@ -660,7 +660,8 @@
     <string name="drawer_cheats_off_hint">Turn this on to see the cheats of this game</string>
     <string name="drawer_cheats_none">This game has no cheats</string>
     <string name="drawer_cheats_unsupported">This runtime has no cheats</string>
-    <string name="drawer_cheats_not_imported">No cheats imported yet: import a zip in Settings → Environment → Cheats</string>
+    <string name="drawer_cheats_import_hint">The cheats are not in the app: import a zip in Settings → Environment → Cheats (a community package works)</string>
+    <string name="drawer_cheats_not_imported">No cheats imported yet</string>
     <string name="drawer_cheats_no_build">This version has no cheats (the imported package has no file for this build)</string>
     <string name="drawer_cheats_credit">From: %1$s</string>
     <string name="drawer_player_n">Player %1$d</string>
