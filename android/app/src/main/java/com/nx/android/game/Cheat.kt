@@ -24,12 +24,24 @@ fun parseCheats(json: String): List<Cheat> {
     }.getOrDefault(emptyList())
 }
 
+/** 从社区库下载到哪一步了 */
+enum class CheatDownload {
+    NONE,        // 还没试过
+    DOWNLOADING, // 正在下
+    DONE,        // 下好了
+    NO_BUILD,    // 社区库里没有这个 build 的文件
+    NO_USABLE,   // 库里有这个 build 的文件，但里面能用的没有（都是分辨率类的）
+    FAILED,      // 下载失败（网络）
+}
+
 /** 金手指页的状态：App 那边这个游戏有什么 */
 data class CheatStatus(
-    /** 手机上导入过金手指（不管哪个游戏） */
-    val anyImported: Boolean = false,
-    /** 这个游戏这个 build 的文件在（宿主加载的就是它） */
-    val hasBuild: Boolean = false,
-    /** 出处：导入的那份文件自己写的 */
+    /** 文件已经在手机上了（下载来的或导入的） */
+    val downloaded: Boolean = false,
+    /** 下载到哪一步了 */
+    val download: CheatDownload = CheatDownload.NONE,
+    /** 出处：社区库自己写的 */
     val credit: String = "",
+    /** 能不能下载：得知道这个游戏的 title ID 与它这个 build 的编号 */
+    val canDownload: Boolean = false,
 )

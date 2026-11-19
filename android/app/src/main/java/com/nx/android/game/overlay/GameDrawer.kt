@@ -100,6 +100,7 @@ import com.nx.android.data.LosslessDll
 import com.nx.android.data.RatePin
 import com.nx.android.game.hud.HudField
 import com.nx.android.game.Cheat
+import com.nx.android.game.CheatDownload
 import com.nx.android.game.CheatStatus
 import com.nx.android.game.Native
 import com.nx.android.game.parseCheats
@@ -175,6 +176,7 @@ fun GameDrawer(
     onCheatsMaster: (Boolean) -> Unit,
     onCheatToggle: (Int, Boolean) -> Unit,
     cheatStatus: () -> CheatStatus,
+    onCheatsDownload: () -> Unit,
     onPauseGame: () -> Unit,
     onResumeGame: () -> Unit,
     onExit: () -> Unit,
@@ -288,7 +290,7 @@ fun GameDrawer(
                                     // 金手指页：这个游戏的金手指与它们的开关（宿主那边跑，App 只显示与下发）
                                     DrawerTab.CHEATS -> CheatRows(cheatList, cheatsMasterOn, cheatsSupported,
                                         cheatStatus(), { on -> cheatsMasterOn = on; onCheatsMaster(on) },
-                                        onCheatToggle)
+                                        onCheatToggle, onCheatsDownload)
                                 }
                             }
                             Spacer(Modifier.height(8.dp))
@@ -717,14 +719,13 @@ private fun PlayerRows(
 }
 
 /**
- * 金手指页：总开关与这个游戏的金手指。
+ * 金手指页：总开关、这个游戏的金手指，以及把它们弄到手的那一行。
  *
  * 总开关关着的时候宿主不加载也不执行任何金手指（这一页不列条目）；打开后每条一个开关。
  * 不能跑的那条（要改游戏的代码）开关是灰的，小字写着原因。
  *
- * 金手指文件不在 App 里，是玩家导入的（设置 → 环境 → 金手指，导入一个 zip）：那一行提示一直都在
- * （总开关开不开都看得见——玩家先要知道去哪儿导入），没有导入过就说还没有，导入过但这个 build
- * 没有文件就说这个版本没有；有文件才列出条目（出处写在最后一行小字里）。
+ * 金手指文件不在 App 里，两条路都有：抽屉里从社区库下载（那一行），或者玩家在设置里导入一个 zip
+ * （设置 → 环境 → 金手指）。哪一条都行，提示一直写着（总开关开不开都看得见）。
  */
 @Composable
 private fun CheatRows(
@@ -734,6 +735,7 @@ private fun CheatRows(
     status: CheatStatus,
     onMaster: (Boolean) -> Unit,
     onToggle: (Int, Boolean) -> Unit,
+    onDownload: () -> Unit,
 ) {
     if (!supported) {
         HintRow(stringResource(R.string.drawer_cheats_unsupported))
@@ -742,24 +744,37 @@ private fun CheatRows(
     GroupLabel(stringResource(R.string.drawer_group_cheats))
     ToggleRow(Icons.Filled.Extension, stringResource(R.string.drawer_cheats_master),
         stringResource(R.string.drawer_cheats_master_hint), master, onChange = onMaster)
-    // 怎么导入：一直写着（总开关关着的时候玩家也得知道去哪儿导入）
-    HintRow(stringResource(R.string.drawer_cheats_import_hint))
+    // 怎么把金手指弄到手：一直写着（总开关关着的时候玩家也得知道去哪儿导入）
+    HintRow(stringResource(R.string.drawer_cheats_get_hint))
     if (!master) {
         HintRow(stringResource(R.string.drawer_cheats_off_hint))
         return
     }
-    if (!status.anyImported) {
-        // 手机上还没有导入过金手指
-        HintRow(stringResource(R.string.drawer_cheats_not_imported))
-        return
-    }
-    if (!status.hasBuild) {
-        // 导入过，但里面没有这个 build 的文件（别的版本，或者这个游戏没有）
-        HintRow(stringResource(R.string.drawer_cheats_no_build))
-        return
-    }
-    if (cheats.isEmpty()) {
+    if (!status.canDownload) {
+        // 不知道这个游戏的编号：下不了（这一页只说明没有金手指）
         HintRow(stringResource(R.string.drawer_cheats_none))
+        return
+    }
+    // 下载这一行：社区库里按 build 编号放文件（每个 build 一份）
+    val downloading = status.download == CheatDownload.DOWNLOADING
+    val title = when {
+        downloading -> stringResource(R.string.drawer_cheats_downloading)
+        status.download == CheatDownload.NO_BUILD -> stringResource(R.string.drawer_cheats_no_build)
+        status.download == CheatDownload.NO_USABLE -> stringResource(R.string.drawer_cheats_no_usable)
+        status.download == CheatDownload.FAILED -> stringResource(R.string.drawer_cheats_retry)
+        status.downloaded -> stringResource(R.string.drawer_cheats_redownload)
+        else -> stringResource(R.string.drawer_cheats_download)
+    }
+    val hint = when {
+        status.download == CheatDownload.NO_BUILD -> stringResource(R.string.drawer_cheats_no_build_hint)
+        status.download == CheatDownload.NO_USABLE -> stringResource(R.string.drawer_cheats_no_usable_hint)
+        status.download == CheatDownload.FAILED -> stringResource(R.string.drawer_cheats_failed_hint)
+        else -> stringResource(R.string.drawer_cheats_download_hint)
+    }
+    ActionRow(Icons.Filled.Download, title, hint, enabled = !downloading) { onDownload() }
+    if (cheats.isEmpty()) {
+        // 文件在，但没有条目（或者还没下）：下好了才有东西列
+        if (status.downloaded) HintRow(stringResource(R.string.drawer_cheats_none))
         return
     }
     for ((i, c) in cheats.withIndex()) {

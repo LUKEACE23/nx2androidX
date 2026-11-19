@@ -704,18 +704,54 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         refreshCheatStatus()
     }
 
-    /** 金手指页的状态：手机上导入过没有、这个 build 的文件在不在、出处是什么 */
+    /** 金手指页的状态：文件在不在、出处是什么（进游戏时读一遍，之后下载完再读） */
     private fun refreshCheatStatus() {
-        val anyImported = CheatRepo.root(filesDir).listFiles()?.any { it.isDirectory } == true
-        var hasBuild = false
+        var downloaded = false
         var credit = ""
         val file = cheatFile()
         if (file != null) {
-            hasBuild = file.isFile
+            downloaded = file.isFile
             val note = CheatRepo.creditFile(file.parentFile, file.name.removeSuffix(".txt"))
             if (note.isFile) credit = runCatching { note.readText() }.getOrDefault("").trim()
         }
-        cheatStatus = cheatStatus.copy(anyImported = anyImported, hasBuild = hasBuild, credit = credit)
+        // 能不能下载：得有这个游戏的 title ID（库的地址用它）与它这个 build 的编号（挑哪一节用它）
+        val canDownload = packTitleId != null && cheatBuild() != null
+        cheatStatus = cheatStatus.copy(downloaded = downloaded, credit = credit, canDownload = canDownload)
+    }
+
+    /**
+     * 从社区库下载这个 build 的金手指（要联网）：文件下到 App 自己的目录里，
+     * 下好了让宿主把新文件加载起来（总开关开着才跑）。
+     */
+    private fun downloadCheats() {
+        val tid = packTitleId ?: return
+        val build = cheatBuild()
+        if (build == null) { cheatStatus = cheatStatus.copy(download = CheatDownload.NO_BUILD); return }
+        if (cheatStatus.download == CheatDownload.DOWNLOADING) return
+        cheatStatus = cheatStatus.copy(download = CheatDownload.DOWNLOADING)
+        AppLog.line("cheats: fetching the library's file of $build for $tid")
+        lifecycleScope.launch {
+            val dir = CheatRepo.dir(filesDir, tid)
+            val result = withContext(Dispatchers.IO) { CheatRepo.download(tid, build, dir) }
+            result.fold(
+                onSuccess = {
+                    val credit = runCatching { CheatRepo.creditFile(dir, build).readText() }.getOrDefault("")
+                    AppLog.line("cheats: $build downloaded (${it.length()} bytes) from $credit")
+                },
+                onFailure = { AppLog.line("[RED] cheats: the download failed: ${it.message}") },
+            )
+            if (result.isSuccess && cheatSettings?.master() == true) {
+                runCatching { Native.cheatsOpen(dir.absolutePath) }
+            }
+            refreshCheatStatus()
+            val state = if (result.isSuccess) CheatDownload.DONE
+            else when (result.exceptionOrNull()) {
+                is CheatRepo.NoSuchBuild -> CheatDownload.NO_BUILD
+                is CheatRepo.NothingUsable -> CheatDownload.NO_USABLE
+                else -> CheatDownload.FAILED
+            }
+            cheatStatus = cheatStatus.copy(download = state)
+        }
     }
 
     /**
@@ -873,8 +909,9 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                 cheatsMaster = { cheatSettings?.master() == true },
                 onCheatsMaster = { setCheatsMaster(it) },
                 onCheatToggle = { i, on -> setCheat(i, on) },
-                // 金手指文件是玩家导入的：这一页只显示状态（导入过没有、这个 build 有没有）
+                // 金手指文件：社区库下载的（那一行）或玩家导入的；这一页只显示状态
                 cheatStatus = { cheatStatus },
+                onCheatsDownload = { downloadCheats() },
                 // 暂停/继续：游戏原地停/起，抽屉不收——玩家可以一边停着一边调设置
                 onPauseGame = {
                     paused = true
