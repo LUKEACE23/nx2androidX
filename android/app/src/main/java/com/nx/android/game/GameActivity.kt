@@ -68,6 +68,7 @@ import com.nx.android.data.AppLog
 import com.nx.android.data.CheatRepo
 import com.nx.android.data.CheatSettings
 import com.nx.android.data.FrameGenSettings
+import com.nx.android.data.GameLog
 import com.nx.android.data.LosslessDll
 import com.nx.android.data.MotionKnobs
 import com.nx.android.data.MotionSettings
@@ -465,12 +466,29 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         return PrepareOutcome(ok = true, hostPath = runtimeStorage.hostOf(dir).absolutePath)
     }
 
-    /** 就地重建（porter 子进程，stdout 读进来就是 Loading 的进度）；成功返回 null，失败返回原因 */
+    /**
+     * 就地重建（porter 子进程，stdout 读进来就是 Loading 的进度）；成功返回 null，失败返回原因。
+     *
+     * 这一步的输出写进游戏自己的文件夹（rebuild.log，每次重建覆盖）：重建只发生在启动这一刻，
+     * 它属于这个游戏，游戏详情抽屉的日志包会把它一起带走。
+     */
     private suspend fun rebuild(pack: File): PrepareOutcome? {
+        val writer = try {
+            val log = File(pack, GameLog.REBUILD_FILE)
+            log.writeText("")
+            log.writer()
+        } catch (e: Exception) {
+            null
+        }
         val result = compiler.rebuild(pack.absolutePath) { line ->
             prepareStep = line
-            AppLog.line(line)
+            try {
+                writer?.write(line + "\n")
+                writer?.flush()
+            } catch (e: Exception) {
+            }
         }
+        try { writer?.close() } catch (e: Exception) {}
         if (!result.success) return PrepareOutcome(reason = result.reason)
         return null
     }

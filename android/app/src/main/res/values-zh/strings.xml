@@ -12,7 +12,6 @@
     <string name="common_ok">确定</string>
     <string name="common_delete">删除</string>
     <string name="common_close">关闭</string>
-    <string name="common_share">分享</string>
     <string name="common_run">运行</string>
     <string name="common_build">构建</string>
     <string name="common_modify">修改</string>
@@ -46,7 +45,6 @@
     <string name="main_cannot_run_not_a_pack">无法运行：%1$s 不是可运行的数据包</string>
     <string name="main_share_log">分享日志</string>
     <string name="main_log_empty">日志还是空的</string>
-    <string name="main_log_cleared">日志已清空</string>
     <string name="main_log_bundle_failed">日志打包失败</string>
     <string name="main_no_permission_settings">这台设备没有可用的权限设置页</string>
     <string name="main_no_battery_settings">这台设备没有可用的电池设置页</string>
@@ -395,9 +393,6 @@
     <string name="builds_port_action">移植</string>
     <string name="builds_minutes_seconds">%1$s 分 %2$s 秒</string>
     <string name="builds_cancel_port">取消移植</string>
-    <string name="builds_log_hint">工具说的每一句都在这里</string>
-    <string name="builds_collapse">收起</string>
-    <string name="builds_expand">展开更多</string>
     <string name="builds_no_output">还没有输出</string>
     <string name="builds_log_view">查看全部</string>
     <string name="builds_log_earlier">更早的</string>
@@ -407,7 +402,6 @@
     <string name="builds_log_empty">这次构建还没有输出可分享。</string>
     <string name="builds_log_waiting">正在等待本次构建输出。</string>
     <string name="builds_log_share">分享日志</string>
-    <string name="builds_log_clear">清空日志</string>
     <string name="builds_artifact">产物</string>
     <string name="builds_artifact_path">产物：%1$s</string>
     <string name="builds_run_action">▶ 运行</string>
@@ -439,7 +433,6 @@
     <string name="builds_log_unavailable">这次构建的日志不可用或不完整。</string>
     <string name="builds_used_options">本次选项：%1$s</string>
     <string name="builds_old_pack_still_usable">游戏库里的旧版本仍可使用。</string>
-    <string name="settings_diagnostic_log">App 诊断日志（环境检查与初始化）</string>
     <string name="build_history_unavailable">无法保存构建记录，因此没有启动构建。</string>
     <string name="builds_source_missing">请重新选择游戏源文件再构建。</string>
     <string name="builds_history_seconds">%1$s 分 %2$s 秒</string>

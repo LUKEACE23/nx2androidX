@@ -157,9 +157,6 @@ data class AppActions(
     val onToast: (String) -> Unit,
     val version: () -> String,
     val keys: () -> String,
-    val onShareLog: () -> Unit,
-    val onClearLog: () -> Unit,
-    val readLog: () -> String,
     val onShareBuildLog: (String) -> Unit,
     val readBuildLog: (String, Long, Int) -> String,
     val buildLogLength: (String) -> Long,
@@ -186,7 +183,7 @@ data class AppActions(
 /**
  * The app's root: the guided setup until it is done, the main shell after.
  *
- * The pages that cover the whole screen (the file picker, the driver page, the log) are composed here, above
+ * The pages that cover the whole screen (the file picker, the driver page) are composed here, above
  * the pages themselves: a page's own content sits in a scrolling column, and a cover inside one never fills
  * the screen — it is laid out in the column's flow instead.
  */
@@ -211,7 +208,6 @@ fun AppRoot(
         ProvideAppLocale(locale) {
             var pickerReq by remember { mutableStateOf<PickerRequest?>(null) }
             var driversOpen by remember { mutableStateOf(false) }
-            var logOpen by remember { mutableStateOf(false) }
             var buildLogId by remember { mutableStateOf("") }
             var envCheckOpen by remember { mutableStateOf(false) }
             var ossNotice by rememberSaveable { mutableStateOf(false) }
@@ -232,9 +228,9 @@ fun AppRoot(
                 if (onboardingUiState.active) {
                     OnboardingScreen(onboardingViewModel, actions) { pickerReq = it }
                 } else {
-                    // 这一层之外还盖着东西吗（文件选择器、驱动页、日志、清单、开源声明）：
+                    // 这一层之外还盖着东西吗（文件选择器、驱动页、清单、开源声明）：
                     // 盖着的时候手柄的键不落到里面的页面上
-                    val outerOverlayOpen = pickerReq != null || driversOpen || logOpen ||
+                    val outerOverlayOpen = pickerReq != null || driversOpen ||
                             buildLogId.isNotEmpty() || envCheckOpen || ossNotice
                     MainScreen(
                         prefs,
@@ -254,8 +250,7 @@ fun AppRoot(
                         onRequest = { pickerReq = it },
                         onDrivers = { driversOpen = true },
                         onLog = { id -> buildLogId = id },
-                        onDiagnosticLog = { logOpen = true },
-                        onEnvCheck = { envCheckOpen = true },
+                                onEnvCheck = { envCheckOpen = true },
                     )
                 }
                 val volumes = remember(ctx, locale.mode) { StorageVolumes.list(ctx, locale) }
@@ -365,11 +360,6 @@ fun AppRoot(
                         onDismiss = { envCheckOpen = false },
                     )
                 }
-                // 日志浮层：同样盖住整屏
-                if (logOpen) {
-                    BackHandler { logOpen = false }
-                    LogOverlay(onClose = { logOpen = false }, text = remember { actions.readLog() })
-                }
                 if (buildLogId.isNotEmpty()) {
                     BackHandler { buildLogId = "" }
                     data class InitialBuildLog(val text: String, val offset: Long, val length: Long)
@@ -460,7 +450,6 @@ fun MainScreen(
     onRequest: (PickerRequest) -> Unit,
     onDrivers: () -> Unit,
     onLog: (String) -> Unit,
-    onDiagnosticLog: () -> Unit,
     onEnvCheck: () -> Unit,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(startTab) }
@@ -614,8 +603,7 @@ fun MainScreen(
                 storageViewModel, actions,
                 onRequest, onDrivers,
                 section = settingsSection, onSelectSection = { settingsSection = it },
-                onDiagnosticLog = onDiagnosticLog,
-                onClose = { settingsOpen = false },
+                        onClose = { settingsOpen = false },
                 navActive = navHost == NavHost.SETTINGS
             )
         }

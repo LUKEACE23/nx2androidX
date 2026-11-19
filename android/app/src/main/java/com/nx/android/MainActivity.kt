@@ -232,19 +232,6 @@ class MainActivity : ComponentActivity() {
         // 文件管理器能不能看见 App 的私有目录（运行时、存档、日志）。文档提供器自己读这份设置。
         fileProvider = { prefs.bool(PrefsStore.FILE_PROVIDER, true) },
         onSetFileProvider = { on -> prefs.put(PrefsStore.FILE_PROVIDER, on) },
-        onShareLog = {
-            lifecycleScope.launch {
-                val zip = withContext(Dispatchers.IO) {
-                    LogBundle.build(this@MainActivity, paths.work, buildSessions.logFiles(), bundleDir())
-                }
-                shareBundle(zip, R.string.main_share_log, R.string.main_log_empty)
-            }
-        },
-        onClearLog = {
-            AppLog.clear()
-            toast(locale.str(R.string.main_log_cleared))
-        },
-        readLog = { AppLog.text(2000) },
         onShareBuildLog = { id ->
             lifecycleScope.launch {
                 val session = port.history.firstOrNull { it.id == id }

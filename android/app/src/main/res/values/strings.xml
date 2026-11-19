@@ -13,7 +13,6 @@
     <string name="common_ok">OK</string>
     <string name="common_delete">Delete</string>
     <string name="common_close">Close</string>
-    <string name="common_share">Share</string>
     <string name="common_run">Run</string>
     <string name="common_build">Build</string>
     <string name="common_modify">Modify</string>
@@ -47,7 +46,6 @@
     <string name="main_cannot_run_not_a_pack">Cannot run: %1$s is not a runnable data pack</string>
     <string name="main_share_log">Share the log</string>
     <string name="main_log_empty">The log is still empty</string>
-    <string name="main_log_cleared">The log has been cleared</string>
     <string name="main_log_bundle_failed">The log could not be packed</string>
     <string name="main_no_permission_settings">This device has no permission settings page</string>
     <string name="main_no_battery_settings">This device has no battery settings page</string>
@@ -396,9 +394,6 @@
     <string name="builds_port_action">Port</string>
     <string name="builds_minutes_seconds">%1$s min %2$s s</string>
     <string name="builds_cancel_port">Cancel the port</string>
-    <string name="builds_log_hint">Everything the tools say is here</string>
-    <string name="builds_collapse">Collapse</string>
-    <string name="builds_expand">Show more</string>
     <string name="builds_no_output">No output yet</string>
     <string name="builds_log_view">View all</string>
     <string name="builds_log_earlier">Earlier</string>
@@ -408,7 +403,6 @@
     <string name="builds_log_empty">This build has no output to share yet.</string>
     <string name="builds_log_waiting">Waiting for this build to produce output.</string>
     <string name="builds_log_share">Share the log</string>
-    <string name="builds_log_clear">Clear the log</string>
     <string name="builds_artifact">Data pack</string>
     <string name="builds_artifact_path">Data pack: %1$s</string>
     <string name="builds_run_action">▶ Run</string>
@@ -440,7 +434,6 @@
     <string name="builds_log_unavailable">This build log is unavailable or incomplete.</string>
     <string name="builds_used_options">Options used: %1$s</string>
     <string name="builds_old_pack_still_usable">The previously built game is still available in the library.</string>
-    <string name="settings_diagnostic_log">App diagnostic log (environment checks and setup)</string>
     <string name="build_history_unavailable">Build could not start because its history could not be saved.</string>
     <string name="builds_source_missing">Choose the game source file again to rebuild.</string>
     <string name="builds_history_seconds">%1$s min %2$s s</string>
