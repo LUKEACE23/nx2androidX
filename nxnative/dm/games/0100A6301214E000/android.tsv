@@ -1,3 +1,4 @@
+graphics	nvn
 # Fire Emblem Engage on Android (keys in docs/ARCHITECTURE.md "Game profiles on Android")
 # Unity 2020.3.18f1 IL2CPP on SDK 12.3.7, update 2.0.0 with both DLC; the profile here as it was (patches.py's 60 fps cut on 2.0.0 main).
 # The package keeps the name the experimental port used, so a port made with this profile installs over it and keeps its saves.
@@ -8,4 +9,6 @@ status	playable
 tested	v327680 AYN Thor (Snapdragon 8 Gen 2, Adreno 740, Android 13)
 package	org.nx2a.t0100a6301214e000
 orientation	landscape
-graphics	nvn
+readme_image	docs/images/fire-emblem-engage.jpg
+readme_tag	v0.4.0
+readme_note	update 2.0.0 · 60 fps (30 on Switch) · tested on the AYN Thor (Adreno 740) with a Turnip Vulkan driver; Qualcomm's own driver mis-draws Engage Attacks (#122)

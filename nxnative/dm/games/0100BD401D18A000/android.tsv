@@ -1,3 +1,4 @@
+graphics	nvn
 # UNDER NIGHT IN-BIRTH II Sys:Celes on Android (keys in docs/ARCHITECTURE.md "Game profiles on Android")
 # French-Bread's own 2D fighting game engine over NVN, SDK 15.3.2, update 1.42 (v1179648) with its six DLC (licences only); 81 shaders, all translated. Nothing in the core changed for it.
 # Reported working by a player on a POCO F6 (Snapdragon 8s Gen 3, Adreno 735) with update 1.0.1 and all DLC (issue #21).
@@ -10,4 +11,6 @@ status	playable
 tested	v1179648 Lenovo Legion Y700 TB322FC (Snapdragon 8 Elite, Adreno 830, Android 16)
 package	org.nx2a.undernightinbirth2
 orientation	landscape
-graphics	nvn
+readme_image	docs/images/under-night-in-birth-ii-sys-celes.jpg
+readme_tag	v0.2.0
+readme_note	update 1.42 · 60 fps

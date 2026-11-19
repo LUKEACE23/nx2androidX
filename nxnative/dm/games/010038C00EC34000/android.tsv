@@ -1,3 +1,4 @@
+graphics	nvn
 # UNDER NIGHT IN-BIRTH Exe:Late[cl-r] on Android (keys in docs/ARCHITECTURE.md "Game profiles on Android")
 # French-Bread's own 2D fighting game engine over NVN, SDK 6.4.2, update 1.0.3 (v131072) with its DLC (a licence only); 36 shaders, all translated. Nothing in the core changed for it.
 # This is the Aksys release, 010038C00EC34000. A player reported another release, 0100D3200C52A000 1.0.3, working on a POCO F6 (Snapdragon 8s Gen 3, Adreno 735) (issue #23);
@@ -12,4 +13,6 @@ status	playable
 tested	v131072 Lenovo Legion Y700 TB322FC (Snapdragon 8 Elite, Adreno 830, Android 16)
 package	org.nx2a.undernightinbirthexelate
 orientation	landscape
-graphics	nvn
+readme_image	docs/images/under-night-in-birth-exe-late-cl-r.jpg
+readme_tag	v0.2.0
+readme_note	update 1.0.3 · 60 fps

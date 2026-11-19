@@ -1,3 +1,4 @@
+graphics	nvn
 # Hades II on Android (keys in docs/ARCHITECTURE.md "Game profiles on Android")
 # Supergiant Games' engine on NVN, update v655360 (1.0.141667, SDK 20.5.15), 55 shaders, all translated. On the Y700 (2026-10-27): boot, the title, a new save,
 # the opening, the Crossroads and runs in Erebus with combat, driven with DM_CTL and played by hand by the user with a controller (GameSir G8+), who saw and heard
@@ -9,4 +10,6 @@ status	playable
 tested	v655360 Lenovo Legion Y700 TB322FC (Snapdragon 8 Elite, Adreno 830, Android 16)
 package	org.nx2a.hades2
 orientation	landscape
-graphics	nvn
+readme_image	docs/images/hades-ii.jpg
+readme_tag	v0.1.2
+readme_note	update 1.0 · 60 fps

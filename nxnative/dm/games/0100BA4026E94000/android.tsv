@@ -1,3 +1,4 @@
+graphics	nvn
 # Castlevania: Belmont's Curse on Android (keys in docs/ARCHITECTURE.md "Game profiles on Android")
 # Unity 2022.3.62f2 IL2CPP with FMOD on SDK 19.3.16, update 1.1.0 with the Bonus Contents Pack (a licence, no files); 19,162 shaders, all translated. Brought up on Android first.
 # What it needed: the SDK's address-region node area cut on its sdk build (dm/tools/sdk_patches.py) and a 1 GB pool (game.tsv), or Unity's address regions ran out before the first screen.
@@ -12,4 +13,6 @@ status	playable
 tested	v65536 Lenovo Legion Y700 TB322FC (Snapdragon 8 Elite, Adreno 830, Android 16)
 package	org.nx2a.castlevaniabelmontscurse
 orientation	landscape
-graphics	nvn
+readme_image	docs/images/castlevania-belmonts-curse.jpg
+readme_tag	v0.2.0
+readme_note	update 1.1.0 · 60 fps

@@ -293,6 +293,14 @@ int dm_overlay_custom(int layout, int ctl, float *x, float *y, float *s) {
     *x = (cx - 1) / 10000.0f; *y = (cy - 1) / 10000.0f; return 1;
 }
 int dm_overlay_custom_ver(void) { return atomic_load(&g_cust_ver); }
+// The on-screen menu button, left out by env.txt DM_MENU_BUTTON=0 (porter --no-menu-button; upstream's APK front reads it
+// in front_android.c, which this line does not build). The app draws the gamepad, but the answer is the host's: the button's
+// touch does not go to the drawer, and what the host draws of the gamepad (the external display's) leaves it out too.
+static int menu_btn(void) { static int on = -1; if (on < 0) { const char *e = getenv("DM_MENU_BUTTON"); on = !e || atoi(e); if (!on) LOG("[overlay] DM_MENU_BUTTON=0"); } return on; }
+int dm_overlay_hidden(int layout, int ctl) {
+    return layout >= 0 && layout <= 1 && ctl >= 0 && ctl < OV_N && OV_LAYOUTS[layout][ctl].kind == OV_MENU && !menu_btn();
+}
+int dm_overlay_off(int layout, int ctl) { return dm_overlay_hidden(layout, ctl); }
 float dm_overlay_opacity(void) { return atomic_load(&g_set_opacity) / 100.0f; }
 static void cust_place(int set, int l, int i, float x, float y) { atomic_store(&g_cust[set][l][i][0], 1 + (int)lroundf(x * 10000)); atomic_store(&g_cust[set][l][i][1], 1 + (int)lroundf(y * 10000)); }
 float dm_overlay_scale(void) {

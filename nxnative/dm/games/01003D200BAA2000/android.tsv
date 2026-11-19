@@ -1,3 +1,4 @@
+graphics	nvn
 # Pokémon Mystery Dungeon Rescue Team DX 1.0.2 (update v131072): Unity 2018.3.12f1 IL2CPP with FMOD on SDK 7.4.0, NVN; subsdk0 is NintendoSDK_movie. 9,837 shaders, all translated.
 # Before this profile an experimental port showed a black screen: Unity's render command stream lost a wake-up within seconds of every launch (patches.py; game.tsv's header).
 # Tested 2026-11-12 on the AYN Odin 2 (Snapdragon 8 Gen 2, Adreno 740) with a Turnip driver (Mesa 26.0, Vulkan 1.4.335; porter port --vulkan-driver vulkan.ad07xx.so),
@@ -10,4 +11,6 @@ status	playable
 tested	1.0.2 AYN Odin 2 (Adreno 740, Turnip)
 package	org.nx2a.pokemonmysterydungeondx
 orientation	landscape
-graphics	nvn
+readme_image	docs/images/pokemon-mystery-dungeon-rescue-team-dx.jpg
+readme_tag	v0.4.0
+readme_note	update 1.0.2 · 30 fps (as on Switch), 60 with the 60 fps option · tested on the AYN Odin 2 (Adreno 740) with a Turnip Vulkan driver

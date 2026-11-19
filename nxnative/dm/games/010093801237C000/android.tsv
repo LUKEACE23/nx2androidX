@@ -1,3 +1,4 @@
+graphics	nvn
 # Metroid Dread on Android (keys in docs/ARCHITECTURE.md "Game profiles on Android")
 # MercurySteam's engine on SDK 11.4.3, update 2.1.0; 1,010 shaders, all translated. The upstream profile as it is (its core_preempt and its movie player's request ring gates).
 # The base game's NSZ is ticketless (its NCAs were converted to standard crypto, so they no longer hash to their names): porter skips that check for such dumps.
@@ -16,4 +17,6 @@ status	playable
 tested	v327680 Lenovo Legion Y700 TB322FC (Snapdragon 8 Elite, Adreno 830, Android 16)
 package	org.nx2a.metroiddread
 orientation	landscape
-graphics	nvn
+readme_image	docs/images/metroid-dread.jpg
+readme_tag	v0.3.0
+readme_note	update 2.1.0 · 60 fps

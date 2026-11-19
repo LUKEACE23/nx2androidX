@@ -1,3 +1,4 @@
+graphics	nvn
 # Paper Mario: The Thousand-Year Door on Android (keys in docs/ARCHITECTURE.md "Game profiles on Android")
 # Intelligent Systems' engine on SDK 15.3.2; game.tsv, patches.py and the shader tables are upstream's, checked by hand.
 # On the Y700 (2026-10-30/31), docked, driven with DM_CTL: the title, a new file, the prologue (Peach in Rogueport, Mario's house, the letter, the boat) and Rogueport's harbour.
@@ -11,4 +12,6 @@ status	wip
 tested	v65536 Lenovo Legion Y700 TB322FC (Snapdragon 8 Elite, Adreno 830, Android 16)
 package	org.nx2a.pmttyd
 orientation	landscape
-graphics	nvn
+readme_image	docs/images/paper-mario-the-thousand-year-door.jpg
+readme_tag	v0.2.0
+readme_note	update 1.0.1 · 60 fps (30 on Switch) · **work in progress**: playable, but lighting flickers (walls go black for single frames after a fall)

@@ -1,5 +1,5 @@
 # kind: evidence  NieR:Automata The End of YoRHa Edition shaders (PlatinumGames shader objects in RomFS + main) → control section + code area keys (dm/gfx/tools/shader_split.py)
-# column 5 records where each key first appears; this game has no PC version to pair with
+# column 5 records where each key first appears; no PC shader pairing is used by this census
 package	index	stage	dm_ctl_sha16	source
 ps_other.bin	0	pixel	6d5f4da2a060e14d	/data000.cpk/autoshadereff.dat/PS_BASE_SBLMCFXXXXXX.pso#PGSO
 ps_other.bin	1	pixel	e73ad46523db55d9	/data000.cpk/autoshadereff.dat/PS_BASE_SBLMCXXXXXXX.pso#PGSO

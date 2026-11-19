@@ -1,3 +1,4 @@
+graphics	nvn
 # Advance Wars 1+2: Re-Boot Camp (0100300012F2A000), base game 1.0.0 (the only version): Unity 2020.2 IL2CPP on SDK 10.4.1, NVN, FMOD; Bink 2 movies drawn by Bink's Unity plugin.
 # Tested 2026-10-28 on the Legion Y700 (TB322FC, Snapdragon 8 Elite, Adreno 830, Android 16), driven with DM_CTL: the Bink opening movie, Nell's introduction, the title menu, a casual
 # campaign's file and mission select and the first training battle (Field Training, Troop Orders) into its second day: cursor, unit select, movement range, moves, Wait, Fire with
@@ -10,4 +11,6 @@ status	playable
 tested	v0 Lenovo Legion Y700 TB322FC (Snapdragon 8 Elite, Adreno 830, Android 16)
 package	org.nx2a.advancewars
 orientation	landscape
-graphics	nvn
+readme_image	docs/images/advance-wars-1-2-re-boot-camp.jpg
+readme_tag	v0.1.3
+readme_note	base game 1.0.0 · 60 fps (30 in battle on Switch)

@@ -66,9 +66,9 @@ out = pathlib.Path(args[args.index('--out')+1]); out.mkdir()
 for name in ('libhook_impl.so', 'libmain_hook.so', 'libfile_redirect_hook.so', 'libgsl_alloc_hook.so'):
     (out / name).write_bytes({component!r})
 ''')
-        self.before = {str(p.relative_to(self.pack)): p.read_bytes()
+        self.before = {p.relative_to(self.pack).as_posix(): p.read_bytes()
                        for p in self.pack.rglob('*') if p.is_file()
-                       and str(p.relative_to(self.pack)) not in runtime_update.RUNTIME_FILES}
+                       and p.relative_to(self.pack).as_posix() not in runtime_update.RUNTIME_FILES}
         self.addCleanup(patch.stopall)
         patch.object(runtime_update, 'DM', self.dm).start()
         patch.object(runtime_update.config, 'load', return_value={}).start()
