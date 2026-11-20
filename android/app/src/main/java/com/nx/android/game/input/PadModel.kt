@@ -161,6 +161,9 @@ class PadRouter {
 
     /** 按住的手指：pointer id → 控件下标（-1 = 游戏的触摸屏） */
     private val held = HashMap<Int, Int>()
+    /** 摇杆的原点：手指按下的那一点（pointer id → 落点）。偏移从落点算起，不用控件中心 */
+    private val stickOx = HashMap<Int, Float>()
+    private val stickOy = HashMap<Int, Float>()
     /** 按住的控件（画的时候用） */
     private val pressed = LinkedHashSet<Int>()
     /** 两个摇杆的帽（-1..1，窗口坐标，向下为正） */
@@ -225,11 +228,18 @@ class PadRouter {
                     menuX0 = x; menuY0 = y
                     menuOffX = ctrls[c].cx * H - x
                     menuOffY = ctrls[c].cy * H - y
+                } else if (ctrls[c].isStick) {
+                    // 摇杆的原点是手指按下的那一点（夹在摇杆的圆内）：手指落在摇杆边缘也算数，从落点起算偏移
+                    val k = ctrls[c]
+                    val hw = k.hw * H; val hh = k.hh * H
+                    stickOx[id] = x.coerceIn(k.cx * H - hw, k.cx * H + hw)
+                    stickOy[id] = y.coerceIn(k.cy * H - hh, k.cy * H + hh)
                 }
             }
         } else if (up) {
             val id = if (actionIndex < n) ids[actionIndex] else -1
             val c = held.remove(id) ?: -1
+            stickOx.remove(id); stickOy.remove(id)
             if (c >= 0) pressed.remove(c)
             if (id == menuPointer) {
                 if (c >= 0 && c < ctrls.size && ctrls[c].isMenu && !menuDragged) menuTapped = true   // 点按：开抽屉
@@ -273,10 +283,23 @@ class PadRouter {
                     }
                 }
                 else -> {   // 摇杆
-                    var ux = dx; var uy = dy
-                    if (m > 1f) { ux /= m; uy /= m }
                     val right = if (k.name == "stick_r") 1 else 0
-                    knob[right * 2] = ux; knob[right * 2 + 1] = uy
+                    // 偏移从手指落下的那一点算起（不是从控件中心）：手指按在摇杆边缘也有输出
+                    val ox = stickOx[id] ?: k.cx * H
+                    val oy = stickOy[id] ?: k.cy * H
+                    val sx0 = (x - ox) / hw; val sy0 = (y - oy) / hw
+                    val mm = sqrt(sx0 * sx0 + sy0 * sy0)
+                    var ux = 0f; var uy = 0f
+                    if (mm > STICK_DEAD) {
+                        // 落点周围 5% 是死区；出了死区按剩下的行程重标定，摇杆的边缘是满量程
+                        var v = min((mm - STICK_DEAD) / (1f - STICK_DEAD), 1f)
+                        if (right == 1) v *= 0.7f + 0.3f * v   // 右摇杆在外圈更精细
+                        ux = sx0 / mm * v; uy = sy0 / mm * v
+                        // 除法与 sqrt 的舍入会让它差一点点出界，夹住（游戏收到的是 16 位的整数值）
+                        if (ux > 1f) ux = 1f else if (ux < -1f) ux = -1f
+                        if (uy > 1f) uy = 1f else if (uy < -1f) uy = -1f
+                    }
+                    knob[right * 2] = ux; knob[right * 2 + 1] = uy   // 画的是游戏收到的那个值
                     val sx = (ux * STICK_MAX).toInt(); val sy = (-uy * STICK_MAX).toInt()
                     if (right == 1) { rx = sx; ry = sy } else { lx = sx; ly = sy }
                 }
@@ -319,6 +342,7 @@ class PadRouter {
     /** 手指抬起时收尾（菜单按钮的拖动结束） */
     fun release() {
         held.clear(); pressed.clear()
+        stickOx.clear(); stickOy.clear()
         menuPointer = -1; menuDragged = false
         dpadDir = 0L
         knobs[0] = 0f; knobs[1] = 0f; knobs[2] = 0f; knobs[3] = 0f
@@ -326,6 +350,7 @@ class PadRouter {
 
     companion object {
         const val STICK_MAX = 32767
+        const val STICK_DEAD = 0.05f    // 摇杆落点周围的死区（占摇杆半径的比例）
         const val DRAG_SLOP = 0.02f      // 手指按在菜单按钮上又走了这么远（窗口高度的比例），就是拖动而不是点按
         const val ACTION_DOWN = 0
         const val ACTION_UP = 1
