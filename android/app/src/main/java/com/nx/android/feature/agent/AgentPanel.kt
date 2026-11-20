@@ -91,10 +91,10 @@ fun AgentPanel(
             // ---- the tool rail: the entry marks and the context's quick questions ----------------------
             Column(
                 Modifier
-                    .width(64.dp)
+                    .width(72.dp)
                     .fillMaxHeight()
                     .background(NxPalette.Background)
-                    .padding(vertical = 14.dp, horizontal = 6.dp),
+                    .padding(vertical = 14.dp, horizontal = 7.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -127,7 +127,7 @@ fun AgentPanel(
             // ---- the chat ---------------------------------------------------------------------------------
             Column(
                 Modifier
-                    .width(300.dp)
+                    .width(340.dp)
                     .fillMaxHeight()
                     .background(NxPalette.Surface)
                     .clickable(enabled = false) {}
