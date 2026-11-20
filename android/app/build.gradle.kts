@@ -134,6 +134,16 @@ android {
         }
     }
 
+    // OkHttp 5 is multiplatform: AgentScope's POMs name both the -jvm module and the bare coordinate, and
+    // on Android the bare one resolves to okhttp-android — the two then collide class-for-class. The
+    // Android variant carries everything; the -jvm one is dead weight here.
+    configurations.all {
+        exclude(group = "com.squareup.okhttp3", module = "okhttp-jvm")
+        // The MCP SDK 0.17.x ships the io.modelcontextprotocol.json package in both mcp-core and mcp-json;
+        // the assistant never speaks MCP on the phone, so one of the twins simply goes.
+        exclude(group = "io.modelcontextprotocol.sdk", module = "mcp-json")
+    }
+
     dependencies {
         implementation(platform("androidx.compose:compose-bom:2026.09.00"))
         implementation("androidx.compose.ui:ui")
@@ -155,6 +165,11 @@ android {
         // platform's Conscrypt does not export: the app pairs with itself to switch off Android's
         // child-process limit (data/PhantomFix.kt)
         implementation("org.conscrypt:conscrypt-android:2.7.0")
+        implementation("io.agentscope:agentscope-core:2.0.5")
+        implementation("io.agentscope:agentscope-extensions-model-openai:2.0.5")
+        // AgentScope runs on Project Reactor; this is the bridge that turns a Flux into a coroutine Flow
+        // (and disposes the subscription when the collector is cancelled — the chat page's stop button)
+        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactive:1.10.2")
         testImplementation("junit:junit:4.13.2")
         testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
         // the porter's progress events and the data pack's manifest are JSON: the JVM tests parse them with
@@ -165,6 +180,17 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    packaging {
+        // AgentScope rides on OkHttp 5, whose -jvm and -android modules both carry the same native-image
+        // descriptors (and the framework's server-side jars carry more desktop-only metadata): none of it
+        // belongs in an APK.
+        resources {
+            excludes += "META-INF/native-image/**"
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            excludes += "META-INF/{AL2.0,LGPL2.1}"
+        }
     }
 }
 
