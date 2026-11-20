@@ -42,10 +42,15 @@ EXT_ROOTS = ['toolchain/clang/bin/clang', 'toolchain/clang/bin/ld.lld', 'toolcha
 
 # The programs that stay in the rootfs: the shell, the coreutils and a few tools. Everything else in /usr/bin is
 # a package manager, a compiler, a Perl, a X server or a debugger: the porter starts none of them.
+#
+# The list is a list of names, and the program behind a name may be a symlink (awk -> mawk, python3 -> python3.13).
+# The name is kept and the file it points at is kept with it, with the libraries that file needs: a program whose
+# libraries are missing cannot start on the phone, and the build says so instead of the phone.
 PROGRAMS = """
 sh bash dash env printenv cat cp mv rm mkdir rmdir ln ls readlink realpath dirname basename touch chmod chown stat
 du df true false sleep uname id whoami groups hostname mktemp date seq sort tr cut head tail wc grep sed awk find
 xargs tee expr test [ cmp md5sum sha256sum gzip gunzip zcat bzip2 xz tar file curl wget timeout nohup sync nproc
+echo python3
 """
 
 # The data files the programs read. The rest of /etc and /usr/share is a package manager's leftovers.
@@ -216,6 +221,38 @@ class Rootfs:
             seen += 1
         return m
 
+    def _resolve_link(self, path: str):
+        """The file a path really is: the symlink chain, followed inside the tree.
+
+        A link with an absolute target points at the tree's root (/usr/bin/mawk). The guest is not a chroot, so an
+        absolute path means the phone's own /, where nothing of the tree is: such a link has to be rewritten (see
+        `write`), and the file it points at is kept here.
+        """
+        seen = set()
+        for _ in range(16):
+            m = self.members.get(path)
+            if m is None or m.type != tarfile.SYMTYPE:
+                return path if m is not None else None
+            if path in seen:
+                return None           # a cycle (/bin/echo -> /bin/echo): nothing to point at
+            seen.add(path)
+            target = m.linkname
+            if target.startswith('/'):
+                path = target[1:]
+            else:
+                path = os.path.normpath(os.path.join(os.path.dirname(path), target))
+        return None
+
+    def _program_paths(self):
+        """The programs the list names, and the files behind them (a name can be a link)"""
+        out = []
+        for line in PROGRAMS.split():
+            for d in ('usr/bin', 'usr/sbin'):
+                path = d + '/' + line
+                if path in self.members:
+                    out.append(path)
+        return out
+
     def _resolve(self, name: str, origin: str, search: list):
         """Where a library is: next to the program that wants it, in the rootfs's library directories, or where its
         RPATH says. The libraries of the programs outside the rootfs are looked up in the rootfs too (that is
@@ -263,6 +300,19 @@ class Rootfs:
         queue = list(ROOTS) + list(self.ext)
         for r in ROOTS:
             self.keep.add(r)
+        # The programs the list names are started too (the porter's scripts call them, and an agent's shell does):
+        # they are roots as well, so the libraries they need stay in the tree.
+        for path in self._program_paths():
+            self.keep.add(path)
+            real = self._resolve_link(path)
+            if real is None:
+                self.missing.append((path, '(a link that points nowhere)'))
+                continue
+            if real != path:
+                self.keep.add(real)
+                queue.append(real)
+            else:
+                queue.append(path)
         # Python's extension modules are loaded by name, not by the binary that wants them: they are roots too
         for name, m in self.members.items():
             if not name.startswith('usr/lib/python3.13/lib-dynload/') or not name.endswith('.so'):
@@ -323,13 +373,16 @@ class Rootfs:
         """The gate: every program that is started must find its libraries in what is kept. A library that is
         missing is a program that cannot start on the phone, and the build says so instead of the phone."""
         broken = []
-        for path in list(ROOTS) + list(self.ext):
-            needed = self._needed_of(path)
+        programs = [(p, p) for p in list(ROOTS) + list(self.ext)]
+        for path in self._program_paths():
+            programs.append((path, self._resolve_link(path) or path))
+        for path, real in programs:
+            needed = self._needed_of(real)
             for name in (needed.needed if needed else []):
-                if not self._resolve(name, path, [os.path.dirname(path)] + LIB_DIRS):
+                found = self._resolve(name, real, [os.path.dirname(real)] + LIB_DIRS)
+                if found is None:
                     broken.append((path, name))
                     continue
-                found = self._resolve(name, path, [os.path.dirname(path)] + LIB_DIRS)
                 in_rootfs, lib = found
                 if in_rootfs and lib not in self.keep:
                     broken.append((path, name))
@@ -337,24 +390,37 @@ class Rootfs:
 
     def _keep_link_targets(self):
         """A link that is kept needs the file it points at: the loader looks the library up by its name, and that
-        name is often a link to the file with the version in it"""
+        name is often a link to the file with the version in it. A link with an absolute target points at the tree's
+        root, which the guest (not a chroot) cannot see: the file it names is kept all the same, and the link is
+        rewritten to a relative one when the tree is written."""
         pending = [p for p in list(self.keep) if self.members.get(p) and self.members[p].type == tarfile.SYMTYPE]
         while pending:
             link = pending.pop()
+            real = self._resolve_link(link)
+            if real is None:
+                continue
+            if real not in self.keep:
+                self.keep.add(real)
+                m = self.members.get(real)
+                if m and m.type == tarfile.SYMTYPE:
+                    pending.append(real)
+            # the links on the way are kept too, so the tree stays what it was
             target = self.members[link].linkname
             if target.startswith('/'):
-                continue      # an absolute link points outside the rootfs: the guest is not a chroot
-            rel = os.path.normpath(os.path.join(os.path.dirname(link), target))
-            if rel not in self.keep:
-                self.keep.add(rel)
-                m = self.members.get(rel)
+                mid = target[1:]
+            else:
+                mid = os.path.normpath(os.path.join(os.path.dirname(link), target))
+            if mid != link and mid in self.members and mid not in self.keep:
+                self.keep.add(mid)
+                m = self.members[mid]
                 if m and m.type == tarfile.SYMTYPE:
-                    pending.append(rel)
+                    pending.append(mid)
 
     def write(self, out: Path, source: tarfile.TarFile):
         """The trimmed rootfs as a tarball: the modes and the links are the tree's own. The source is read in
         order: a stream of the payload cannot be seeked."""
         out.parent.mkdir(parents=True, exist_ok=True)
+        dangling = []
         with tarfile.open(out, 'w', format=tarfile.GNU_FORMAT) as t:
             for info in source:
                 m = self.members.get(Member(info).name)
@@ -364,12 +430,25 @@ class Rootfs:
                 out_info.type = m.type
                 out_info.mode = m.mode
                 out_info.mtime = info.mtime
-                out_info.linkname = info.linkname
                 if m.type == tarfile.REGTYPE:
                     out_info.size = m.size
                     t.addfile(out_info, source.extractfile(info))
+                elif m.type == tarfile.SYMTYPE:
+                    # A link with an absolute target points at the tree's root: the guest is not a chroot, so it
+                    # would look in the phone's own / and find nothing. The link is rewritten to the file it
+                    # really means, relative to the link's own directory.
+                    real = self._resolve_link(m.name)
+                    if real is None or real not in self.keep:
+                        dangling.append((m.name, m.linkname))
+                        continue
+                    out_info.linkname = os.path.relpath(real, os.path.dirname(m.name) or '.')
+                    t.addfile(out_info)
                 else:
                     t.addfile(out_info)
+        if dangling:
+            print(f'>> {len(dangling)} link(s) point nowhere and were dropped:')
+            for path, target in dangling[:20]:
+                print(f'   {path} -> {target}')
         return out
 
 
