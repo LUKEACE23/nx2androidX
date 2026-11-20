@@ -64,7 +64,6 @@ import com.nx.android.domain.Ported
 import com.nx.android.app.AppActions
 import com.nx.android.core.ui.LocalAppLocale
 import com.nx.android.core.ui.components.CapsuleButton
-import com.nx.android.core.ui.components.FirmwareRow
 import com.nx.android.core.ui.components.Hint
 import com.nx.android.feature.filepicker.PickerMode
 import com.nx.android.feature.filepicker.PickerRequest
@@ -358,16 +357,7 @@ private fun TargetCard(lib: LibraryState, port: BuildsUiState, viewModel: Builds
                     onClear = { cfg = cfg.copy(sharedFont = ""); lib.setConfig(f, cfg) },
                 )
                 Hint(stringResource(R.string.builds_shared_font_hint), size = 11.sp)
-                // 固件：整机级的一份（环境里导入的，迁移器统一带上），这里只是换一份 / 导入
-                FirmwareRow(
-                    imported = actions.firmware(),
-                    onImport = {
-                        onRequest(PickerRequest(PickerMode.FILE, setOf("zip"), null,
-                            locale.str(R.string.fw_pick), onPicked = { f -> actions.onImportFirmware(f) }))
-                    },
-                    onClear = { actions.onClearFirmware() },
-                )
-                Hint(stringResource(R.string.fw_hint), size = 11.sp)
+                // 固件是整机级的一份，设置页管：这里只管这一轮游戏的事
                 ConfigRow(stringResource(R.string.builds_mt_replay), cfg.mtReplay) { cfg = cfg.copy(mtReplay = it); lib.setConfig(f, cfg) }
                 Hint(stringResource(R.string.builds_mt_replay_hint), size = 11.sp)
             }

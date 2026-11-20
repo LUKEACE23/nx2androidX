@@ -331,7 +331,7 @@
     <string name="builds_source">Source: %1$s</string>
     <string name="builds_options_title">Build options</string>
     <string name="builds_change">Change</string>
-    <string name="builds_clear">Clear</string>
+    <string name="builds_clear">Cancel selection</string>
     <string name="builds_touch_game">Touch game (the gamepad starts hidden)</string>
     <string name="builds_60fps">60 fps</string>
     <string name="builds_experimental">Experimental port (a game that is not adapted yet)</string>
@@ -417,7 +417,7 @@
     <string name="builds_info_experimental">Experimental profile</string>
     <string name="builds_info_ios_only">iOS profile only</string>
     <string name="builds_info_unsupported">Not adapted yet</string>
-    <string name="builds_info_pack">Packs %1$s</string>
+    <string name="builds_info_pack">Data pack version %1$s</string>
     <string name="builds_files_title">Files found</string>
     <string name="builds_files_base">Base</string>
     <string name="builds_files_update">Updates</string>

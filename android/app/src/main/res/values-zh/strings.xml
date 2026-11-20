@@ -330,7 +330,7 @@
     <string name="builds_source">来源：%1$s</string>
     <string name="builds_options_title">构建选项</string>
     <string name="builds_change">更换</string>
-    <string name="builds_clear">清除</string>
+    <string name="builds_clear">取消选择</string>
     <string name="builds_touch_game">触屏游戏（隐藏手柄）</string>
     <string name="builds_60fps">60 帧</string>
     <string name="builds_experimental">实验性移植（还没适配的游戏）</string>
@@ -416,7 +416,7 @@
     <string name="builds_info_experimental">实验性档案</string>
     <string name="builds_info_ios_only">仅 iOS 档案</string>
     <string name="builds_info_unsupported">尚未适配</string>
-    <string name="builds_info_pack">打包 %1$s</string>
+    <string name="builds_info_pack">数据包版本 %1$s</string>
     <string name="builds_files_title">识别到的文件</string>
     <string name="builds_files_base">本体</string>
     <string name="builds_files_update">更新</string>
