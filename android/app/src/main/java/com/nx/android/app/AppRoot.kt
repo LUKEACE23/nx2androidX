@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -93,6 +94,7 @@ import com.nx.android.domain.GameEntry
 import com.nx.android.domain.GameIdentity
 import com.nx.android.domain.drivers.DriverRepository
 import com.nx.android.domain.environment.EnvironmentSetup
+import com.nx.android.feature.agent.AgentScreen
 import com.nx.android.feature.builds.BuildsRoute
 import com.nx.android.feature.builds.BuildsViewModel
 import com.nx.android.feature.drivers.DriverRoute
@@ -143,7 +145,7 @@ enum class Tab(@StringRes val label: Int, val icon: ImageVector) {
  * 判断只在这一处做（页面的根），页面自己只管「我收到这个动作时做什么」——
  * 这样不会出现两个页面同时响应，也不会要动一处就想起另一处。
  */
-private enum class NavHost { NONE, LIBRARY, PANEL, SETTINGS, FAQ }
+private enum class NavHost { NONE, LIBRARY, PANEL, SETTINGS, FAQ, AGENT }
 
 /** The screens' way back to the activity's own privileges: what they may ask for, nothing else */
 data class AppActions(
@@ -206,6 +208,9 @@ fun AppRoot(
     padController: PadCenterController,
     padCenterOpen: Boolean,
     onPadCenter: (Boolean) -> Unit,
+    // the assistant's chat page: also a full cover, and the activity turns the screen portrait for it
+    agentOpen: Boolean = false,
+    onAgent: (Boolean) -> Unit = {},
     crash: CrashReport? = null,
     onCrashHandled: () -> Unit = {},
 ) {
@@ -252,6 +257,8 @@ fun AppRoot(
                         padController = padController,
                         padCenterOpen = padCenterOpen,
                         onPadCenter = onPadCenter,
+                        agentOpen = agentOpen,
+                        onAgent = onAgent,
                         outerOverlayOpen = outerOverlayOpen,
                         onRequest = { pickerReq = it },
                         onDrivers = { driversOpen = true },
@@ -454,6 +461,8 @@ fun MainScreen(
     padController: PadCenterController,
     padCenterOpen: Boolean,
     onPadCenter: (Boolean) -> Unit,
+    agentOpen: Boolean = false,
+    onAgent: (Boolean) -> Unit = {},
     outerOverlayOpen: Boolean = false,
     onRequest: (PickerRequest) -> Unit,
     onDrivers: () -> Unit,
@@ -484,6 +493,7 @@ fun MainScreen(
     // 手柄中心开着的时候，手柄的键进中心（活动层就不发了），外面还盖着东西的时候也一样。
     val navHost = when {
         outerOverlayOpen || padCenterOpen || profilesOpen -> NavHost.NONE
+        agentOpen -> NavHost.AGENT
         settingsOpen -> NavHost.SETTINGS
         faqOpen -> NavHost.FAQ
         lib.selected != null -> NavHost.PANEL
@@ -523,6 +533,7 @@ fun MainScreen(
                 onImportPack = { importPackHelp = true },
                 onSettings = { settingsOpen = true },
                 onFaq = { faqOpen = true },
+                onAgent = { onAgent(true) },
                 padCount = padDevices.size,
                 onOpenPadCenter = { onPadCenter(true) },
                 chip = environmentCheckUiState.chip,
@@ -624,6 +635,15 @@ fun MainScreen(
                 navActive = navHost == NavHost.FAQ
             )
         }
+        // The assistant's chat page: also a full cover (the activity turns the screen portrait while it is
+        // open); closed, the page underneath is right there again
+        if (agentOpen) {
+            AgentScreen(
+                viewModel = hiltViewModel(),
+                onClose = { onAgent(false) },
+                navActive = navHost == NavHost.AGENT,
+            )
+        }
         // 导入的说明框：顶栏那个加号先进这里，框里的按钮再去选文件夹
         if (importPackHelp) {
             AlertDialog(
@@ -706,6 +726,7 @@ private fun TopBar(
     onImportPack: () -> Unit,
     onSettings: () -> Unit,
     onFaq: () -> Unit,
+    onAgent: () -> Unit,
     padCount: Int, onOpenPadCenter: () -> Unit,
     chip: EnvCheck.Chip, onChip: () -> Unit
 ) {
@@ -761,6 +782,8 @@ private fun TopBar(
         TopIcon(Icons.Filled.Settings, stringResource(R.string.app_tab_settings), onSettings)
         // 常见问题：也是一整页，紧挨着设置图标
         TopIcon(Icons.Filled.HelpOutline, stringResource(R.string.app_faq), onFaq)
+        // The assistant: its chat page, also a full cover (the screen turns portrait for it)
+        TopIcon(Icons.Filled.SmartToy, stringResource(R.string.agent_entry), onAgent)
         // 按钮簇到这里结束：环境状态胶囊是状态不是按钮，隔开一点
         Spacer(Modifier.width(6.dp))
         EnvChip(chip, onChip)

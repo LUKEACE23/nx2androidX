@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.ActivityManager
 import android.app.ApplicationExitInfo
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.hardware.input.InputManager
@@ -137,6 +138,10 @@ class MainActivity : ComponentActivity() {
      *  这一份是**唯一**的那份：分发层（dispatchKeyEvent）与页面读的都是它。 */
     var padCenterOpen by mutableStateOf(false)
 
+    /** Is the assistant's chat page open (the portrait one)? The one copy: AppRoot's entry writes it,
+     *  the orientation collector in onCreate reads it. */
+    private var agentOpen by mutableStateOf(false)
+
     /** 摇杆与十字键帽各自的边沿状态：推到底发一次，回中才复位。 */
     private val hatEdge = NavEdge(HAT_THRESHOLD)
     private val stickEdge = NavEdge()
@@ -175,7 +180,18 @@ class MainActivity : ComponentActivity() {
             AppRoot(prefs, locale, port, library, onboarding, drivers, environmentSetup, actions,
                 launchTab, launchBuildId, padController,
                 padCenterOpen = padCenterOpen, onPadCenter = { padCenterOpen = it },
+                agentOpen = agentOpen, onAgent = { agentOpen = it },
                 crash = crash, onCrashHandled = { crash = null })
+        }
+        // The chat page is portrait: while it is open the screen turns; closed, the sensor landscape lock
+        // returns. orientation sits in the manifest's configChanges, so this only re-lays the tree out —
+        // no page is rebuilt, nothing restarts.
+        lifecycleScope.launch {
+            snapshotFlow { agentOpen }.collect { open ->
+                requestedOrientation =
+                    if (open) ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            }
         }
         // the small tools come with the app: an update brings new ones, and the phone has to get them
         // (the app's own Vulkan driver too: it is unpacked into the app's folder, ready to be picked)
