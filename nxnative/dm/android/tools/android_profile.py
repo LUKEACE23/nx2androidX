@@ -24,6 +24,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ANDROID = HERE.parent
+REPO = ANDROID.parents[2]   # the repository root: the checkout has docs/ (the README's images), the app's tool copy on a device has none
 sys.path.insert(0, str(ANDROID.parent / 'games'))
 import game   # noqa: E402  (the profile folders, DM_GAMES_DIR included)
 sys.path.insert(0, str(HERE))
@@ -149,7 +150,9 @@ class AndroidProfile:
         readme = [k for k in ('readme_image', 'readme_tag', 'readme_note') if self.get(k)]
         if (readme or self.get('readme_name')) and len(readme) != 3: bad.append('readme_image, readme_tag and readme_note go together (README.md games table, docs/gen_tables.py)')
         if self.get('readme_tag') and not re.fullmatch(r'v\d+\.\d+\.\d+', self.get('readme_tag')): bad.append(f"readme_tag {self.get('readme_tag')!r}: the nx2android version tested, v<major>.<minor>.<patch>")
-        if self.get('readme_image') and not (ANDROID.parents[2] / self.get('readme_image')).is_file(): bad.append(f"readme_image {self.get('readme_image')!r}: no such file in the repository")
+        # the image's path is checked against the repository: a checkout has docs/ (the README's images), the app's tool copy on a device
+        # has none, and there the check is skipped (the repository's own test, tests/test_docs_tables.py, holds the images honest)
+        if self.get('readme_image') and (REPO / 'docs').is_dir() and not (REPO / self.get('readme_image')).is_file(): bad.append(f"readme_image {self.get('readme_image')!r}: no such file in the repository")
         if self.pacing not in PACING: bad.append(f'pacing {self.pacing!r}: one of {", ".join(PACING)}')
         else:
             preset = {r.split('=', 1)[0] for r in PACING[self.pacing]}
