@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-/** The card's status: the running build, the data pack (its host inside makes the game done), and what is left of a failed build */
+/** The card's status: the running build, the data pack (a pack is a finished game), and what is left of a failed build */
 class LibraryLogicTest {
 
     @Test
@@ -60,11 +60,21 @@ class LibraryLogicTest {
                                           portRunning = false, portGameFile = "", workStartedAt = 0L))
     }
 
-    /** 包在但宿主没了：卡片仍在，但需要构建 */
+    /** 包在但宿主没了：卡片仍是「能玩」——游戏页的 Loading 会把运行库补齐 */
     @Test
-    fun `a pack whose host went away is not done any more`() {
-        assertEquals(GameStatus.NEEDS_BUILD,
+    fun `a pack whose host went away is still done`() {
+        assertEquals(GameStatus.DONE,
                      LibraryLogic.statusOf(entry(pack = port(hostExists = false)),
+                                          portRunning = false, portGameFile = "", workStartedAt = 0L))
+    }
+
+    /** 运行库过期（接口版本对不上）的包也是「能玩」：那一步由游戏页自己做 */
+    @Test
+    fun `a pack with an outdated runtime is still done`() {
+        val stale = port(hostExists = true).copy(playerApiRevision = 0)
+        assertTrue(stale.needsRuntimeUpdate)
+        assertEquals(GameStatus.DONE,
+                     LibraryLogic.statusOf(entry(pack = stale),
                                           portRunning = false, portGameFile = "", workStartedAt = 0L))
     }
 
@@ -97,14 +107,14 @@ class LibraryLogicTest {
                                           workStartedAt = started))
     }
 
-    /** 源文件在不在不改变卡片状态：没有可运行包就是需要构建。 */
+    /** 源文件在不在不改变卡片状态：没有包就是没移植。 */
     @Test
-    fun `a game without a runnable pack needs a build whether source exists or not`() {
+    fun `a game without a pack is not ported whether source exists or not`() {
         val source = File.createTempFile("nx2a-source", ".xci").apply { writeText("x") }
-        assertEquals(GameStatus.NEEDS_BUILD,
+        assertEquals(GameStatus.NOT_PORTED,
                      LibraryLogic.statusOf(entry(work = tmpDir(), source = source.absolutePath),
                                           portRunning = false, portGameFile = "", workStartedAt = 0L))
-        assertEquals(GameStatus.NEEDS_BUILD,
+        assertEquals(GameStatus.NOT_PORTED,
                      LibraryLogic.statusOf(entry(work = tmpDir(), source = "/sdcard/Games/Game.nsp"),
                                           portRunning = false, portGameFile = "", workStartedAt = 0L))
         source.delete()

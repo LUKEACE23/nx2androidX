@@ -64,7 +64,7 @@ class PortablePackLibraryTest {
         val entry = GameEntry("0100000000010000", null, null, null,
             PortablePack.Imported(tmpDir().absolutePath, "0100000000010000", "Test Game"))
 
-        assertEquals(GameStatus.NEEDS_BUILD,
+        assertEquals(GameStatus.NOT_PORTED,
             LibraryLogic.statusOf(entry, portRunning = false, portGameFile = "", workStartedAt = 0L))
     }
 

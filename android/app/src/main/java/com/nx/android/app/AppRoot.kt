@@ -87,6 +87,7 @@ import com.nx.android.data.PadPlayers
 import com.nx.android.data.PrefsStore
 import com.nx.android.data.StorageVolumes
 import com.nx.android.domain.EnvCheck
+import com.nx.android.domain.GAME_FILE_EXTENSIONS
 import com.nx.android.domain.GameConfig
 import com.nx.android.domain.GameEntry
 import com.nx.android.domain.GameIdentity
@@ -115,6 +116,7 @@ import com.nx.android.feature.settings.SettingsSection
 import com.nx.android.feature.storage.StorageViewModel
 import com.nx.android.feature.updates.UpdatePopup
 import com.nx.android.feature.updates.UpdateViewModel
+import com.nx.android.feature.updates.openIssues
 import com.nx.android.feature.updates.openRepo
 import com.nx.android.input.GamepadScan
 import com.nx.android.input.PadAssignment
@@ -152,6 +154,8 @@ data class AppActions(
     val onStartPort: (file: File, cfg: GameConfig) -> Unit,
     val onCancelPort: () -> Unit,
     val onRun: (pack: File, name: String) -> Unit,
+    // 闪退之后的「重新构建」：重建运行库再进一次游戏
+    val onRunRebuild: (pack: File, name: String) -> Unit = { _, _ -> },
     // 桌面快捷方式：管理下拉里的「发送到桌面」（只对已完成的游戏出现）
     val onSendToDesktop: (GameEntry) -> Unit = { },
     val onToast: (String) -> Unit,
@@ -202,6 +206,8 @@ fun AppRoot(
     padController: PadCenterController,
     padCenterOpen: Boolean,
     onPadCenter: (Boolean) -> Unit,
+    crash: CrashReport? = null,
+    onCrashHandled: () -> Unit = {},
 ) {
     NxTheme {
         // 界面语言：整棵树读同一份资源，玩家在设置里换语言时这里跟着换
@@ -251,6 +257,8 @@ fun AppRoot(
                         onDrivers = { driversOpen = true },
                         onLog = { id -> buildLogId = id },
                                 onEnvCheck = { envCheckOpen = true },
+                        crash = crash,
+                        onCrashHandled = onCrashHandled,
                     )
                 }
                 val volumes = remember(ctx, locale.mode) { StorageVolumes.list(ctx, locale) }
@@ -451,6 +459,8 @@ fun MainScreen(
     onDrivers: () -> Unit,
     onLog: (String) -> Unit,
     onEnvCheck: () -> Unit,
+    crash: CrashReport? = null,
+    onCrashHandled: () -> Unit = {},
 ) {
     var tab by rememberSaveable { mutableIntStateOf(startTab) }
     // 设置是一整页，盖住顶栏与下面的页面：从顶栏的设置图标进来，关掉才回到底下的页面
@@ -640,6 +650,41 @@ fun MainScreen(
                 dismissButton = {
                     TextButton(onClick = { importPackHelp = false }) { Text(locale.str(R.string.common_cancel)) }
                 },
+            )
+        }
+        // 闪退的弹框：盖在最上面。三条路，从轻到重——重新构建、重新移植、反馈。
+        crash?.let { report ->
+            val entry = lib.games.firstOrNull { it.titleId.equals(report.titleId, ignoreCase = true) }
+            val pack = entry?.pack
+            CrashDialog(
+                crash = report,
+                canRebuild = pack != null,
+                onRebuild = {
+                    val p = pack ?: return@CrashDialog
+                    onCrashHandled()
+                    actions.onRunRebuild(p.pack, report.name)
+                },
+                onPortAgain = {
+                    onCrashHandled()
+                    val src = entry?.source
+                    if (src != null) {
+                        buildsViewModel.setTarget(src)
+                        tab = Tab.BUILDS.ordinal
+                    } else {
+                        // 源文件不在了：请玩家重新选一个（和详情抽屉里的「构建」一样）
+                        onRequest(PickerRequest(PickerMode.FILE, GAME_FILE_EXTENSIONS, File("/storage"),
+                            locale.str(R.string.builds_choose_game_file),
+                            onPicked = { f ->
+                                buildsViewModel.setTarget(f)
+                                tab = Tab.BUILDS.ordinal
+                            }))
+                    }
+                },
+                onReport = {
+                    onCrashHandled()
+                    openIssues(padCtx)
+                },
+                onClose = onCrashHandled,
             )
         }
     }

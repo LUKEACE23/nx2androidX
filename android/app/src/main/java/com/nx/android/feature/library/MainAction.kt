@@ -18,13 +18,13 @@ internal enum class MainAction { RUN, BUILD, VIEW_BUILD }
  *
  * @param status 游戏现在的状态（跑着的那个游戏在状态里也算 PORTING）
  *
- * 没有第四种「更新运行库」：运行库过期/缺失的包一样点「构建」（门放行后游戏页的 Loading 自己重建），
- * 完成的包永远只有一个「运行」。
+ * 运行库过期或缺失的包也是「运行」：门放行后游戏页的 Loading 自己把运行库补齐（那一步对玩家是透明的）。
+ * 没有包的卡是「构建」：它还没有可玩的东西，构建就是让它变成有的那一步。
  */
-internal fun mainActionOf(status: GameStatus): MainAction = when {
-    status == GameStatus.PORTING -> MainAction.VIEW_BUILD
-    status == GameStatus.DONE -> MainAction.RUN
-    else -> MainAction.BUILD
+internal fun mainActionOf(status: GameStatus): MainAction = when (status) {
+    GameStatus.PORTING -> MainAction.VIEW_BUILD
+    GameStatus.DONE -> MainAction.RUN
+    GameStatus.NOT_PORTED -> MainAction.BUILD
 }
 
 /** 主动作的文案：与左下角主按钮上写的完全一样。 */

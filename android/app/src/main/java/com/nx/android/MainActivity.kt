@@ -61,6 +61,7 @@ import com.nx.android.domain.Ported
 import androidx.compose.runtime.snapshotFlow
 import com.nx.android.app.AppActions
 import com.nx.android.app.AppRoot
+import com.nx.android.app.CrashReport
 import com.nx.android.input.GamepadScan
 import com.nx.android.input.PadCalibration
 import com.nx.android.input.PadTestInput
@@ -134,6 +135,9 @@ class MainActivity : ComponentActivity() {
     private val hatEdge = NavEdge(HAT_THRESHOLD)
     private val stickEdge = NavEdge()
 
+    /** 上一次那个游戏闪退了：弹框把那三条路摆出来（重新构建 / 重新移植 / 反馈） */
+    private var crash by mutableStateOf<CrashReport?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 全屏沉浸：内容铺满整块屏幕，系统栏隐藏（下滑临时呼出）
@@ -164,7 +168,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             AppRoot(prefs, locale, port, library, onboarding, drivers, environmentSetup, actions,
                 launchTab, launchBuildId, padController,
-                padCenterOpen = padCenterOpen, onPadCenter = { padCenterOpen = it })
+                padCenterOpen = padCenterOpen, onPadCenter = { padCenterOpen = it },
+                crash = crash, onCrashHandled = { crash = null })
         }
         // the small tools come with the app: an update brings new ones, and the phone has to get them
         // (the app's own Vulkan driver too: it is unpacked into the app's folder, ready to be picked)
@@ -203,6 +208,8 @@ class MainActivity : ComponentActivity() {
         },
         onCancelPort = { PortService.cancel(this) },
         onRun = { pack, name -> runGate(pack, name) },
+        // 闪退之后的「重新构建」：重建运行库再进一次游戏（门还是那一扇）
+        onRunRebuild = { pack, name -> runGate(pack, name, rebuild = true) },
         onSendToDesktop = { e ->
             val ported = e.pack
             if (ported == null) toast(locale.str(R.string.lib_artifact_missing))
@@ -341,8 +348,10 @@ class MainActivity : ComponentActivity() {
     /**
      * 门：解析 → busy → START / RESUME / REFUSE。卡片、详情面板、桌面快捷方式都走这一条路，
      * 同一个游戏从哪个入口进来结果都一样。
+     *
+     * @param rebuild 重建运行库再开（闪退后的「重新构建」）：门还是那一扇，只是游戏页多了一件差事
      */
-    private fun runGate(pack: File, name: String) {
+    private fun runGate(pack: File, name: String, rebuild: Boolean = false) {
         LibraryFileScanner.portFromPack(pack)?.let { ported ->
             when (LibraryLogic.launchDecision(player.processAlive(this), player.currentTitleId(), ported.titleId)) {
                 // 跑的正是这一个：带回前台，不重启
@@ -354,7 +363,7 @@ class MainActivity : ComponentActivity() {
                           else locale.str(R.string.lib_game_still_running, player.currentName()))
                 }
                 // 没有游戏在跑：全新启动
-                LaunchDecision.START -> launchStart(ported, name)
+                LaunchDecision.START -> launchStart(ported, name, rebuild)
             }
         } ?: toast(locale.str(R.string.main_cannot_run_not_a_pack, pack.name))
     }
@@ -393,14 +402,14 @@ class MainActivity : ComponentActivity() {
      * 门放行的 START：占用检查（构建占用着流水线）→ 账本标记（fail-safe 断言住在这里）→ 把包交给
      * 游戏页。宿主的指纹检查与运行库重建都发生在游戏页自己的 prepare 里（旧版宿主在那儿就地重建）。
      */
-    private fun launchStart(ported: Ported, name: String) {
+    private fun launchStart(ported: Ported, name: String, rebuild: Boolean = false) {
         if (port.running) {
             toast(locale.str(R.string.runtime_busy))
             return
         }
         prefs.put(PrefsStore.PLAYER_LAST_START, System.currentTimeMillis().toString())
         player.markLaunched(ported.titleId, name)   // 冷启动读回的身份（进程活着时它就是答案）
-        Player.run(this, ported, name) { ok ->
+        Player.run(this, ported, name, rebuild) { ok ->
             if (!ok) toast(locale.str(R.string.main_cannot_run_no_host, ported.pack.name) + "\n" + locale.str(R.string.runtime_play_failed))
         }
     }
@@ -418,16 +427,17 @@ class MainActivity : ComponentActivity() {
             // 崩溃检测也问账本：processAlive() 是账本给全 app 的同步出口（账本之外没有第二处进程判断）
             if (started > 0 && !player.processAlive(this)) {
                 val manager = getSystemService(ActivityManager::class.java)
-                val crash = runCatching {
+                val crashed = runCatching {
                     manager.getHistoricalProcessExitReasons(packageName, 0, 16).any {
                         it.processName.endsWith(Player.PROCESS_SUFFIX) && it.timestamp >= started &&
                             (it.reason == ApplicationExitInfo.REASON_CRASH ||
                              it.reason == ApplicationExitInfo.REASON_CRASH_NATIVE)
                     }
                 }.getOrDefault(false)
-                if (crash) {
+                if (crashed) {
                     prefs.put(PrefsStore.PLAYER_LAST_START, null)
-                    toast(locale.str(R.string.runtime_play_failed))
+                    // 闪退的不是 toast 能说清的：弹框把三条路摆出来——重新构建、重新移植、反馈
+                    crash = CrashReport(player.currentTitleId(), player.currentName())
                 }
             }
         }

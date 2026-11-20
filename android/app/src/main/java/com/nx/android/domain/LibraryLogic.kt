@@ -4,9 +4,10 @@ import java.io.File
 
 /**
  * The library card's status, as pure rules (free of Android, so the tests run on the JVM): the port that runs
- * now paints its game yellow, a finished port (pack and host together) makes the game green, a game whose last
- * build failed is red, a game that has nothing left but its build workspace is grey, everything else is grey —
- * and a pack whose host went away falls back to grey at the next look.
+ * now paints its game yellow, a finished port paints the game green, and a game that has no pack is grey.
+ *
+ * 有包就是「能玩」：运行库过期或缺失的包，游戏页的 Loading 第一次运行时自己补齐（那一步对玩家是透明的）。
+ * 没有包才是「还没移植」——它需要的是构建，不是运行。
  */
 object LibraryLogic {
 
@@ -22,17 +23,17 @@ object LibraryLogic {
     /**
      * 这个游戏现在是什么状态：
      * - 正在构建 → 黄；
-     * - 包在且宿主、前端都可用 → 绿，能玩；
-     * - 卡片存在但包不完整、旧前端或只有工作区 → 灰，需要构建；
+     * - 包在 → 绿，能玩（运行库过期/缺失由游戏页的 Loading 补齐）；
+     * - 没有包 → 灰，还没移植（或者上次没构建出来）。
      *
      * 源文件在不在与构建历史都不参与状态判定。
      */
     fun statusOf(entry: GameEntry, portRunning: Boolean, portGameFile: String, workStartedAt: Long): GameStatus = when {
         portRunning && building(entry, portGameFile, workStartedAt) -> GameStatus.PORTING
-        entry.pack?.runnable == true -> GameStatus.DONE
-        // 导入的包：运行库还没有（另一台手机编的运行库不在这里），第一次运行时由这台手机自己编
-        entry.isImported && entry.pack != null && entry.romfsInside -> GameStatus.DONE
-        else -> GameStatus.NEEDS_BUILD
+        // 包在就能玩：运行库过期或缺失的，游戏页的 Loading 第一次运行时自己补齐
+        // （导入的包还要有它自己的 RomFS/：那是玩家自己文件夹里的游戏文件）
+        entry.pack != null && (!entry.isImported || entry.romfsInside) -> GameStatus.DONE
+        else -> GameStatus.NOT_PORTED
     }
 
     /**

@@ -11,7 +11,6 @@ enum class GameStatus {
     NOT_PORTED,
     PORTING,
     DONE,
-    NEEDS_BUILD,
 }
 
 /**

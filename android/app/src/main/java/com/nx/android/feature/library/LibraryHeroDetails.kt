@@ -77,7 +77,7 @@ internal fun HeroDetails(
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             // 主按钮：未移植 ▶ 构建（携带游戏与配置跳到构建页），移植中变「查看构建」，
-            // 已完成 ▶ 运行（App 内直接进游戏）；旧版宿主编的包要重新移植，主按钮变成「更新运行库」
+            // 有包 ▶ 运行（App 内直接进游戏；运行库过期时游戏页的 Loading 自己补齐）
             Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
@@ -118,7 +118,7 @@ private fun HeroDetailsNotBuiltPreview() {
     PreviewSurface {
         HeroDetails(
             entry = previewGames[2].entry,
-            status = GameStatus.NEEDS_BUILD,
+            status = GameStatus.NOT_PORTED,
             portProgress = 0f,
             onBuild = {},
             onRun = {},
@@ -145,14 +145,14 @@ private fun HeroDetailsReadyPreview() {
     }
 }
 
-/** 预览：旧版宿主编的包（主按钮是「重新移植」） */
-@Preview(name = "Details, needs a new port", widthDp = 700, heightDp = 220, showBackground = true)
+/** 预览：运行库过期的包（主按钮也是「运行」：游戏页的 Loading 自己补齐运行库） */
+@Preview(name = "Details, stale runtime", widthDp = 700, heightDp = 220, showBackground = true)
 @Composable
 private fun HeroDetailsStalePreview() {
     PreviewSurface {
         HeroDetails(
             entry = previewGames[3].entry,
-            status = GameStatus.NEEDS_BUILD,
+            status = GameStatus.DONE,
             portProgress = 0f,
             onBuild = {},
             onRun = {},

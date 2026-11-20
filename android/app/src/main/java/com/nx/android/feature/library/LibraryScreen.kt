@@ -108,10 +108,7 @@ fun LibraryScreen(lib: LibraryState, port: PortState, actions: AppActions,
             if (i == heroIndex) viewModel?.selectGame(visible.getOrNull(i)) ?: run { lib.selected = visible.getOrNull(i) }
             else viewModel?.selectHero(i, visible.size) ?: lib.selectHero(i, visible.size)
         },
-        onBuild = { e ->
-            val pack = e.pack
-            if (pack?.needsRuntimeUpdate == true) actions.onRun(pack.pack, e.label) else build(e)
-        },
+        onBuild = { e -> build(e) },
         onRun = { e -> e.pack?.let { actions.onRun(it.pack, e.label) } },
         onViewBuild = { e ->
             // 正在构建：去构建页看进度（第一次构建还没有源文件的记忆，就带着正在跑的那个）
