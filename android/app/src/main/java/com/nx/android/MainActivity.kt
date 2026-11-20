@@ -479,6 +479,11 @@ class MainActivity : ComponentActivity() {
         // 导航条与手势的 Back 不是手柄设备：它们照旧走（BackHandler 关中心）。
         if (padCenterOpen && isGamepad(e.deviceId)) {
             if (GamepadScan.devices.value.none { it.id == e.deviceId }) GamepadScan.refreshNow(this)
+            // 认上报方式时，这一下是「测量」，不是按键：不进示波
+            if (padController.probing) {
+                AppLog.line("pad: a key while the probe waits: device=${e.deviceId} scan=${e.scanCode} key=${e.keyCode}")
+            }
+            if (padController.probeKey(e.deviceId, e.scanCode, e.keyCode)) return true
             PadTestInput.onKey(e) { deviceId, scan, key -> padController.resolveTarget(deviceId, scan, key) }
             return true
         }

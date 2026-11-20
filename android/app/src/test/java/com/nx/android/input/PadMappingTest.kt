@@ -1,16 +1,18 @@
 package com.nx.android.input
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * 出厂字典：手柄的键怎么认。
  *
- * 按**位置**（扫描码）说话：游戏嘴里的 A/B/X/Y 指的就是 NS 手柄上的四个位置
- * （X 上、Y 左、A 右、B 下），手柄上印的字只是贴纸——那是「按印字」那一套
- * （Xbox 的印字：下 A、右 B、上 Y、左 X），玩家在手柄中心里选。
- * Android 给键起的名字（BUTTON_A、BUTTON_X…）每家手柄不一样，所以位置说了算，名字只是兜底。
+ * 两个维度：**上报方式**（手柄的固件按位置报还是按印字报）与**模式**（玩家选的按位置/按印字）。
+ * 按位置（扫描码）说话：游戏嘴里的 A/B/X/Y 指的就是 NS 手柄上的四个位置
+ * （X 上、Y 左、A 右、B 下）。Android 给键起的名字（BUTTON_A、BUTTON_X…）每家手柄不一样，
+ * 所以位置说了算，名字只是兜底。
  */
 class PadMappingTest {
 
@@ -61,6 +63,22 @@ class PadMappingTest {
     }
 
     @Test
+    fun `a controller that reports by its print swaps the top and the left`() {
+        // 这种固件把「印着哪个字」编进代码里：印 X 的报 307、印 Y 的报 308。
+        // 按位置：上面那颗（308，印 Y）该是 NS 的 X —— 打印字的那张表对不上，要换过来。
+        assertEquals("x", PadMapping.defaultTarget(PadMapping.Scan.WEST, 0, labels = false, printCoded = true))
+        assertEquals("y", PadMapping.defaultTarget(PadMapping.Scan.NORTH, 0, labels = false, printCoded = true))
+        // 按印字：代码名就是印字，信它
+        assertEquals("x", PadMapping.defaultTarget(PadMapping.Scan.NORTH, 0, labels = true, printCoded = true))
+        assertEquals("y", PadMapping.defaultTarget(PadMapping.Scan.WEST, 0, labels = true, printCoded = true))
+        // 右下那两颗两种固件一致
+        assertEquals("a", PadMapping.defaultTarget(PadMapping.Scan.EAST, 0, labels = false, printCoded = true))
+        assertEquals("b", PadMapping.defaultTarget(PadMapping.Scan.SOUTH, 0, labels = false, printCoded = true))
+        assertEquals("b", PadMapping.defaultTarget(PadMapping.Scan.EAST, 0, labels = true, printCoded = true))
+        assertEquals("a", PadMapping.defaultTarget(PadMapping.Scan.SOUTH, 0, labels = true, printCoded = true))
+    }
+
+    @Test
     fun `the key code is the fallback when there is no scan code`() {
         // 十字键没有扫描码：按 Android 的名字（那上面没有歧义）
         assertEquals("up", PadMapping.defaultTarget(0, PadMapping.Key.DPAD_UP))
@@ -70,10 +88,29 @@ class PadMappingTest {
     }
 
     @Test
+    fun `the key code fallback knows the reporting kind too`() {
+        // 按印字上报的：代码名就是印字，按印字时信它
+        assertEquals("x", PadMapping.defaultTarget(0, PadMapping.Key.BUTTON_X, labels = true, printCoded = true))
+        assertEquals("y", PadMapping.defaultTarget(0, PadMapping.Key.BUTTON_Y, labels = true, printCoded = true))
+        // 按位置时：印 X 的那颗在左边，NS 的左边是 Y
+        assertEquals("y", PadMapping.defaultTarget(0, PadMapping.Key.BUTTON_X, labels = false, printCoded = true))
+        assertEquals("x", PadMapping.defaultTarget(0, PadMapping.Key.BUTTON_Y, labels = false, printCoded = true))
+    }
+
+    @Test
     fun `resolve button is the dictionary with the layout`() {
-        assertEquals("x", PadMapping.resolveButton(labels = false, scanCode = PadMapping.Scan.NORTH, keyCode = 0))
-        assertEquals("y", PadMapping.resolveButton(labels = true, scanCode = PadMapping.Scan.NORTH, keyCode = 0))
+        assertEquals("x", PadMapping.resolveButton(labels = false, printCoded = false, scanCode = PadMapping.Scan.NORTH, keyCode = 0))
+        assertEquals("y", PadMapping.resolveButton(labels = true, printCoded = false, scanCode = PadMapping.Scan.NORTH, keyCode = 0))
         // a key that is not in the dictionary at all: nothing
-        assertNull(PadMapping.resolveButton(labels = false, scanCode = 306, keyCode = 0))
+        assertNull(PadMapping.resolveButton(labels = false, printCoded = false, scanCode = 306, keyCode = 0))
+    }
+
+    @Test
+    fun `the face codes are the four buttons`() {
+        assertTrue(PadMapping.Face.isFace(PadMapping.Scan.NORTH))
+        assertTrue(PadMapping.Face.isFace(PadMapping.Scan.WEST))
+        assertTrue(PadMapping.Face.isFace(PadMapping.Scan.EAST))
+        assertTrue(PadMapping.Face.isFace(PadMapping.Scan.SOUTH))
+        assertFalse(PadMapping.Face.isFace(PadMapping.Scan.L1))
     }
 }

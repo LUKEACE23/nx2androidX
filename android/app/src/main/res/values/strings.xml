@@ -612,6 +612,11 @@
     <string name="pad_layout_title">Face buttons</string>
     <string name="pad_layout_position">By position (Switch)</string>
     <string name="pad_layout_label">By label (Xbox)</string>
+    <string name="pad_report_title">How it reports</string>
+    <string name="pad_report_position">By position</string>
+    <string name="pad_report_label">By label</string>
+    <string name="pad_report_detect">Detect</string>
+    <string name="pad_report_hint">Press the button printed Y on the controller</string>
     <string name="pad_center_vibrate">Test the vibration</string>
     <string name="pad_center_no_vibration">no vibration motor</string>
     <string name="pad_center_events">Events</string>

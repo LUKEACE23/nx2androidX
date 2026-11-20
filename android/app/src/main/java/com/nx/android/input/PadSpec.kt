@@ -7,7 +7,7 @@ package com.nx.android.input
  *
  * ```
  * v1
- * dev 3 labels=1 dz=0.15 tr=0.55 player=1
+ * dev 3 labels=1 coded=1 dz=0.15 tr=0.55 player=1
  * ```
  *
  * 设备是 Android 的 input device id：宿主按事件的 device 查同一张表，所以同型号的两只手柄各查各的。
@@ -19,6 +19,7 @@ object PadSpec {
     data class Device(
         val deviceId: Int,
         val labels: Boolean,
+        val printCoded: Boolean = false,  // 它按印字上报（代码名就是印字）：宿主换一张面键表
         val player: Int = 0,
         val calibration: PadCalibration = PadCalibration(),
         val zTrig: Boolean = false,   // 它的扳机在 Z/RZ（单向）：宿主从这两根轴取 ZL/ZR
@@ -31,6 +32,7 @@ object PadSpec {
         for (device in devices) {
             out.append("dev ").append(device.deviceId)
                 .append(" labels=").append(if (device.labels) 1 else 0)
+                .append(" coded=").append(if (device.printCoded) 1 else 0)
                 .append(" player=").append(device.player)
                 .append(" dz=").append(format(device.calibration.deadzone))
                 .append(" tr=").append(format(device.calibration.trigger))

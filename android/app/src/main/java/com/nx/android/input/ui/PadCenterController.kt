@@ -9,11 +9,13 @@ import android.view.InputDevice
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.nx.android.data.AppLog
 import com.nx.android.input.GamepadScan
 import com.nx.android.input.PadCalibration
 import com.nx.android.input.PadMapping
 import com.nx.android.input.PadProfileKey
 import com.nx.android.input.PadProfileStore
+import com.nx.android.input.PadTestInput
 import java.io.File
 
 /**
@@ -57,6 +59,7 @@ class PadCenterController(
     /** 面板上看哪一只。 */
     fun select(id: Int?) {
         selectedId = id
+        if (probing) probing = false   // 换了一只，认的那只就不是它了
     }
 
     /**
@@ -69,6 +72,68 @@ class PadCenterController(
         val profile = profile(info)
         if (profile.labels == byLabel) return
         save(profile.copy(labels = byLabel))
+        PadTestInput.clearPressed()   // 按着的键算出来的目标键变了：面板上的亮格重来
+    }
+
+    /**
+     * 这只手的面键**怎么上报**：按位置（false）还是按印字（true）。
+     *
+     * 固件说了算：按印字上报的手柄把「印着哪个字」编进了代码里（印 X 的报 307、
+     * 印 Y 的报 308），同一份「按位置/按印字」表对它就不对了。
+     */
+    fun setPrintCoded(info: GamepadScan.Info, printCoded: Boolean) {
+        val profile = profile(info)
+        if (profile.printCoded == printCoded) return
+        save(profile.copy(printCoded = printCoded))
+        PadTestInput.clearPressed()
+    }
+
+    /** 正在等玩家按「印着 Y 的那颗键」吗（面板上要显示这句话）。 */
+    var probing by mutableStateOf(false)
+        private set
+
+    /** 开始认这只手的上报方式。 */
+    fun startProbe() {
+        probing = true
+        AppLog.line("pad: the probe waits for the button printed Y (selected=$selectedId)")
+    }
+
+    /** 不认了。 */
+    fun cancelProbe() {
+        probing = false
+    }
+
+    /**
+     * 认键：玩家按下的那一颗（扫描码，没有就按 keyCode）。
+     *
+     * 按印字上报的手柄：印着 Y 的那颗报 308；按位置上报的：报 307。
+     * 别的码认不出来（就当按位置上报——那是绝大多数手柄的样子）。
+     *
+     * @return true：这个键被认走了（不该再进游戏）。
+     */
+    fun probeKey(deviceId: Int, scanCode: Int, keyCode: Int): Boolean {
+        if (!probing) return false
+        AppLog.line("pad: the probe got a key: device=$deviceId scan=$scanCode key=$keyCode selected=$selectedId")
+        if (deviceId != selectedId) {
+            AppLog.line("pad: the probe ignores it (another controller)")
+            return false
+        }
+        val info = device(deviceId) ?: return false
+        val coded = when {
+            scanCode == PadMapping.Scan.WEST -> true
+            scanCode == PadMapping.Scan.NORTH -> false
+            // 没有扫描码时按 keyCode：通用键位表把 308 起名叫 BUTTON_Y
+            scanCode == 0 && keyCode == PadMapping.Key.BUTTON_Y -> true
+            scanCode == 0 && keyCode == PadMapping.Key.BUTTON_X -> false
+            else -> {
+                AppLog.line("pad: the probe does not know that key (scan=$scanCode key=$keyCode)")
+                return false
+            }
+        }
+        probing = false
+        AppLog.line("pad: the probe says ${if (coded) "by label" else "by position"} (${info.profileKey})")
+        setPrintCoded(info, coded)
+        return true
     }
 
     /** 校准（死区与扳机阈值）。 */
@@ -79,14 +144,18 @@ class PadCenterController(
 
     /**
      * 手柄的增减：拔掉的那只从面板上消失。
+     *
+     * 面板上没有选中项时它显示第一只设备——那这里也把它选上：状态要跟着显示走，
+     * 否则「认上报方式」那种要对着**当前这只**手柄做的事会落空。
      */
     fun devicesChanged(devices: List<GamepadScan.Info>) {
         val ids = devices.mapTo(mutableSetOf()) { it.id }
         if (selectedId != null && selectedId !in ids) selectedId = null
+        if (selectedId == null) selectedId = devices.firstOrNull()?.id
     }
 
     /**
-     * 这个物理键（deviceId 的那只）现在是哪个游戏键：出厂字典（按这只手的布局）。
+     * 这个物理键（deviceId 的那只）现在是哪个游戏键：出厂字典（按这只手的布局与上报方式）。
      * 示波画的就是这一层——玩家按了手柄上印着 A 的那颗，按印字时亮的是 A，按位置时亮的是 B。
      */
     fun resolveTarget(deviceId: Int, scanCode: Int, keyCode: Int): String? {
@@ -95,8 +164,13 @@ class PadCenterController(
         val key = info?.profileKey
             ?: InputDevice.getDevice(deviceId)?.let { PadProfileKey.forDevice(it).key }
             ?: return null
-        val labels = profiles[key]?.labels ?: false
-        return PadMapping.resolveButton(labels, scanCode, keyCode)
+        val profile = profiles[key]
+        return PadMapping.resolveButton(
+            labels = profile?.labels ?: false,
+            printCoded = profile?.printCoded ?: false,
+            scanCode = scanCode,
+            keyCode = keyCode,
+        )
     }
 
     /** 这只手柄的死区（示波画的是游戏收到的那一份：死区里的偏移算 0）。 */

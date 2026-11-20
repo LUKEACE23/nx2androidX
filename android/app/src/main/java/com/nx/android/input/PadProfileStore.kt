@@ -7,7 +7,8 @@ import java.io.File
 /**
  * 手柄的档案：每只手柄一份，存在 App 自己的目录里（按档案键分）。
  *
- * 档案里是玩家对这只**手柄**做的事：面键按位置还是按印字、死区多大、扳机阈值多少。
+ * 档案里是玩家对这只**手柄**做的事：面键按位置还是按印字、这只手上报的方式（按位置还是
+ * 按印字）、死区多大、扳机阈值多少。
  * **不属于游戏**：换一个游戏还是这一份。
  *
  * 坏了怎么办：整份读不出来就当没有（回到出厂映射），坏文件挪到一边备查 —— 手柄中心照常能打开。
@@ -21,6 +22,14 @@ class PadProfileStore(private val file: File) {
         val persistent: Boolean = true,
         /** 面键按位置（false，NS 的四个位置）还是按印字（true，手柄上印的 A/B/X/Y）。 */
         val labels: Boolean = false,
+        /**
+         * 这只手按印字上报（true）还是按位置上报（false）。
+         *
+         * 固件说了算：按印字上报的手柄把「印着哪个字」编进代码里（印 X 的报 307、
+         * 印 Y 的报 308），于是同一份「按位置/按印字」表对它就不对了。手柄中心里
+         * 按一下「印着 Y 的那颗」就能认出是哪一种。
+         */
+        val printCoded: Boolean = false,
         val calibration: PadCalibration = PadCalibration(),
     )
 
@@ -73,6 +82,7 @@ class PadProfileStore(private val file: File) {
                 .put("name", profile.name)
                 .put("persistent", profile.persistent)
                 .put("labels", profile.labels)
+                .put("printCoded", profile.printCoded)
             if (profile.calibration.configured) {
                 entry.put("calibration", JSONObject()
                     .put("deadzone", profile.calibration.deadzone.toDouble())
@@ -105,6 +115,7 @@ class PadProfileStore(private val file: File) {
                 name = entry.optString("name", ""),
                 persistent = entry.optBoolean("persistent", true),
                 labels = entry.optBoolean("labels", false),
+                printCoded = entry.optBoolean("printCoded", false),
                 calibration = calibration,
             )
         }

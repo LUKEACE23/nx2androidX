@@ -378,6 +378,15 @@ default), stored per controller in its profile; the scope in the gamepad center 
 actually receives, so the player can check it by pressing. There is no per-key remapping: the
 controller's own print and the four positions are what a player has to live with.
 
+One controller family needs a second bit, though: some controllers report their face buttons **by
+their print** (the firmware puts the letter in the code: the button printed X is 307, the one printed
+Y is 308) instead of by position. The same dictionary is then wrong on two of the four buttons, so
+the profile keeps a `printCoded` bit per controller and the gamepad center works it out with one
+press ("press the button printed Y": 307 means it reports by position, 308 by its print). The pushed
+table carries it as `coded=1` in the `dev` line, and the host picks the matching pair of
+dictionaries. The scope always draws the **game's** diamond (the Switch's four places) and lights
+what the game received, so it tells the truth whatever the controller's firmware does.
+
 The pushed table also carries the controller's **axis roles** (`ztrig=1`, `rxstick=1` in the `dev` line): where its
 triggers and its right stick live. Not every family agrees — the NS and the old Android convention put the right
 stick on Z/RZ and the triggers on LTRIGGER/RTRIGGER, while the Xbox family (the USB `xpad`, the Bluetooth XInput

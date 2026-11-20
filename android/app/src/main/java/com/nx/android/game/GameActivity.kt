@@ -296,6 +296,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             PadSpec.Device(
                 deviceId = info.id,
                 labels = profile?.labels ?: false,
+                printCoded = profile?.printCoded ?: false,
                 player = assignment.playerOf(info.profileKey),
                 calibration = profile?.calibration ?: PadCalibration(),
                 zTrig = info.roles.zTrig,

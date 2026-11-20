@@ -5,6 +5,7 @@ import com.nx.android.input.PadCalibration
 import com.nx.android.input.PadMapping
 import com.nx.android.input.PadProfileStore
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -75,6 +76,53 @@ class PadCenterControllerTest {
     }
 
     @Test
+    fun `a controller that reports by its print is recognised`() {
+        val f = Fixture()
+        f.controller.select(7)
+        // 这只手把「印着哪个字」编进了代码：印 Y 的那颗报 308（左边那颗的位置）
+        f.controller.startProbe()
+        assertTrue(f.controller.probing)
+        assertTrue(f.controller.probeKey(7, PadMapping.Scan.WEST, 0))
+        assertFalse(f.controller.probing)
+        assertTrue(f.controller.profile(f.info()).printCoded)
+
+        // 按位置：印 Y 的那颗（308）在上面 → NS 的 X；印 X 的那颗（307）在左边 → NS 的 Y
+        assertEquals("x", f.controller.resolveTarget(7, PadMapping.Scan.WEST, 0))
+        assertEquals("y", f.controller.resolveTarget(7, PadMapping.Scan.NORTH, 0))
+        // 按印字：印 Y 的就是 Y，印 X 的就是 X
+        f.controller.setLayout(f.info(), byLabel = true)
+        assertEquals("y", f.controller.resolveTarget(7, PadMapping.Scan.WEST, 0))
+        assertEquals("x", f.controller.resolveTarget(7, PadMapping.Scan.NORTH, 0))
+    }
+
+    @Test
+    fun `a controller that reports by its position stays that way`() {
+        val f = Fixture()
+        f.controller.select(7)
+        f.controller.startProbe()
+        // 印着 Y 的那颗在上面，报 307
+        assertTrue(f.controller.probeKey(7, PadMapping.Scan.NORTH, 0))
+        assertFalse(f.controller.profile(f.info()).printCoded)
+        // 按位置：上面那颗是 NS 的 X
+        assertEquals("x", f.controller.resolveTarget(7, PadMapping.Scan.NORTH, 0))
+    }
+
+    @Test
+    fun `the probe only listens to the selected controller`() {
+        val f = Fixture()
+        f.controller.select(7)
+        f.controller.startProbe()
+        assertFalse(f.controller.probeKey(99, PadMapping.Scan.WEST, 0))
+        assertTrue(f.controller.probing)
+        // 别的键（不是面键）不认
+        assertFalse(f.controller.probeKey(7, PadMapping.Scan.L1, 0))
+        assertTrue(f.controller.probing)
+        // 换了一只手柄就不认了
+        f.controller.select(99)
+        assertFalse(f.controller.probing)
+    }
+
+    @Test
     fun `the layout belongs to the controller and is stored`() {
         val f = Fixture()
         f.controller.setLayout(f.info(), byLabel = true)
@@ -116,6 +164,17 @@ class PadCenterControllerTest {
         // 通用键位表的手柄：名字与位置本来就对得上
         assertEquals("x", f.controller.resolveTarget(7, PadMapping.Scan.NORTH, PadMapping.Key.BUTTON_X))
         assertEquals("b", f.controller.resolveTarget(7, PadMapping.Scan.SOUTH, PadMapping.Key.BUTTON_A))
+    }
+
+    @Test
+    fun `the panel picks the first controller when nothing is selected`() {
+        val f = Fixture()
+        // 面板上没有选中项时它显示第一只设备：状态也得跟着它走（否则「认键」落空）
+        f.controller.devicesChanged(f.devices)
+        assertEquals(7, f.controller.selectedId)
+        // 认键要对着当前这只
+        f.controller.startProbe()
+        assertTrue(f.controller.probeKey(7, PadMapping.Scan.WEST, 0))
     }
 
     @Test

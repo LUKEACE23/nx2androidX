@@ -25,6 +25,7 @@ class PadProfileStoreTest {
                     key = "device:abc",
                     name = "Xbox Controller",
                     labels = true,
+                    printCoded = true,
                     calibration = PadCalibration(deadzone = 0.2f, trigger = 0.6f),
                 ),
             )
@@ -34,6 +35,7 @@ class PadProfileStoreTest {
             assertNotNull(profile)
             assertEquals("Xbox Controller", profile!!.name)
             assertTrue(profile.labels)
+            assertTrue(profile.printCoded)
             assertEquals(0.2f, profile.calibration.deadzone, 0.0001f)
             assertEquals(0.6f, profile.calibration.trigger, 0.0001f)
         } finally {
@@ -83,6 +85,7 @@ class PadProfileStoreTest {
             val profiles = store.decode(raw)
             val profile = profiles["device:x"]!!
             assertTrue(profile.labels)
+            assertFalse(profile.printCoded)   // 老档案没有这一位：按位置上报（那是绝大多数手柄）
             assertEquals("", profile.name)   // 档案里没写名字就是空的
         } finally {
             dir.deleteRecursively()

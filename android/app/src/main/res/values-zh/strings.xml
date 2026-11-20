@@ -611,6 +611,11 @@
     <string name="pad_layout_title">面键</string>
     <string name="pad_layout_position">按位置（NS）</string>
     <string name="pad_layout_label">按印字（Xbox）</string>
+    <string name="pad_report_title">它怎么上报</string>
+    <string name="pad_report_position">按位置上报</string>
+    <string name="pad_report_label">按印字上报</string>
+    <string name="pad_report_detect">认一下</string>
+    <string name="pad_report_hint">按一下手柄上印着 Y 的那颗键</string>
     <string name="pad_center_vibrate">测试振动</string>
     <string name="pad_center_no_vibration">没有振动马达</string>
     <string name="pad_center_events">事件</string>
