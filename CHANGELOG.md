@@ -8,6 +8,43 @@ players on the released version are not pushed onto an alpha.
 
 The release page has the APK and the full notes: <https://github.com/zFitness/nx2androidX/releases>.
 
+## v0.4.0-alpha02 - 2026-11-20
+
+### The app (the APK)
+
+#### Before you update · 更新之前(必读)
+
+- (EN) This build fixes the runtime build on the phone. If you have not
+  imported the profiles package of v0.4.0-alpha01 yet, you still must:
+  the app runs the games on the new host (0.4.0), and the old package's
+  packs were built for the previous one. Import it in the environment
+  check (the "manage" box).
+- (中文) 本版修复了手机上的运行库构建。如果你还没有导入
+  v0.4.0-alpha01 的档案包,现在仍然必须导入:App 用新宿主(0.4.0)运行
+  游戏,旧档案包的数据包是按旧宿主构建的。到环境检查里(那个"管理"
+  按钮)导入。
+
+#### Fixed
+
+- A game that needs its runtime rebuilt on the phone builds it again.
+  The new host asked every profile for the picture the README shows and
+  looked for it in the app's own folder, where the pictures are not
+  shipped: the build failed with "no such file in the repository", and
+  every game whose profile names a picture could not be rebuilt. The
+  check now runs where the pictures are, and the phone leaves it out.
+  Sixty games had a picture in their profile: all of them build now.
+
+### The game profiles (the package the player imports)
+
+#### Changed games
+
+- None: no game's profile changed in this package (it is the same
+  package as v0.4.0-alpha01's).
+
+### Community ports
+
+- None: no pull request went into this release.
+
 ## v0.4.0-alpha01 - 2026-11-20
 
 ### The app (the APK)
