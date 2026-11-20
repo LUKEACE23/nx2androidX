@@ -182,7 +182,16 @@ static pad_map_t g_map;       // the player's own bindings per controller (the a
 static uint64_t key_bit(int device, int32_t scan, int32_t k) {
     return pad_map_key_bit(&g_map, device, scan, k);   // the player's own binding first, the default dictionary otherwise
 }
-static int32_t axis(float v) { return (int32_t)(v * DM_STICK_MAX); }   // the dead zone is applied per device, when the event comes in
+// A controller stick's value for the game. The value is clamped to the Switch's range first: DM_STICK_MAX is the int16 limit and the host packs the axes into 16 bits, so a value past 1 (1.2
+// arrived as -26,216) would come out as the opposite direction. The dead zone is not applied here: it is applied per device, when the event comes in (the player's own calibration).
+static int32_t axis(float v) { if (v > 1) v = 1; else if (v < -1) v = -1; return (int32_t)(v * DM_STICK_MAX); }
+// A Switch stick's gate is round (the magnitude is at most 1). A handheld's square-gated stick reports corner values up to 1.41, and clamping each axis alone passes a corner as (1, 1): a diagonal
+// faster than the game expects, and a push along an edge that turns into the diagonal. Both axes are scaled down together to the magnitude 1 first.
+static void stick_xy(float x, float y, int32_t *ox, int32_t *oy) {
+    float m = hypotf(x, y);
+    if (m > 1.0f) { x /= m; y /= m; }
+    *ox = axis(x); *oy = axis(y);
+}
 static uint64_t g_shake_btn;   // DM_BTN_SHAKE while the device is being shaken (below); input thread only
 static uint32_t g_mask = 1;    // the players with a controller (bit p = player p + 1; player 1 always)
 static int g_hap_dev[DM_PLAYERS]; static uint32_t g_hap_known;   // the controller whose motor plays each player (-1: the device's own body)
@@ -243,7 +252,9 @@ static void pad_publish(void) {
     pad_players_update();   // the table may have changed since the last event (a controller came or went)
     for (int p = 0; p < DM_PLAYERS; p++) {
         uint64_t b = g_btn[p] | g_axis_btn[p] | (p == 0 ? g_shake_btn : 0);   // the phone's shake is player 1's
-        dm_pad_set_player(p, b, axis(g_ax[p][0]), -axis(g_ax[p][1]), axis(g_ax[p][2]), -axis(g_ax[p][3]));   // Android's y grows downward, the Switch's upward
+        int32_t lx, ly, rx, ry;
+        stick_xy(g_ax[p][0], g_ax[p][1], &lx, &ly); stick_xy(g_ax[p][2], g_ax[p][3], &rx, &ry);
+        dm_pad_set_player(p, b, lx, -ly, rx, -ry);   // Android's y grows downward, the Switch's upward
     }
     dm_pad_players(g_mask);
 }
