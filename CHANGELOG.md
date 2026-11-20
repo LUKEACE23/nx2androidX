@@ -8,6 +8,89 @@ players on the released version are not pushed onto an alpha.
 
 The release page has the APK and the full notes: <https://github.com/zFitness/nx2androidX/releases>.
 
+## v0.4.0-alpha01 - 2026-11-20
+
+### The app (the APK)
+
+#### Before you update · 更新之前(必读)
+
+- (EN) This release moves the packs onto a new host (0.4.0). After the
+  app updates, you **must** import the new profiles package in the
+  environment check: the old package's packs were built for the
+  previous host and will not work with this app. The app will remind
+  you and point you there. Update the app first, then import the
+  package - both steps are required.
+- (中文) 本次更新更换了数据包运行的宿主(0.4.0)。更新 App 之后,
+  **必须**到环境检查里导入新的档案包:旧档案包的数据包是按旧宿主
+  构建的,和新版 App 不匹配,无法正常使用。App 会主动提醒并指路。
+  先更新 App,再导入档案包,两步都不能少。
+
+#### New
+
+- Cheats: the drawer has a cheats tab. Codes in the Atmosphere format
+  are matched to your game's build from two community libraries, or you
+  import a zip yourself. Every game starts with the cheats off, so a
+  bad code cannot crash the game in a loop.
+- Local multiplayer: every controller that connects becomes a player of
+  its own. The on-screen gamepad steps aside while a controller holds
+  player 1, a second controller drives player 2 (a port's ctl file can
+  too), and the rumble returns to the phone when player 1's controller
+  leaves. A controller that reconnects quickly keeps its player.
+- A new install of a game you already ported copies the RomFS and the
+  DLC from the old install on the device - you do not dig the dump out
+  again.
+- The library keeps the run button: a game starts without a detour.
+- Cancelling a port asks first, and the button stays through the whole
+  run.
+- The FAQ tells you what kills a build - the battery manager is the
+  first suspect - and what to do about it.
+
+#### Fixed
+
+- The builds page reads the game file again on every round, so a game
+  file you replaced is picked up without restarting the app.
+- On Adreno phones the geometry renders correctly now (NieR:Automata's
+  map was the proof), and Unreal games keep their particle textures.
+  A rare corruption from incomplete sampler hashing is gone.
+- The build result card is one row of actions, one color per outcome,
+  and every log has one home.
+
+### The game profiles (the package the player imports)
+
+#### New games
+
+- NieR:Automata The End of YoRHa Edition - boots with update 1.0.3, and
+  the map is drawn correctly after loading a save. Broader gameplay
+  checks are still pending, so expect rough edges.
+- The Legend of Zelda: Link's Awakening - playable on update 1.1.0,
+  verified on a Lenovo TB323FU. It runs at a dynamic 30/60 fps by
+  default; the stable-60 option stays off, it can judder on weaker
+  chips. It needs the firmware files.
+- Silver Pines - the v65536 update (1.0.1) plays, verified on the
+  Xiaomi 23117RK66C (Android 16).
+
+#### Changed games
+
+- Every pack in the package rebuilds against the 0.4.0 host, and many
+  games carry a frame-pacing preset now instead of a guess. A
+  re-import buys the engine fixes above for every game.
+- Unreal allocator patches arrived for OCTOPATH TRAVELER 0, Advance
+  Wars 1+2: Re-Boot Camp, DRAGON QUEST VII Reimagined, and FINAL
+  FANTASY RESONANCE (both releases).
+- FINAL FANTASY RESONANCE (Asian release): the missing fires were a
+  translator bug, fixed with the 0.4.0 host. The profile asks for the
+  Turnip driver.
+
+### Community ports
+
+- **@zFitness** - the game cheats: import from the library or a zip (#32).
+- **@zFitness** - Silver Pines (the v65536 update, 1.0.1) plays on Android (#40).
+- **@zFitness** - the FAQ says what kills a build, and the builds page reads the game file again (#41).
+- **@zFitness** - every log has one home (#43).
+- **@zFitness** - upstream 0.4.0 (75 commits) merged into the product line (#47).
+- **@zFitness** - the on-screen gamepad yields player 1 to a controller, and the ctl file drives player 2 (#48).
+- **@zFitness** - the library keeps the run button (#49).
+
 ## v0.3.0-alpha16 - 2026-11-18
 
 ### The app (the APK)
