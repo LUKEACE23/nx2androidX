@@ -34,7 +34,6 @@
     <string name="common_cancelled">已取消</string>
     <string name="common_failed">失败</string>
     <string name="common_done">已完成</string>
-    <string name="common_complete">完成</string>
     <string name="common_porting">移植中</string>
     <string name="common_not_ported">未移植</string>
     <string name="common_interrupted">被中断</string>
@@ -404,13 +403,9 @@
     <string name="builds_log_empty">这次构建还没有输出可分享。</string>
     <string name="builds_log_waiting">正在等待本次构建输出。</string>
     <string name="builds_log_share">分享日志</string>
-    <string name="builds_artifact">产物</string>
     <string name="builds_artifact_path">产物：%1$s</string>
     <string name="builds_run_action">▶ 运行</string>
     <string name="builds_result">结果</string>
-    <string name="builds_prev_failed">上次移植失败——原因在下面的日志里，改好参数可以重新开始</string>
-    <string name="builds_prev_cancelled">上次移植被取消——参数还在，可以重新开始</string>
-    <string name="builds_prev_interrupted">上次移植被系统中断——可以重新开始</string>
     <string name="builds_history">历史</string>
     <string name="builds_history_retention">保留最近 20 次已完成的构建。</string>
     <string name="builds_log_legacy">这是旧版记录，没有单独保存日志。</string>

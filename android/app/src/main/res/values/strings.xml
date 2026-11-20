@@ -35,7 +35,6 @@
     <string name="common_cancelled">Cancelled</string>
     <string name="common_failed">Failed</string>
     <string name="common_done">Done</string>
-    <string name="common_complete">Done</string>
     <string name="common_porting">Porting</string>
     <string name="common_not_ported">Not ported</string>
     <string name="common_interrupted">Interrupted</string>
@@ -405,13 +404,9 @@
     <string name="builds_log_empty">This build has no output to share yet.</string>
     <string name="builds_log_waiting">Waiting for this build to produce output.</string>
     <string name="builds_log_share">Share the log</string>
-    <string name="builds_artifact">Data pack</string>
     <string name="builds_artifact_path">Data pack: %1$s</string>
     <string name="builds_run_action">▶ Run</string>
     <string name="builds_result">Result</string>
-    <string name="builds_prev_failed">The last port failed - the reason is in the log below; fix the options and start again</string>
-    <string name="builds_prev_cancelled">The last port was cancelled - the options are still there; start again</string>
-    <string name="builds_prev_interrupted">The last port was interrupted by the system - you can start again</string>
     <string name="builds_history">History</string>
     <string name="builds_history_retention">The latest 20 completed builds are kept.</string>
     <string name="builds_log_legacy">This older build has no separate log.</string>

@@ -130,13 +130,18 @@ private fun BuildsScreen(lib: LibraryState, viewModel: BuildsViewModel, uiState:
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         when {
-            selected != null -> {
-                TaskDetail(lib, selected, viewModel, actions, onLog, active = selected.id == viewModel.port.buildId && running)
-                QuietButton(stringResource(R.string.common_back), { viewModel.closeBuild() })
-            }
+            selected != null -> TaskDetail(
+                lib, selected, viewModel, actions, onLog,
+                active = selected.id == viewModel.port.buildId && running,
+                onBack = { viewModel.closeBuild() },
+            )
             target != null && viewModel.preparing && !running ->
                 TargetCard(lib, uiState, viewModel, keys, envReady, target, actions, onRequest)
-            current != null -> TaskDetail(lib, current, viewModel, actions, onLog, active = running)
+            current != null -> TaskDetail(
+                lib, current, viewModel, actions, onLog,
+                active = running,
+                onBack = { viewModel.closeBuild() },
+            )
             running -> ProgressCard(uiState, actions)
             else -> {
                 Section(stringResource(R.string.builds_start_title)) {
@@ -179,7 +184,8 @@ private fun BuildsScreen(lib: LibraryState, viewModel: BuildsViewModel, uiState:
 
 @Composable
 private fun TaskDetail(lib: LibraryState, record: PortState.Record, viewModel: BuildsViewModel,
-                       actions: AppActions, onLog: (String) -> Unit, active: Boolean) {
+                       actions: AppActions, onLog: (String) -> Unit, active: Boolean,
+                       onBack: () -> Unit) {
     val lines = viewModel.logTail(record.id)
     // 取消移植要先问一句：这会掐掉正在跑的构建，误点了就没了
     var confirmCancel by remember { mutableStateOf(false) }
@@ -187,8 +193,14 @@ private fun TaskDetail(lib: LibraryState, record: PortState.Record, viewModel: B
     val secs = if (active) elapsedSecs(record.startedAt) else record.seconds
     Section(stringResource(R.string.builds_result)) {
         Text(File(record.game).name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Text(stringResource(R.string.builds_history_seconds, (secs / 60).toString(), (secs % 60).toString()))
-        PhaseChip(if (active) PortPhase.RUNNING else record.phase)
+        // 状态与用时在同一行：名字下面就是「什么结果、多久」
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PhaseChip(if (active) PortPhase.RUNNING else record.phase)
+            Text(
+                stringResource(R.string.builds_history_seconds, (secs / 60).toString(), (secs % 60).toString()),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         if (active) {
             // 阶段名与进度条要等移植器报出阶段才有；取消按钮不能等它——开局那一段也得能中止
             if (viewModel.port.stageName.isNotEmpty()) {
@@ -218,39 +230,37 @@ private fun TaskDetail(lib: LibraryState, record: PortState.Record, viewModel: B
                 Text(stringResource(R.string.builds_log_share))
             }
         }
-        if (!active && File(record.game).isFile()) {
-            QuietButton(stringResource(R.string.builds_build_again), {
-                viewModel.setTarget(File(record.game), record.config, savedConfigMissing = record.config == null)
-            })
-        }
-        if (!active && !File(record.game).isFile()) QuietButton(stringResource(R.string.builds_build_again), {
-            viewModel.setTarget(File(record.game), record.config, savedConfigMissing = record.config == null)
-        })
-        if (record.phase == PortPhase.DONE && record.out.isNotEmpty()) {
-            val currentPack = lib.portFromPack(File(record.out))
-            if (currentPack != null) QuietButton(stringResource(R.string.builds_run_action), {
-                actions.onRun(currentPack.pack, GameIdentity.labelFor(File(record.game), currentPack))
-            })
-            else Text(stringResource(R.string.lib_artifact_missing_state), style = MaterialTheme.typography.bodySmall,
-                color = NxPalette.Danger)
-        }
+        // 这里不放「运行」：产物可能已经被删了，跑之前得重新判断。游戏库那边才是跑游戏的地方
         if (record.phase != PortPhase.DONE && lib.portOf(File(record.game)) != null)
             Hint(stringResource(R.string.builds_old_pack_still_usable))
+        // 底部一行：再次构建与返回并排，一样宽。还在跑的时候没有返回——这一页只剩这一件事
+        if (!active) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            QuietButton(stringResource(R.string.builds_build_again), {
+                viewModel.setTarget(File(record.game), record.config, savedConfigMissing = record.config == null)
+            }, modifier = Modifier.weight(1f))
+            QuietButton(stringResource(R.string.common_back), onBack, modifier = Modifier.weight(1f))
+        }
     }
-    if (confirmCancel) {
-        AlertDialog(
-            onDismissRequest = { confirmCancel = false },
-            title = { Text(stringResource(R.string.builds_cancel_confirm_title)) },
-            text = { Text(stringResource(R.string.builds_cancel_confirm_text)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmCancel = false
-                    actions.onCancelPort()
-                }) { Text(stringResource(R.string.builds_cancel_port), color = NxPalette.Danger) }
-            },
-            dismissButton = { TextButton(onClick = { confirmCancel = false }) { Text(stringResource(R.string.common_cancel)) } },
-        )
-    }
+    if (confirmCancel) CancelConfirmDialog(onCancel = actions.onCancelPort, onDismiss = { confirmCancel = false })
+}
+
+/**
+ * 取消移植的确认框：结果卡与进度卡上是同一个动作，就用同一个问法。
+ * The confirmation for cancelling a port: the result card and the progress card ask the same way.
+ */
+@Composable
+private fun CancelConfirmDialog(onCancel: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.builds_cancel_confirm_title)) },
+        text = { Text(stringResource(R.string.builds_cancel_confirm_text)) },
+        confirmButton = {
+            TextButton(onClick = { onDismiss(); onCancel() }) {
+                Text(stringResource(R.string.builds_cancel_port), color = NxPalette.Danger)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }
 
 // ---- 目标卡（未运行时）：游戏与参数，开始按钮 ------------------------------------------------------------------
@@ -515,6 +525,8 @@ internal fun shortPath(path: String): String {
 @Composable
 private fun ProgressCard(port: BuildsUiState, actions: AppActions) {
     val secs = elapsedSecs(port.startedAt)
+    // 取消也要问一句：这一下就把正在跑的构建掐掉了
+    var confirmCancel by remember { mutableStateOf(false) }
     Section(stringResource(R.string.builds_port_action)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             PhaseChip(port.phase)
@@ -545,9 +557,10 @@ private fun ProgressCard(port: BuildsUiState, actions: AppActions) {
             }
         }
         if (port.phase == PortPhase.RUNNING) {
-            QuietButton(stringResource(R.string.builds_cancel_port), { actions.onCancelPort() }, modifier = Modifier.fillMaxWidth())
+            QuietButton(stringResource(R.string.builds_cancel_port), { confirmCancel = true }, modifier = Modifier.fillMaxWidth())
         }
     }
+    if (confirmCancel) CancelConfirmDialog(onCancel = actions.onCancelPort, onDismiss = { confirmCancel = false })
 }
 
 /** The log's last lines (mono, the failures red) */
@@ -584,58 +597,42 @@ fun LogTail(log: List<String>, height: Dp = 160.dp, lines: Int = 30) {
     }
 }
 
-// ---- 产物卡（已完成）/ 结果 -------------------------------------------------------------------------------------
-
-@Composable
-private fun OutcomeCard(lib: LibraryState, port: BuildsUiState, f: File, actions: AppActions) {
-    val locale = LocalAppLocale.current
-    val status = lib.statusOf(f)
-    when (status) {
-        GameStatus.DONE -> {
-            val ported = lib.portOf(f) ?: return
-            Section(locale.str(R.string.builds_artifact)) {
-                Hint(locale.str(R.string.builds_artifact_path, ported.pack.absolutePath), size = 11.sp)
-                CapsuleButton(locale.str(R.string.builds_run_action), { actions.onRun(ported.pack, GameIdentity.labelFor(f, ported)) }, modifier = Modifier.fillMaxWidth())
-            }
-        }
-        else -> {
-            val last = port.history.firstOrNull { it.game == f.absolutePath }
-            if (last != null && last.phase != PortPhase.DONE) {
-                Section(locale.str(R.string.builds_result)) {
-                    Text(
-                        when (last.phase) {
-                            PortPhase.FAILED -> locale.str(R.string.builds_prev_failed)
-                            PortPhase.CANCELLED -> locale.str(R.string.builds_prev_cancelled)
-                            PortPhase.INTERRUPTED -> locale.str(R.string.builds_prev_interrupted)
-                            else -> return@Section
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = NxPalette.Building,
-                    )
-                }
-            }
-        }
-    }
-}
-
 /** One color per outcome, the same the library's cards and the settings wear */
 @Composable
 fun PhaseChip(p: PortPhase) {
-    val (label, color) = when (p) {
-        PortPhase.RUNNING -> stringResource(R.string.common_porting) to NxPalette.Building
-        PortPhase.DONE -> stringResource(R.string.common_done) to NxPalette.Ready
-        PortPhase.FAILED -> stringResource(R.string.common_failed) to NxPalette.Danger
-        PortPhase.CANCELLED -> stringResource(R.string.common_cancelled) to NxPalette.Unbuilt
-        PortPhase.INTERRUPTED -> stringResource(R.string.common_interrupted) to NxPalette.Danger
-        PortPhase.IDLE -> stringResource(R.string.common_idle) to NxPalette.Unbuilt
-    }
+    val color = phaseColor(p)
     Surface(shape = RoundedCornerShape(50), color = color.copy(alpha = 0.18f)) {
         Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             StatusDot(color, 8.dp)
-            Text(label, fontSize = 12.sp, color = color, fontWeight = FontWeight.Bold)
+            Text(phaseLabel(p), fontSize = 12.sp, color = color, fontWeight = FontWeight.Bold)
         }
     }
+}
+
+/**
+ * 一种结局一个颜色，一个词。状态卡与历史行共用这一套，写两次就会写歪。
+ * One color and one word per outcome: the status card and the history rows share this map.
+ *
+ * 失败是红（构建本身没成），中断是橙（进程被杀，不是构建的错），取消是灰（玩家自己叫停的）。
+ * Failed is red, interrupted is orange (the process died, not the build), cancelled is grey (the player stopped it).
+ */
+private fun phaseColor(p: PortPhase) = when (p) {
+    PortPhase.RUNNING -> NxPalette.Building
+    PortPhase.DONE -> NxPalette.Ready
+    PortPhase.FAILED -> NxPalette.Danger
+    PortPhase.INTERRUPTED -> NxPalette.Brand
+    PortPhase.CANCELLED, PortPhase.IDLE -> NxPalette.Unbuilt
+}
+
+@Composable
+private fun phaseLabel(p: PortPhase) = when (p) {
+    PortPhase.RUNNING -> stringResource(R.string.common_porting)
+    PortPhase.DONE -> stringResource(R.string.common_done)
+    PortPhase.FAILED -> stringResource(R.string.common_failed)
+    PortPhase.CANCELLED -> stringResource(R.string.common_cancelled)
+    PortPhase.INTERRUPTED -> stringResource(R.string.common_interrupted)
+    PortPhase.IDLE -> stringResource(R.string.common_idle)
 }
 
 private fun statusColor(s: GameStatus) = when (s) {
@@ -704,13 +701,22 @@ private fun History(port: BuildsUiState, viewModel: BuildsViewModel) {
         for (r in port.history) {
             Column(Modifier.fillMaxWidth().clickable { viewModel.openBuild(r.id) }.padding(vertical = 8.dp)) {
                 Text(File(r.game).name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, fontWeight = FontWeight.Bold)
-                Hint(stringResource(R.string.builds_history_seconds, r.seconds / 60, r.seconds % 60) + " · " + when (r.phase) {
-                    PortPhase.DONE -> stringResource(R.string.common_complete)
-                    PortPhase.FAILED -> stringResource(R.string.common_failed)
-                    PortPhase.CANCELLED -> stringResource(R.string.common_cancelled)
-                    PortPhase.INTERRUPTED -> stringResource(R.string.common_interrupted)
-                    else -> ""
-                })
+                // 用时与状态：状态带着自己的颜色，一眼扫过去就知道哪次成了
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        stringResource(R.string.builds_history_seconds, r.seconds / 60, r.seconds % 60),
+                        style = MaterialTheme.typography.bodySmall, fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text("·", style = MaterialTheme.typography.bodySmall, fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    StatusDot(phaseColor(r.phase), 6.dp)
+                    Text(
+                        phaseLabel(r.phase),
+                        style = MaterialTheme.typography.bodySmall, fontSize = 11.sp, fontWeight = FontWeight.Medium,
+                        color = phaseColor(r.phase),
+                    )
+                }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         }
