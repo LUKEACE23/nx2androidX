@@ -8,8 +8,6 @@ package com.nx.android.input
  * ```
  * v1
  * dev 3 labels=1 dz=0.15 tr=0.55 player=1
- * bind scan:305 a
- * unbind scan:314
  * ```
  *
  * 设备是 Android 的 input device id：宿主按事件的 device 查同一张表，所以同型号的两只手柄各查各的。
@@ -23,7 +21,6 @@ object PadSpec {
         val labels: Boolean,
         val player: Int = 0,
         val calibration: PadCalibration = PadCalibration(),
-        val bindings: Map<String, String> = emptyMap(),
         val zTrig: Boolean = false,   // 它的扳机在 Z/RZ（单向）：宿主从这两根轴取 ZL/ZR
         val rxStick: Boolean = false, // 它的右摇杆在 RX/RY：宿主的右摇杆改吃这两根轴
     )
@@ -40,14 +37,6 @@ object PadSpec {
             if (device.zTrig) out.append(" ztrig=1")
             if (device.rxStick) out.append(" rxstick=1")
             out.append('\n')
-            for ((source, target) in device.bindings.toSortedMap()) {
-                if (!PadSources.isKnown(source)) continue
-                if (target == PadSources.DISABLED) {
-                    out.append("unbind ").append(source).append('\n')
-                } else if (PadTargets.isValid(target)) {
-                    out.append("bind ").append(source).append(' ').append(target).append('\n')
-                }
-            }
         }
         return out.toString()
     }

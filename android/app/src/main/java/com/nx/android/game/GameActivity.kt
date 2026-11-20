@@ -298,7 +298,6 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                 labels = profile?.labels ?: false,
                 player = assignment.playerOf(info.profileKey),
                 calibration = profile?.calibration ?: PadCalibration(),
-                bindings = profile?.bindings ?: emptyMap(),
                 zTrig = info.roles.zTrig,
                 rxStick = info.roles.rxStick,
             )

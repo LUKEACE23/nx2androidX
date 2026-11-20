@@ -7,8 +7,8 @@ import java.io.File
 /**
  * 手柄的档案：每只手柄一份，存在 App 自己的目录里（按档案键分）。
  *
- * 档案里是玩家对这只**手柄**做的事：绑了哪个键、禁用了哪个键、死区多大、扳机阈值多少、
- * 面键按位置还是按标签。**不属于游戏**：换一个游戏还是这一份。
+ * 档案里是玩家对这只**手柄**做的事：面键按位置还是按印字、死区多大、扳机阈值多少。
+ * **不属于游戏**：换一个游戏还是这一份。
  *
  * 坏了怎么办：整份读不出来就当没有（回到出厂映射），坏文件挪到一边备查 —— 手柄中心照常能打开。
  */
@@ -19,10 +19,8 @@ class PadProfileStore(private val file: File) {
         val key: String,
         val name: String = "",
         val persistent: Boolean = true,
-        /** 弃用：面键按位置还是按标签的老开关。现在面键的语义由逐键绑定表达，这个恒为 false；
-         *  老档案里存过的值照读不误（读出来也不作数），留着是为了不把老档案判成坏的。 */
+        /** 面键按位置（false，NS 的四个位置）还是按印字（true，手柄上印的 A/B/X/Y）。 */
         val labels: Boolean = false,
-        val bindings: Map<String, String> = emptyMap(),   // 来源 → 游戏键（PadSources.DISABLED 是禁用）
         val calibration: PadCalibration = PadCalibration(),
     )
 
@@ -71,18 +69,10 @@ class PadProfileStore(private val file: File) {
     fun encode(profiles: Map<String, Profile>): String {
         val pads = JSONObject()
         profiles.toSortedMap().forEach { (key, profile) ->
-            val bindings = JSONObject()
-            val disabled = JSONArray()
-            profile.bindings.toSortedMap().forEach { (source, target) ->
-                if (!PadSources.isKnown(source)) return@forEach
-                if (target == PadSources.DISABLED) disabled.put(source) else if (PadTargets.isValid(target)) bindings.put(source, target)
-            }
             val entry = JSONObject()
                 .put("name", profile.name)
                 .put("persistent", profile.persistent)
                 .put("labels", profile.labels)
-                .put("bindings", bindings)
-                .put("disabled", disabled)
             if (profile.calibration.configured) {
                 entry.put("calibration", JSONObject()
                     .put("deadzone", profile.calibration.deadzone.toDouble())
@@ -104,17 +94,6 @@ class PadProfileStore(private val file: File) {
         val out = linkedMapOf<String, Profile>()
         for (key in pads.keys()) {
             val entry = pads.optJSONObject(key) ?: continue
-            val bindings = linkedMapOf<String, String>()
-            val encoded = entry.optJSONObject("bindings") ?: JSONObject()
-            for (source in encoded.keys()) {
-                val target = encoded.optString(source)
-                if (PadSources.isKnown(source) && PadTargets.isValid(target)) bindings[source] = target
-            }
-            val disabled = entry.optJSONArray("disabled") ?: JSONArray()
-            for (index in 0 until disabled.length()) {
-                val source = disabled.optString(index)
-                if (PadSources.isKnown(source)) bindings[source] = PadSources.DISABLED
-            }
             val calibration = entry.optJSONObject("calibration")?.let {
                 PadCalibration(
                     deadzone = it.optDouble("deadzone", PadCalibration.DEFAULT_DEADZONE.toDouble()).toFloat(),
@@ -126,7 +105,6 @@ class PadProfileStore(private val file: File) {
                 name = entry.optString("name", ""),
                 persistent = entry.optBoolean("persistent", true),
                 labels = entry.optBoolean("labels", false),
-                bindings = bindings,
                 calibration = calibration,
             )
         }

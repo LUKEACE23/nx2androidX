@@ -17,25 +17,23 @@ class PadSpecTest {
                 labels = true,
                 player = 1,
                 calibration = PadCalibration(deadzone = 0.15f, trigger = 0.55f),
-                bindings = mapOf(PadSources.scan(305) to "a", PadSources.scan(314) to PadSources.DISABLED),
             ),
             PadSpec.Device(deviceId = 7, labels = false),
         ))
         val lines = text.trim().lines()
         assertEquals("v1", lines[0])
         assertEquals("dev 3 labels=1 player=1 dz=0.15 tr=0.55", lines[1])
-        assertTrue(lines.contains("bind scan:305 a"))
-        assertTrue(lines.contains("unbind scan:314"))
         assertTrue(lines.contains("dev 7 labels=0 player=0 dz=0.12 tr=0.5"))
     }
 
     @Test
-    fun `junk never reaches the host`() {
+    fun `the table carries only the layout, the player and the calibration`() {
         val text = PadSpec.build(listOf(
-            PadSpec.Device(deviceId = 1, labels = false, bindings = mapOf("nonsense" to "a", PadSources.scan(305) to "nosuchbutton")),
+            PadSpec.Device(deviceId = 1, labels = false),
         ))
-        assertTrue(!text.contains("nonsense"))
-        assertTrue(!text.contains("nosuchbutton"))
+        assertTrue(!text.contains("bind"))
+        assertTrue(!text.contains("unbind"))
+        assertEquals("dev 1 labels=0 player=0 dz=0.12 tr=0.5", text.trim().lines()[1])
     }
 
     @Test

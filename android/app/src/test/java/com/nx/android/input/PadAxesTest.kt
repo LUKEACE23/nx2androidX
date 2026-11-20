@@ -99,19 +99,4 @@ class PadAxesTest {
         assertFalse(roles.zTrig)
         assertTrue(roles.rxStick)
     }
-
-    @Test
-    fun `a trigger-like z rz is bindable a stick-like one is not`() {
-        // 单向的 Z/RZ 是抓键的自救出口；双向的是右摇杆，抓键处不会把它喂进来
-        assertTrue(PadSources.bindableRange(11, 0f))
-        assertTrue(PadSources.bindableRange(14, 0f))
-        assertFalse(PadSources.bindableRange(11, -1f))
-        assertFalse(PadSources.bindableRange(14, -1f))
-        // 其余可绑的轴不看量程
-        assertTrue(PadSources.bindableRange(17, 0f))
-        assertTrue(PadSources.bindableRange(16, -1f))
-        // 抓来的 Z/RZ 绑定要能过推表的闸门（isKnown），不然存了也推不出去
-        assertTrue(PadSources.isKnown(PadSources.axis(11, 1f)))
-        assertTrue(PadSources.isKnown(PadSources.axis(14, -1f)))
-    }
 }

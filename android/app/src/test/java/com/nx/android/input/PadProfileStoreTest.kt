@@ -25,7 +25,6 @@ class PadProfileStoreTest {
                     key = "device:abc",
                     name = "Xbox Controller",
                     labels = true,
-                    bindings = mapOf(PadSources.scan(305) to "a", PadSources.scan(314) to PadSources.DISABLED),
                     calibration = PadCalibration(deadzone = 0.2f, trigger = 0.6f),
                 ),
             )
@@ -35,8 +34,6 @@ class PadProfileStoreTest {
             assertNotNull(profile)
             assertEquals("Xbox Controller", profile!!.name)
             assertTrue(profile.labels)
-            assertEquals("a", profile.bindings[PadSources.scan(305)])
-            assertEquals(PadSources.DISABLED, profile.bindings[PadSources.scan(314)])
             assertEquals(0.2f, profile.calibration.deadzone, 0.0001f)
             assertEquals(0.6f, profile.calibration.trigger, 0.0001f)
         } finally {
@@ -75,20 +72,18 @@ class PadProfileStoreTest {
     }
 
     @Test
-    fun `junk in a profile is dropped`() {
+    fun `an old profile with bindings still reads`() {
         val dir = Files.createTempDirectory("nx2a-pad").toFile()
         try {
             val store = store(dir)
+            // 老档案里存过逐键绑定（现在没有逐键改键了）：读得出来，绑定不作数
             val raw = """{"schemaVersion":1,"pads":{"device:x":{"labels":true,
-                "bindings":{"scan:305":"a","nonsense":"a","scan:999":"nosuchbutton"},
-                "disabled":["scan:314","rubbish"]}}}"""
+                "bindings":{"scan:305":"a","nonsense":"a"},
+                "disabled":["scan:314"]}}}"""
             val profiles = store.decode(raw)
-            val bindings = profiles["device:x"]!!.bindings
-            assertEquals("a", bindings["scan:305"])
-            assertFalse(bindings.containsKey("nonsense"))
-            assertFalse(bindings.containsKey("scan:999"))
-            assertEquals(PadSources.DISABLED, bindings["scan:314"])
-            assertFalse(bindings.containsKey("rubbish"))
+            val profile = profiles["device:x"]!!
+            assertTrue(profile.labels)
+            assertEquals("", profile.name)   // 档案里没写名字就是空的
         } finally {
             dir.deleteRecursively()
         }

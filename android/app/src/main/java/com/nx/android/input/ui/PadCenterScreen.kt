@@ -27,9 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.Icon
@@ -92,7 +90,6 @@ fun PadCenterScreen(
     val devices by GamepadScan.devices.collectAsState()
     val vibrate: (GamepadScan.Info) -> Unit = onVibrate ?: { info -> vibratePad(context, info) }
     val states by PadTestInput.states.collectAsState()
-    var mappingOpen by remember { mutableStateOf(false) }
 
     // 面板开着的时候才看手柄的输入；关掉就放手
     DisposableEffect(Unit) {
@@ -102,11 +99,8 @@ fun PadCenterScreen(
     // 面板开着的时候重扫一遍：列表可能落后于系统（手柄刚重连，设备 id 变了）
     LaunchedEffect(Unit) { GamepadScan.refreshNow(context) }
     LaunchedEffect(devices) { controller.devicesChanged(devices) }
-    LaunchedEffect(mappingOpen) { if (!mappingOpen) controller.cancelCapture() }
 
-    BackHandler(enabled = true) {
-        if (mappingOpen) mappingOpen = false else onClose()
-    }
+    BackHandler(enabled = true) { onClose() }
 
     val selected = devices.firstOrNull { it.id == controller.selectedId }
         ?: devices.firstOrNull()
@@ -124,50 +118,38 @@ fun PadCenterScreen(
                 .align(Alignment.Center),
         ) {
             Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { if (mappingOpen) mappingOpen = false else onClose() }) {
+                IconButton(onClick = { onClose() }) {
                     Icon(
-                        if (mappingOpen) Icons.AutoMirrored.Filled.ArrowBack else Icons.Filled.Close,
+                        Icons.Filled.Close,
                         stringResource(R.string.common_close),
                         tint = Color.White,
                     )
                 }
                 Text(
-                    if (mappingOpen) stringResource(R.string.pad_center_mapping)
-                    else stringResource(R.string.pad_center_physical),
+                    stringResource(R.string.pad_center_physical),
                     style = MaterialTheme.typography.titleLarge,
-                    color = if (mappingOpen) Color.White else NxPalette.Brand,
+                    color = NxPalette.Brand,
                     modifier = Modifier.weight(1f),
                 )
             }
 
-            if (mappingOpen) {
-                Column(
-                    Modifier.weight(1f).fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(top = 8.dp),
-                ) {
-                    PadMappingPanel(controller = controller, deviceId = selected?.id)
-                }
-            } else {
-                if (controller.recovered) {
-                    Text(
-                        stringResource(R.string.pad_center_recovered),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = NxPalette.Building,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
-                    )
-                }
-                PhysicalControllerPage(
-                    controller = controller,
-                    devices = devices,
-                    selected = selected,
-                    state = selected?.let { states[it.id] },
-                    compact = compact,
-                    assignment = assignment,
-                    onOpenMapping = { mappingOpen = true },
-                    onVibrate = vibrate,
+            if (controller.recovered) {
+                Text(
+                    stringResource(R.string.pad_center_recovered),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NxPalette.Building,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
                 )
             }
+            PhysicalControllerPage(
+                controller = controller,
+                devices = devices,
+                selected = selected,
+                state = selected?.let { states[it.id] },
+                compact = compact,
+                assignment = assignment,
+                onVibrate = vibrate,
+            )
         }
     }
 }
@@ -181,7 +163,6 @@ private fun ColumnScope.PhysicalControllerPage(
     state: PadTestState?,
     compact: Boolean,
     assignment: PadAssignment,
-    onOpenMapping: () -> Unit,
     onVibrate: (GamepadScan.Info) -> Unit,
 ) {
     val context = LocalContext.current
@@ -277,19 +258,6 @@ private fun ColumnScope.PhysicalControllerPage(
                 }
             }
             Spacer(Modifier.height(10.dp))
-            OutlinedButton(
-                onClick = onOpenMapping,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(6.dp),
-            ) {
-                Icon(Icons.Filled.Edit, null, Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    stringResource(R.string.pad_center_mapping),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
         Spacer(Modifier.width(1.dp).fillMaxHeight().background(NxPalette.Surface))
         // 右：此刻的样子
@@ -327,6 +295,13 @@ private fun ColumnScope.PhysicalControllerPage(
                     stringResource(R.string.pad_center_test_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = NxPalette.Unbuilt,
+                )
+            }
+            if (selected != null) {
+                Spacer(Modifier.height(16.dp))
+                LayoutChoice(
+                    byLabel = controller.profile(selected).labels,
+                    onChange = { byLabel -> controller.setLayout(selected, byLabel) },
                 )
             }
             Spacer(Modifier.height(24.dp))
@@ -385,6 +360,47 @@ private fun ColumnScope.PhysicalControllerPage(
                 }
             }
         }
+    }
+}
+
+/**
+ * 面键怎么认：按位置（NS 的四个位置：上 X、左 Y、右 A、下 B）还是按印字（手柄上印的 A/B/X/Y）。
+ *
+ * 与上游是同一个模型（那边是 `labels` 一个位，环境变量 `DM_PAD_LABEL` 是默认值），这里逐手柄存。
+ * 选完示波面板立刻按新布局显示：玩家按一按就知道对不对。
+ */
+@Composable
+private fun LayoutChoice(byLabel: Boolean, onChange: (Boolean) -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(
+            stringResource(R.string.pad_layout_title),
+            style = MaterialTheme.typography.labelLarge,
+            color = Color(0xFFA9A9B2),
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LayoutOption(stringResource(R.string.pad_layout_position), !byLabel) { onChange(false) }
+            LayoutOption(stringResource(R.string.pad_layout_label), byLabel) { onChange(true) }
+        }
+    }
+}
+
+/** 布局的一个选项（选中的那个亮着）。 */
+@Composable
+private fun LayoutOption(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.clip(RoundedCornerShape(6.dp))
+            .background(if (selected) NxPalette.Brand.copy(alpha = 0.18f) else NxPalette.Surface)
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (selected) NxPalette.Brand else Color(0xFFA9A9B2),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

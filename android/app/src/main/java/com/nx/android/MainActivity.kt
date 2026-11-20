@@ -66,7 +66,6 @@ import com.nx.android.input.GamepadScan
 import com.nx.android.input.PadCalibration
 import com.nx.android.input.PadTestInput
 import com.nx.android.input.ui.PadCenterController
-import com.nx.android.input.ui.capturableAxes
 import com.nx.android.core.ui.nav.NavEdge
 import com.nx.android.core.ui.nav.NavKey
 import com.nx.android.core.ui.nav.NavKeys
@@ -470,22 +469,17 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * 手柄中心开着：手柄的键只进示波与抓键，不进库页（库页的按钮不该被手柄按到）。
+     * 手柄中心开着：手柄的键只进示波，不进库页（库页的按钮不该被手柄按到）。
      * Back 不在这里管：面板自己收（Compose 的 BackHandler）。
      */
     override fun dispatchKeyEvent(e: KeyEvent): Boolean {
-        // 手柄中心开着：手柄设备的键只进示波与抓键，不进库页。
+        // 手柄中心开着：手柄设备的键只进示波，不进库页。
         // 判据是「这个事件来自手柄设备」，不是「keyCode 是不是手柄键」：有的 ROM 会把
         // 手柄的 B 键再发一个 BACK（小米就是这样），漏下去就把中心关了。
         // 导航条与手势的 Back 不是手柄设备：它们照旧走（BackHandler 关中心）。
         if (padCenterOpen && isGamepad(e.deviceId)) {
             if (GamepadScan.devices.value.none { it.id == e.deviceId }) GamepadScan.refreshNow(this)
             PadTestInput.onKey(e) { deviceId, scan, key -> padController.resolveTarget(deviceId, scan, key) }
-            padController.offerKey(
-                e.deviceId, true,
-                e.action == KeyEvent.ACTION_DOWN, e.action == KeyEvent.ACTION_UP, e.repeatCount,
-                e.scanCode, e.keyCode,
-            )
             return true
         }
         // 手柄的键 → 界面导航：库页因此能用手柄选游戏、打开与关掉配置面板。
@@ -499,13 +493,12 @@ class MainActivity : ComponentActivity() {
         return super.dispatchKeyEvent(e)
     }
 
-    /** 摇杆与扳机：中心开着的时候只进示波与抓键；中心关着的时候摇杆当方向键。 */
+    /** 摇杆与扳机：中心开着的时候只进示波；中心关着的时候摇杆当方向键。 */
     override fun onGenericMotionEvent(e: MotionEvent): Boolean {
         if (padCenterOpen) {
             val info = GamepadScan.devices.value.firstOrNull { it.id == e.deviceId }
             val deadzone = info?.let { padController.deadzoneOf(it) } ?: PadCalibration.DEFAULT_DEADZONE
             PadTestInput.onMotion(e, deadzone)
-            padController.offerAxis(e.deviceId, isGamepad(e.deviceId), capturableAxes(e))
             return true
         }
         // 摇杆当方向键：十字键帽优先，左摇杆兜底。边沿触发——推到底发一次，回中才能再走一步，

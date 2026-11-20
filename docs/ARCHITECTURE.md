@@ -371,6 +371,13 @@ touched. The key events carry the scan code now (`dm_java_event`'s `key_scan`, f
 is what makes a binding survive a change of phone. The calibration is per controller too: the dead zone is applied
 when the axis event comes in, the trigger's threshold when the button is derived from it.
 
+The face buttons are recognised by **one choice per controller**: by position (the Switch's four
+places: X on top, Y on the left, A on the right, B at the bottom) or by label (the A/B/X/Y the
+controller prints). It is the same model upstream uses (a `labels` bit, with `DM_PAD_LABEL` as the
+default), stored per controller in its profile; the scope in the gamepad center shows what the game
+actually receives, so the player can check it by pressing. There is no per-key remapping: the
+controller's own print and the four positions are what a player has to live with.
+
 The pushed table also carries the controller's **axis roles** (`ztrig=1`, `rxstick=1` in the `dev` line): where its
 triggers and its right stick live. Not every family agrees — the NS and the old Android convention put the right
 stick on Z/RZ and the triggers on LTRIGGER/RTRIGGER, while the Xbox family (the USB `xpad`, the Bluetooth XInput
