@@ -11,6 +11,7 @@
 import json
 import subprocess
 import sys
+from datetime import datetime, timezone
 
 REPO = "zFitness/nx2androidX"
 
@@ -30,8 +31,13 @@ def last_tag():
 
 
 def tag_date(tag):
-    """The commit date of a tag: the cutoff for the merged pull requests."""
-    return sh("git", "log", "-1", "--format=%cI", tag).strip()
+    """The commit date of a tag: the cutoff for the merged pull requests.
+
+    In UTC, like GitHub's mergedAt: the commit's own date carries its timezone
+    offset ("+08:00"), and comparing that string with GitHub's ("Z") puts a
+    merge of the same day on the wrong side of the cutoff."""
+    d = datetime.fromisoformat(sh("git", "log", "-1", "--format=%cI", tag).strip())
+    return d.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
 
 
 def merged_pulls(since):
