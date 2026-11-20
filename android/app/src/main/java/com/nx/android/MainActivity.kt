@@ -99,6 +99,13 @@ class MainActivity : ComponentActivity() {
 
         /** 十字键帽推到底才算方向（帽子只有 -1/0/1，门槛比摇杆低）。 */
         const val HAT_THRESHOLD = 0.5f
+
+        /** SIGKILL：App 收尾时自己杀的游戏进程（正常结束，不是闪退）。 */
+        private const val SIGNALED_KILL = 9
+        /** SIGTERM：礼貌终止请求（宿主自己优雅退出成 0，不是闪退）。 */
+        private const val SIGNALED_TERM = 15
+        /** 宿主给游戏自己的致命 Break 留的退出码（hle_svc.c）：屏幕上有报错，玩家需要知道。 */
+        private const val EXIT_GAME_FATAL = 42
     }
 
     @Inject lateinit var locale: AppLocale
@@ -430,8 +437,7 @@ class MainActivity : ComponentActivity() {
                 val crashed = runCatching {
                     manager.getHistoricalProcessExitReasons(packageName, 0, 16).any {
                         it.processName.endsWith(Player.PROCESS_SUFFIX) && it.timestamp >= started &&
-                            (it.reason == ApplicationExitInfo.REASON_CRASH ||
-                             it.reason == ApplicationExitInfo.REASON_CRASH_NATIVE)
+                            isCrash(it.reason, it.status)
                     }
                 }.getOrDefault(false)
                 if (crashed) {
@@ -441,6 +447,26 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * 这是不是一次闪退：Android 记的那条退出理由说了算。
+     *
+     * 宿主自己接住信号后走 _exit(128+sig)（dm/host/crash.c），系统只看到「自己退出」——退出码 >= 128
+     * 同样是闪退（真机上抓到的就是这种：EXIT_SELF + 139 = 128+SIGSEGV）。
+     * 游戏自己撞上 SDK 的致命 Break 时宿主退的是 42（hle_svc.c）：那是游戏自己的报错，屏幕上本该有
+     * 提示——这里把它算成闪退，好让玩家看到「重新构建 / 重新移植 / 反馈」那三条路。
+     *
+     * 不算闪退的：App 自己收尾时杀的那次是 SIGKILL（9）；SIGTERM（15）是礼貌终止（宿主装了自己的
+     * 优雅退出，出来的是 EXIT_SELF 0），排除它只兜住那扇门还没装好的窗口期；系统内存不够杀的那次
+     * 记的是 REASON_LOW_MEMORY，根本走不到这里。后台被杀（LOW_MEMORY）与卡死被 ANR 杀同样不算：
+     * 「重新构建」救不了内存和挂死。
+     */
+    private fun isCrash(reason: Int, status: Int): Boolean = when (reason) {
+        ApplicationExitInfo.REASON_CRASH, ApplicationExitInfo.REASON_CRASH_NATIVE -> true
+        ApplicationExitInfo.REASON_EXIT_SELF -> status >= 128 || status == EXIT_GAME_FATAL
+        ApplicationExitInfo.REASON_SIGNALED -> status != SIGNALED_KILL && status != SIGNALED_TERM
+        else -> false
     }
 
     /**
