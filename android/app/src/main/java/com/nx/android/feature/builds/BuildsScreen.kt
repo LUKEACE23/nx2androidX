@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -180,16 +181,21 @@ private fun BuildsScreen(lib: LibraryState, viewModel: BuildsViewModel, uiState:
 private fun TaskDetail(lib: LibraryState, record: PortState.Record, viewModel: BuildsViewModel,
                        actions: AppActions, onLog: (String) -> Unit, active: Boolean) {
     val lines = viewModel.logTail(record.id)
+    // 取消移植要先问一句：这会掐掉正在跑的构建，误点了就没了
+    var confirmCancel by remember { mutableStateOf(false) }
     // 进行中的这一轮：秒表从它的起点算（record.seconds 是结束时才写下的时长，进行中永远是 0）
     val secs = if (active) elapsedSecs(record.startedAt) else record.seconds
     Section(stringResource(R.string.builds_result)) {
         Text(File(record.game).name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Text(stringResource(R.string.builds_history_seconds, (secs / 60).toString(), (secs % 60).toString()))
         PhaseChip(if (active) PortPhase.RUNNING else record.phase)
-        if (active && viewModel.port.stageName.isNotEmpty()) {
-            Text(viewModel.port.stageName, style = MaterialTheme.typography.bodySmall)
-            LinearProgressIndicator(progress = { viewModel.port.progress }, modifier = Modifier.fillMaxWidth().height(6.dp))
-            QuietButton(stringResource(R.string.builds_cancel_port), actions.onCancelPort, modifier = Modifier.fillMaxWidth())
+        if (active) {
+            // 阶段名与进度条要等移植器报出阶段才有；取消按钮不能等它——开局那一段也得能中止
+            if (viewModel.port.stageName.isNotEmpty()) {
+                Text(viewModel.port.stageName, style = MaterialTheme.typography.bodySmall)
+                LinearProgressIndicator(progress = { viewModel.port.progress }, modifier = Modifier.fillMaxWidth().height(6.dp))
+            }
+            QuietButton(stringResource(R.string.builds_cancel_port), { confirmCancel = true }, modifier = Modifier.fillMaxWidth())
         }
         record.config?.let { config ->
             val options = listOfNotNull(
@@ -230,6 +236,20 @@ private fun TaskDetail(lib: LibraryState, record: PortState.Record, viewModel: B
         }
         if (record.phase != PortPhase.DONE && lib.portOf(File(record.game)) != null)
             Hint(stringResource(R.string.builds_old_pack_still_usable))
+    }
+    if (confirmCancel) {
+        AlertDialog(
+            onDismissRequest = { confirmCancel = false },
+            title = { Text(stringResource(R.string.builds_cancel_confirm_title)) },
+            text = { Text(stringResource(R.string.builds_cancel_confirm_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmCancel = false
+                    actions.onCancelPort()
+                }) { Text(stringResource(R.string.builds_cancel_port), color = NxPalette.Danger) }
+            },
+            dismissButton = { TextButton(onClick = { confirmCancel = false }) { Text(stringResource(R.string.common_cancel)) } },
+        )
     }
 }
 

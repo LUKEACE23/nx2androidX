@@ -394,6 +394,8 @@
     <string name="builds_port_action">Port</string>
     <string name="builds_minutes_seconds">%1$s min %2$s s</string>
     <string name="builds_cancel_port">Cancel the port</string>
+    <string name="builds_cancel_confirm_title">Cancel this port?</string>
+    <string name="builds_cancel_confirm_text">The port stops now. The stages already done are kept and reused next time; only the step in progress starts over.</string>
     <string name="builds_no_output">No output yet</string>
     <string name="builds_log_view">View all</string>
     <string name="builds_log_earlier">Earlier</string>

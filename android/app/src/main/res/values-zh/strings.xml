@@ -393,6 +393,8 @@
     <string name="builds_port_action">移植</string>
     <string name="builds_minutes_seconds">%1$s 分 %2$s 秒</string>
     <string name="builds_cancel_port">取消移植</string>
+    <string name="builds_cancel_confirm_title">确定取消移植？</string>
+    <string name="builds_cancel_confirm_text">正在进行的移植会立即中止；已完成的阶段会保留，下次构建接着用，只有当前这一步要重做。</string>
     <string name="builds_no_output">还没有输出</string>
     <string name="builds_log_view">查看全部</string>
     <string name="builds_log_earlier">更早的</string>
