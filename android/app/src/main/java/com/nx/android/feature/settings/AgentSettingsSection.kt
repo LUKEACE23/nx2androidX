@@ -1,4 +1,4 @@
-package com.nx.android.feature.agent
+package com.nx.android.feature.settings
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
@@ -33,32 +33,29 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nx.android.R
 import com.nx.android.core.ui.components.CapsuleButton
 import com.nx.android.core.ui.components.Hint
-import com.nx.android.core.ui.components.QuietButton
 import com.nx.android.core.ui.components.Section
 import com.nx.android.core.ui.theme.NxPalette
 import com.nx.android.domain.agent.AgentModelConfig
 import com.nx.android.domain.agent.AgentPresets
-
+import com.nx.android.feature.agent.AgentViewModel
 /**
- * The model's settings: the first-run guide when no key is set, and the same form behind the ⋯ menu later.
- * BYOK — the player's own key, one OpenAI-compatible endpoint of their choice; the key is a secret the data
- * layer keeps, so this form only ever forwards it, never shows it around.
+ * The assistant's settings section: the BYOK form (ADR-003) — the player's own key, one OpenAI-compatible
+ * endpoint of their choice. Lives here because it is global configuration; the assistant's surfaces (the
+ * panel, the full page) only send the player here when no key is set yet.
  */
 @Composable
-fun AgentSetupSheet(
-    config: AgentModelConfig,
-    cancelable: Boolean,
-    onSave: (providerId: String, baseUrl: String, apiKey: String, modelName: String) -> Unit,
-    onCancel: () -> Unit = {},
-) {
+fun AgentSettingsSection(viewModel: AgentViewModel) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+
     // the form follows the saved choice: after a save it re-reads what the data layer kept
-    var providerId by remember(config) { mutableStateOf(config.providerId.ifEmpty { AgentPresets.ALL.first().id }) }
-    var baseUrl by remember(config) { mutableStateOf(config.baseUrl) }
-    var modelName by remember(config) { mutableStateOf(config.modelName) }
-    var apiKey by remember(config) { mutableStateOf(config.apiKey) }
+    var providerId by remember(state.config) { mutableStateOf(state.config.providerId.ifEmpty { AgentPresets.ALL.first().id }) }
+    var baseUrl by remember(state.config) { mutableStateOf(state.config.baseUrl) }
+    var modelName by remember(state.config) { mutableStateOf(state.config.modelName) }
+    var apiKey by remember(state.config) { mutableStateOf(state.config.apiKey) }
     var keyVisible by remember { mutableStateOf(false) }
     val preset = AgentPresets.byId(providerId)
     val complete = baseUrl.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()
@@ -115,20 +112,15 @@ fun AgentSetupSheet(
                 }
             },
         )
-        // the provider's own words for where the key comes from (the preset carries them)
+        // the provider's own words for where the key comes from
         Hint(stringResource(providerHintRes(preset.id)), size = 11.sp)
 
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (cancelable) {
-                QuietButton(stringResource(R.string.common_cancel), onCancel, Modifier.weight(1f))
-            }
-            CapsuleButton(
-                stringResource(R.string.agent_setup_save),
-                { onSave(providerId, baseUrl.trim(), apiKey.trim(), modelName.trim()) },
-                Modifier.weight(1f),
-                enabled = complete,
-            )
-        }
+        CapsuleButton(
+            stringResource(R.string.agent_setup_save),
+            { viewModel.updateConfig(providerId, baseUrl.trim(), apiKey.trim(), modelName.trim()) },
+            Modifier.fillMaxWidth(),
+            enabled = complete,
+        )
     }
 }
 
@@ -165,7 +157,7 @@ private fun ProviderRow(providerId: String, selected: Boolean, onSelect: () -> U
 
 /**
  * The picker's words: the preset's id is the stable thing, the label is the UI's to say — in the app's own
- * language (the preset's `label` is the data layer's fallback, not the page's words).
+ * language.
  */
 @StringRes
 internal fun providerLabelRes(providerId: String): Int = when (providerId) {

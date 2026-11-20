@@ -44,6 +44,7 @@ import com.nx.android.R
 import com.nx.android.appstate.OnboardingState
 import com.nx.android.feature.storage.StorageViewModel
 import com.nx.android.feature.storage.StorageSection
+import com.nx.android.feature.agent.AgentViewModel
 import com.nx.android.feature.updates.UpdateViewModel
 import com.nx.android.data.AppLocale
 import com.nx.android.domain.drivers.Driver
@@ -101,12 +102,13 @@ enum class SettingsSection(@StringRes val title: Int) {
     STORAGE(R.string.set_section_storage),
     DRIVERS(R.string.driver_section),
     DISPLAY(R.string.set_section_display),
+    AGENT(R.string.set_section_agent),
     ABOUT(R.string.set_section_about),
 }
 
 @Composable
 fun SettingsScreen(ob: OnboardingState, drivers: List<Driver>, driverRepository: DriverRepository, update: UpdateViewModel,
-                   storageViewModel: StorageViewModel,
+                   storageViewModel: StorageViewModel, agentViewModel: AgentViewModel,
                    actions: AppActions, onRequest: (PickerRequest) -> Unit,
                    onDrivers: () -> Unit,
                    section: SettingsSection, onSelectSection: (SettingsSection) -> Unit,
@@ -155,6 +157,7 @@ fun SettingsScreen(ob: OnboardingState, drivers: List<Driver>, driverRepository:
                         SettingsSection.STORAGE -> StorageSection(storageViewModel)
                         SettingsSection.DRIVERS -> DriversSection(drivers, driverRepository, actions, onRequest, onDrivers)
                         SettingsSection.DISPLAY -> DisplaySection(actions, onRequest)
+                        SettingsSection.AGENT -> AgentSettingsSection(agentViewModel)
                         SettingsSection.ABOUT -> AboutSection(ob, update, actions)
                     }
                 }

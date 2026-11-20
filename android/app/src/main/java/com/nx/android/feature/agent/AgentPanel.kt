@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nx.android.R
+import com.nx.android.core.ui.components.CapsuleButton
 import com.nx.android.core.ui.components.Hint
 import com.nx.android.core.ui.theme.NxPalette
 
@@ -53,11 +54,11 @@ fun AgentPanel(
     viewModel: AgentViewModel,
     onCollapse: () -> Unit,
     onExpand: () -> Unit,
+    onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var setupOpen by remember { mutableStateOf(false) }
-    val showSetup = !state.configured || setupOpen
+    val showSetup = !state.configured
     val listState = rememberLazyListState()
 
     val last = state.messages.lastOrNull()
@@ -114,15 +115,13 @@ fun AgentPanel(
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                AgentSetupSheet(
-                    config = state.config,
-                    cancelable = state.configured,
-                    onSave = { providerId, baseUrl, apiKey, modelName ->
-                        viewModel.updateConfig(providerId, baseUrl, apiKey, modelName)
-                        setupOpen = false
-                    },
-                    onCancel = { setupOpen = false },
+                Hint(stringResource(R.string.agent_setup_prompt), size = 12.sp)
+                CapsuleButton(
+                    stringResource(R.string.agent_menu_settings),
+                    onOpenSettings,
+                    Modifier.fillMaxWidth(),
                 )
             }
         } else {

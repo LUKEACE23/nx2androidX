@@ -22,9 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -56,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nx.android.R
+import com.nx.android.core.ui.components.CapsuleButton
 import com.nx.android.core.ui.components.Hint
 import com.nx.android.core.ui.components.StatusDot
 import com.nx.android.core.ui.nav.NavKey
@@ -68,6 +67,8 @@ import com.nx.android.domain.agent.AgentModelConfig
 import com.nx.android.domain.agent.AgentRole
 import com.nx.android.domain.agent.AgentToolCard
 import com.nx.android.domain.agent.AgentToolState
+import com.nx.android.feature.settings.providerLabelRes
+import com.nx.android.feature.settings.shortModel
 
 /** The user bubble's ground: the design spec's one off-palette neutral (a step above the palette's Surface). */
 private val UserBubble = Color(0xFF26262A)
@@ -82,16 +83,21 @@ private val UserBubble = Color(0xFF26262A)
  * runs. Without a configured key the setup sheet stands in for the flow: the same form the ⋯ menu reopens.
  */
 @Composable
-fun AgentScreen(viewModel: AgentViewModel, onClose: () -> Unit, navActive: Boolean = false) {
+fun AgentScreen(
+    viewModel: AgentViewModel,
+    onClose: () -> Unit,
+    onOpenSettings: () -> Unit = {},
+    navActive: Boolean = false,
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     BackHandler { onClose() }
     // the gamepad's back key: the same door as the system's (this page only knows how to close)
     OnNavKey(enabled = navActive) { key ->
         if (key == NavKey.Back) onClose()
     }
-    // the ⋯ menu's "model settings" unfolds the setup over the flow; without a key it is the flow
-    var setupOpen by remember { mutableStateOf(false) }
-    val showSetup = !state.configured || setupOpen
+    // the ⋯ menu's "model settings" opens the settings page at the assistant's section; without a key the
+    // page opens there by itself
+    val showSetup = !state.configured
     val listState = rememberLazyListState()
 
     // new content arrives at the bottom: follow it (not while the player is scrolling up to read)
@@ -111,24 +117,23 @@ fun AgentScreen(viewModel: AgentViewModel, onClose: () -> Unit, navActive: Boole
                 state.config,
                 onBack = onClose,
                 onNewSession = { viewModel.newSession() },
-                onOpenSetup = { setupOpen = true },
+                onOpenSetup = onOpenSettings,
             )
             state.error?.let { reason ->
                 ErrorStrip(reason) { viewModel.dismissError() }
             }
             if (showSetup) {
                 Column(
-                    Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+                    Modifier.weight(1f).fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    AgentSetupSheet(
-                        config = state.config,
-                        cancelable = state.configured,
-                        onSave = { providerId, baseUrl, apiKey, modelName ->
-                            viewModel.updateConfig(providerId, baseUrl, apiKey, modelName)
-                            setupOpen = false
-                        },
-                        onCancel = { setupOpen = false },
+                    Spacer(Modifier.heightIn(min = 80.dp))
+                    Hint(stringResource(R.string.agent_setup_prompt), size = 13.sp)
+                    CapsuleButton(
+                        stringResource(R.string.agent_menu_settings),
+                        onOpenSettings,
+                        Modifier.fillMaxWidth(0.6f),
                     )
                 }
             } else {

@@ -114,6 +114,8 @@ import com.nx.android.feature.library.LibraryViewModel
 import com.nx.android.feature.logs.LogOverlay
 import com.nx.android.feature.onboarding.OnboardingScreen
 import com.nx.android.feature.onboarding.OnboardingViewModel
+import com.nx.android.feature.agent.AgentViewModel
+import com.nx.android.feature.settings.AgentSettingsSection
 import com.nx.android.feature.settings.SettingsScreen
 import com.nx.android.feature.settings.SettingsSection
 import com.nx.android.feature.storage.StorageViewModel
@@ -525,6 +527,7 @@ fun MainScreen(
     val updateViewModel: UpdateViewModel = hiltViewModel()
     val environmentCheckViewModel: EnvironmentCheckViewModel = hiltViewModel()
     val environmentCheckUiState by environmentCheckViewModel.uiState.collectAsStateWithLifecycle()
+    val agentViewModel: AgentViewModel = hiltViewModel()
     val installedDrivers by drivers.drivers.collectAsStateWithLifecycle()
 
     // 选中游戏的背景铺满整块屏幕：顶栏透明画在图上，三个 tab 共用这层背景
@@ -625,7 +628,7 @@ fun MainScreen(
         if (settingsOpen) {
             SettingsScreen(
                 onboarding, installedDrivers, drivers, updateViewModel,
-                storageViewModel, actions,
+                storageViewModel, agentViewModel, actions,
                 onRequest, onDrivers,
                 section = settingsSection, onSelectSection = { settingsSection = it },
                         onClose = { settingsOpen = false },
@@ -646,6 +649,11 @@ fun MainScreen(
             AgentScreen(
                 viewModel = hiltViewModel(),
                 onClose = { onAgentFull(false) },
+                onOpenSettings = {
+                    onAgentFull(false)
+                    settingsSection = SettingsSection.AGENT
+                    settingsOpen = true
+                },
                 navActive = navHost == NavHost.AGENT,
             )
         }
@@ -660,6 +668,11 @@ fun MainScreen(
                     onExpand = {
                         agentPanelOpen = false
                         onAgentFull(true)
+                    },
+                    onOpenSettings = {
+                        agentPanelOpen = false
+                        settingsSection = SettingsSection.AGENT
+                        settingsOpen = true
                     },
                     modifier = Modifier.align(Alignment.CenterEnd),
                 )

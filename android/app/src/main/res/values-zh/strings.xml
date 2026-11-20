@@ -177,6 +177,7 @@
     <string name="set_keys_not_set">还没有设置</string>
     <string name="set_section_storage">存储</string>
     <string name="set_section_display">画面</string>
+    <string name="set_section_agent">助手</string>
     <string name="motion_on">体感瞄准</string>
     <string name="motion_on_note">设备的转动带动游戏里的六轴传感器（王国之泪的弓）。</string>
     <string name="motion_no_gyro">这台设备没有陀螺仪。</string>
@@ -693,6 +694,7 @@
     <string name="agent_tool_args">参数</string>
     <string name="agent_tool_result">结果</string>
     <string name="agent_setup_title">模型设置</string>
+    <string name="agent_setup_prompt">配好一个模型就能开始对话。</string>
     <string name="agent_setup_intro">带上自己的 key：助手用它调用一个你选的 OpenAI 兼容端点。key 只存在这台手机上，不会离开它。</string>
     <string name="agent_setup_provider">服务商</string>
     <string name="agent_setup_base_url">接口地址</string>

@@ -178,6 +178,7 @@
     <string name="set_keys_not_set">Not set yet</string>
     <string name="set_section_storage">Storage</string>
     <string name="set_section_display">Display</string>
+    <string name="set_section_agent">Assistant</string>
     <string name="motion_on">Motion aiming</string>
     <string name="motion_on_note">The device\'s turn moves the controller\'s six-axis sensor (the bow in TotK).</string>
     <string name="motion_no_gyro">This device has no gyroscope.</string>
@@ -694,6 +695,7 @@
     <string name="agent_tool_args">Arguments</string>
     <string name="agent_tool_result">Result</string>
     <string name="agent_setup_title">Model settings</string>
+    <string name="agent_setup_prompt">Configure a model and the chat begins.</string>
     <string name="agent_setup_intro">Bring your own key: the assistant talks to one OpenAI-compatible endpoint of your choice. The key is stored on this phone only and never leaves it.</string>
     <string name="agent_setup_provider">Provider</string>
     <string name="agent_setup_base_url">Base URL</string>
