@@ -31,12 +31,15 @@ object Player {
      *
      * 这里没有进程的事：占不占用、有没有别的游戏在跑，都由账本（PlayerState）在门里回答——这里只管
      * 把包交给游戏页。
+     *
+     * @param rebuild 重建运行库再开（游戏闪退后玩家点的「重新构建」）：目录里那份对不上也不将就
      */
-    fun run(activity: Activity, port: Ported, name: String, onReady: (Boolean) -> Unit) {
+    fun run(activity: Activity, port: Ported, name: String, rebuild: Boolean = false, onReady: (Boolean) -> Unit) {
         val i = Intent(activity, GameActivity::class.java)
             .putExtra(GameActivity.EXTRA_PACK, port.pack.absolutePath)
             .putExtra(GameActivity.EXTRA_TITLE_ID, port.titleId)
             .putExtra(GameActivity.EXTRA_NAME, name)
+        if (rebuild) i.putExtra(GameActivity.EXTRA_REBUILD, true)
         activity.startActivity(i)
         onReady(true)
     }

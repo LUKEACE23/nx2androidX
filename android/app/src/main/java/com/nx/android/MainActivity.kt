@@ -61,6 +61,7 @@ import com.nx.android.domain.Ported
 import androidx.compose.runtime.snapshotFlow
 import com.nx.android.app.AppActions
 import com.nx.android.app.AppRoot
+import com.nx.android.app.CrashReport
 import com.nx.android.input.GamepadScan
 import com.nx.android.input.PadCalibration
 import com.nx.android.input.PadTestInput
@@ -98,6 +99,13 @@ class MainActivity : ComponentActivity() {
 
         /** 十字键帽推到底才算方向（帽子只有 -1/0/1，门槛比摇杆低）。 */
         const val HAT_THRESHOLD = 0.5f
+
+        /** SIGKILL：App 收尾时自己杀的游戏进程（正常结束，不是闪退）。 */
+        private const val SIGNALED_KILL = 9
+        /** SIGTERM：礼貌终止请求（宿主自己优雅退出成 0，不是闪退）。 */
+        private const val SIGNALED_TERM = 15
+        /** 宿主给游戏自己的致命 Break 留的退出码（hle_svc.c）：屏幕上有报错，玩家需要知道。 */
+        private const val EXIT_GAME_FATAL = 42
     }
 
     @Inject lateinit var locale: AppLocale
@@ -134,6 +142,9 @@ class MainActivity : ComponentActivity() {
     private val hatEdge = NavEdge(HAT_THRESHOLD)
     private val stickEdge = NavEdge()
 
+    /** 上一次那个游戏闪退了：弹框把那三条路摆出来（重新构建 / 重新移植 / 反馈） */
+    private var crash by mutableStateOf<CrashReport?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 全屏沉浸：内容铺满整块屏幕，系统栏隐藏（下滑临时呼出）
@@ -164,7 +175,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             AppRoot(prefs, locale, port, library, onboarding, drivers, environmentSetup, actions,
                 launchTab, launchBuildId, padController,
-                padCenterOpen = padCenterOpen, onPadCenter = { padCenterOpen = it })
+                padCenterOpen = padCenterOpen, onPadCenter = { padCenterOpen = it },
+                crash = crash, onCrashHandled = { crash = null })
         }
         // the small tools come with the app: an update brings new ones, and the phone has to get them
         // (the app's own Vulkan driver too: it is unpacked into the app's folder, ready to be picked)
@@ -203,6 +215,8 @@ class MainActivity : ComponentActivity() {
         },
         onCancelPort = { PortService.cancel(this) },
         onRun = { pack, name -> runGate(pack, name) },
+        // 闪退之后的「重新构建」：重建运行库再进一次游戏（门还是那一扇）
+        onRunRebuild = { pack, name -> runGate(pack, name, rebuild = true) },
         onSendToDesktop = { e ->
             val ported = e.pack
             if (ported == null) toast(locale.str(R.string.lib_artifact_missing))
@@ -341,8 +355,10 @@ class MainActivity : ComponentActivity() {
     /**
      * 门：解析 → busy → START / RESUME / REFUSE。卡片、详情面板、桌面快捷方式都走这一条路，
      * 同一个游戏从哪个入口进来结果都一样。
+     *
+     * @param rebuild 重建运行库再开（闪退后的「重新构建」）：门还是那一扇，只是游戏页多了一件差事
      */
-    private fun runGate(pack: File, name: String) {
+    private fun runGate(pack: File, name: String, rebuild: Boolean = false) {
         LibraryFileScanner.portFromPack(pack)?.let { ported ->
             when (LibraryLogic.launchDecision(player.processAlive(this), player.currentTitleId(), ported.titleId)) {
                 // 跑的正是这一个：带回前台，不重启
@@ -354,7 +370,7 @@ class MainActivity : ComponentActivity() {
                           else locale.str(R.string.lib_game_still_running, player.currentName()))
                 }
                 // 没有游戏在跑：全新启动
-                LaunchDecision.START -> launchStart(ported, name)
+                LaunchDecision.START -> launchStart(ported, name, rebuild)
             }
         } ?: toast(locale.str(R.string.main_cannot_run_not_a_pack, pack.name))
     }
@@ -393,14 +409,14 @@ class MainActivity : ComponentActivity() {
      * 门放行的 START：占用检查（构建占用着流水线）→ 账本标记（fail-safe 断言住在这里）→ 把包交给
      * 游戏页。宿主的指纹检查与运行库重建都发生在游戏页自己的 prepare 里（旧版宿主在那儿就地重建）。
      */
-    private fun launchStart(ported: Ported, name: String) {
+    private fun launchStart(ported: Ported, name: String, rebuild: Boolean = false) {
         if (port.running) {
             toast(locale.str(R.string.runtime_busy))
             return
         }
         prefs.put(PrefsStore.PLAYER_LAST_START, System.currentTimeMillis().toString())
         player.markLaunched(ported.titleId, name)   // 冷启动读回的身份（进程活着时它就是答案）
-        Player.run(this, ported, name) { ok ->
+        Player.run(this, ported, name, rebuild) { ok ->
             if (!ok) toast(locale.str(R.string.main_cannot_run_no_host, ported.pack.name) + "\n" + locale.str(R.string.runtime_play_failed))
         }
     }
@@ -418,19 +434,39 @@ class MainActivity : ComponentActivity() {
             // 崩溃检测也问账本：processAlive() 是账本给全 app 的同步出口（账本之外没有第二处进程判断）
             if (started > 0 && !player.processAlive(this)) {
                 val manager = getSystemService(ActivityManager::class.java)
-                val crash = runCatching {
+                val crashed = runCatching {
                     manager.getHistoricalProcessExitReasons(packageName, 0, 16).any {
                         it.processName.endsWith(Player.PROCESS_SUFFIX) && it.timestamp >= started &&
-                            (it.reason == ApplicationExitInfo.REASON_CRASH ||
-                             it.reason == ApplicationExitInfo.REASON_CRASH_NATIVE)
+                            isCrash(it.reason, it.status)
                     }
                 }.getOrDefault(false)
-                if (crash) {
+                if (crashed) {
                     prefs.put(PrefsStore.PLAYER_LAST_START, null)
-                    toast(locale.str(R.string.runtime_play_failed))
+                    // 闪退的不是 toast 能说清的：弹框把三条路摆出来——重新构建、重新移植、反馈
+                    crash = CrashReport(player.currentTitleId(), player.currentName())
                 }
             }
         }
+    }
+
+    /**
+     * 这是不是一次闪退：Android 记的那条退出理由说了算。
+     *
+     * 宿主自己接住信号后走 _exit(128+sig)（dm/host/crash.c），系统只看到「自己退出」——退出码 >= 128
+     * 同样是闪退（真机上抓到的就是这种：EXIT_SELF + 139 = 128+SIGSEGV）。
+     * 游戏自己撞上 SDK 的致命 Break 时宿主退的是 42（hle_svc.c）：那是游戏自己的报错，屏幕上本该有
+     * 提示——这里把它算成闪退，好让玩家看到「重新构建 / 重新移植 / 反馈」那三条路。
+     *
+     * 不算闪退的：App 自己收尾时杀的那次是 SIGKILL（9）；SIGTERM（15）是礼貌终止（宿主装了自己的
+     * 优雅退出，出来的是 EXIT_SELF 0），排除它只兜住那扇门还没装好的窗口期；系统内存不够杀的那次
+     * 记的是 REASON_LOW_MEMORY，根本走不到这里。后台被杀（LOW_MEMORY）与卡死被 ANR 杀同样不算：
+     * 「重新构建」救不了内存和挂死。
+     */
+    private fun isCrash(reason: Int, status: Int): Boolean = when (reason) {
+        ApplicationExitInfo.REASON_CRASH, ApplicationExitInfo.REASON_CRASH_NATIVE -> true
+        ApplicationExitInfo.REASON_EXIT_SELF -> status >= 128 || status == EXIT_GAME_FATAL
+        ApplicationExitInfo.REASON_SIGNALED -> status != SIGNALED_KILL && status != SIGNALED_TERM
+        else -> false
     }
 
     /**

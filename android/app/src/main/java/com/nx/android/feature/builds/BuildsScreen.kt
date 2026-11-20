@@ -628,7 +628,6 @@ private fun statusColor(s: GameStatus) = when (s) {
     GameStatus.NOT_PORTED -> NxPalette.Unbuilt
     GameStatus.PORTING -> NxPalette.Building
     GameStatus.DONE -> NxPalette.Ready
-    GameStatus.NEEDS_BUILD -> NxPalette.Unbuilt
 }
 
 @Composable
@@ -636,7 +635,6 @@ private fun statusLabel(s: GameStatus): String = when (s) {
     GameStatus.NOT_PORTED -> stringResource(R.string.common_not_ported)
     GameStatus.PORTING -> stringResource(R.string.common_porting)
     GameStatus.DONE -> stringResource(R.string.common_done)
-    GameStatus.NEEDS_BUILD -> stringResource(R.string.lib_needs_build_status)
 }
 
 @Composable

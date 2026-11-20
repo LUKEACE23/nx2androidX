@@ -141,6 +141,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         const val EXTRA_PACK = "pack"          // the data pack folder (the port's output, shared storage)
         const val EXTRA_TITLE_ID = "title_id"  // keeps the saves, the temp and the log apart per game
         const val EXTRA_NAME = "name"
+        const val EXTRA_REBUILD = "rebuild"    // the runtime is rebuilt first, whatever it looks like now
 
         /** a start already happened in this process: a recreated activity takes the running game's window over */
         @Volatile var hostRunning = false
@@ -181,6 +182,8 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var packPath: String? = null
     private var packTitleId: String? = null
     private var packName: String = ""
+    /** 这次进来是要重建运行库的（游戏闪退后玩家点的「重新构建」）：目录里那份对不上也不将就，重编一次 */
+    private var forceRebuild = false
 
     /** the game UI (surface, pad, drawer) is in the view tree: the native calls and the input paths are live */
     private var gameUiReady = false
@@ -321,6 +324,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         packPath = intent.getStringExtra(EXTRA_PACK)
         packTitleId = intent.getStringExtra(EXTRA_TITLE_ID)?.ifEmpty { null }
         packName = intent.getStringExtra(EXTRA_NAME) ?: ""
+        forceRebuild = intent.getBooleanExtra(EXTRA_REBUILD, false)
         immersive()
         if (hostRunning) { installGameUi(); setupExternalDisplay(); return }   // a recreation (the system rebuilt the activity): the running game takes the new window in surfaceCreated
         // 没带包的一条（resume 的自愈）：这个进程里没有正在跑的游戏，也没有准备在进行——
@@ -440,10 +444,11 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         val ported = LibraryFileScanner.portFromPack(pack)
             ?: return PrepareOutcome(reason = locale.str(R.string.main_cannot_run_not_a_pack, pack.name))
         val dir = runtimeStorage.dir(ported.titleId)
+        // forceRebuild：玩家点名要重建（闪退后的「重新构建」）——目录里那份对不上也不将就，一律重编。
         // 旧格式的包（清单带 host，运行库在包里）：目录里那份对得上就直接用（旧包也能零拷贝）；
         // 包能跑而目录没有（或对不上）→ 晋升拷贝；包跑不了（接口对不上、宿主没了）→ 就地重建。
         if (ported.hostDeclared) {
-            if (ported.runnable) {
+            if (ported.runnable && !forceRebuild) {
                 if (runtimeStorage.complete(dir) && runtimeStorage.matches(ported, runtimeStorage.readMarker(dir))) {
                     return PrepareOutcome(ok = true, hostPath = runtimeStorage.hostOf(dir).absolutePath)
                 }
@@ -468,7 +473,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         } else {
             // 新格式：运行库是统一目录里的正本，标记在、指纹对得上就零拷贝加载；对不上（app 升级让
             // 接口版本变了、标记没了、档案换了）就地重建——重建把运行库写回目录，启动判断只读目录侧。
-            if (runtimeStorage.complete(dir) && runtimeStorage.matches(ported, runtimeStorage.readMarker(dir))) {
+            if (!forceRebuild && runtimeStorage.complete(dir) && runtimeStorage.matches(ported, runtimeStorage.readMarker(dir))) {
                 return PrepareOutcome(ok = true, hostPath = runtimeStorage.hostOf(dir).absolutePath)
             }
             rebuild(pack)?.let { return it }

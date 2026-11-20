@@ -64,6 +64,17 @@ fun openRepo(context: Context) {
 }
 
 /**
+ * 仓库的 issue 页：反馈的出口（游戏出了毛病，玩家在这里说）。
+ */
+fun openIssues(context: Context) {
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("${UpdateVersion.REPO_URL}/issues")))
+    } catch (e: Exception) {
+        // 没有浏览器：App 里没有别的路可以走到那里，安静地过去
+    }
+}
+
+/**
  * 有新版本时的弹框：新版本号、那个 release 自己的更新说明、两个按钮。
  *
  * 弹框是玩家冷启动后看到的第一个东西，所以它得说得清：哪个版本、比自己新在哪、去哪拿。

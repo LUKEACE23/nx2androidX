@@ -458,7 +458,6 @@
     <string name="lib_artifact_missing_state">数据包不可运行，可以重新构建或删除这张卡</string>
     <string name="lib_build_action">▶ 构建</string>
     <string name="lib_last_build_failed">构建未完成</string>
-    <string name="lib_needs_build_status">需要构建</string>
     <string name="lib_source_mismatch">这个文件属于另一款游戏</string>
     <string name="lib_needs_build_hint">这个游戏需要重新构建；源文件不在了，可以重新选择。</string>
     <string name="lib_residual_status">只剩工作区</string>
@@ -593,6 +592,11 @@
     <string name="runtime_updated">运行库已更新。若升级后游戏有问题，请在游戏详情里使用原始游戏文件重新移植。</string>
     <string name="runtime_update_hint">若升级后游戏有问题，请在游戏详情里使用原始游戏文件重新移植。</string>
     <string name="runtime_retry">重试</string>
+    <string name="crash_title">游戏闪退了</string>
+    <string name="crash_text">「%1$s」闪退了。先重新构建它的运行库再试一次；如果重新移植后仍然闪退，请把问题反馈给我们。</string>
+    <string name="crash_rebuild">重新构建</string>
+    <string name="crash_port_again">重新移植</string>
+    <string name="crash_report">反馈</string>
     <string name="runtime_interrupted">运行库更新已中断。可重试，或在游戏详情里使用原始游戏文件重新移植；游戏数据会保留。</string>
 
     <!-- 手柄中心（实体手柄）：手柄中心面板与抽屉里的那一组 -->

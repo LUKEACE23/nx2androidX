@@ -459,7 +459,6 @@
     <string name="lib_artifact_missing_state">The data pack is not runnable; rebuild or delete this card</string>
     <string name="lib_build_action">▶ Build</string>
     <string name="lib_last_build_failed">Build not finished</string>
-    <string name="lib_needs_build_status">Needs build</string>
     <string name="lib_source_mismatch">That file belongs to a different game</string>
     <string name="lib_needs_build_hint">This game needs a build. If its source file is gone, you can pick it again.</string>
     <string name="lib_residual_status">Build workspace only</string>
@@ -594,6 +593,11 @@
     <string name="runtime_updated">Runtime updated. If the game misbehaves afterwards, port it again from its original files in the game\'s details.</string>
     <string name="runtime_update_hint">If the game misbehaves after this update, port it again from its original files in the game\'s details.</string>
     <string name="runtime_retry">Retry</string>
+    <string name="crash_title">The game crashed</string>
+    <string name="crash_text">%1$s crashed. Rebuild its runtime and try again; if it still crashes after a new port, please report it.</string>
+    <string name="crash_rebuild">Rebuild</string>
+    <string name="crash_port_again">Port again</string>
+    <string name="crash_report">Report</string>
     <string name="runtime_interrupted">The runtime update was interrupted. Retry, or port the game again from its original files in the game\'s details. Your game data is kept.</string>
 
     <!-- 手柄中心（实体手柄）：手柄中心面板与抽屉里的那一组 -->
