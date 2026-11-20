@@ -706,4 +706,10 @@
     <string name="agent_provider_kimi">Kimi（月之暗面）</string>
     <string name="agent_provider_minimax">MiniMax</string>
     <string name="agent_provider_custom">自定义</string>
+    <string name="agent_provider_hint_glm">智谱开放平台（open.bigmodel.cn）的 API key</string>
+    <string name="agent_provider_hint_deepseek">DeepSeek 开放平台的 API key</string>
+    <string name="agent_provider_hint_doubao">火山方舟的 API key；模型名填接入点（ep-…）</string>
+    <string name="agent_provider_hint_kimi">月之暗面开放平台的 API key</string>
+    <string name="agent_provider_hint_minimax">MiniMax 开放平台的 API key</string>
+    <string name="agent_provider_hint_custom">任意 OpenAI 兼容端点与模型名</string>
 </resources>

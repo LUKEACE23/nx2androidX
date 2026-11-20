@@ -116,7 +116,7 @@ fun AgentSetupSheet(
             },
         )
         // the provider's own words for where the key comes from (the preset carries them)
-        Hint(preset.keyHint, size = 11.sp)
+        Hint(stringResource(providerHintRes(preset.id)), size = 11.sp)
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (cancelable) {
@@ -180,3 +180,14 @@ internal fun providerLabelRes(providerId: String): Int = when (providerId) {
 /** The capsule's model word: the endpoints' ids are long, the ends carry the meaning. */
 internal fun shortModel(name: String): String =
     if (name.length <= 20) name else name.take(10) + "…" + name.takeLast(6)
+
+/** The picker's per-provider hint under the fields: where the key comes from, in the app's own language. */
+@StringRes
+internal fun providerHintRes(providerId: String): Int = when (providerId) {
+    "glm" -> R.string.agent_provider_hint_glm
+    "deepseek" -> R.string.agent_provider_hint_deepseek
+    "doubao" -> R.string.agent_provider_hint_doubao
+    "kimi" -> R.string.agent_provider_hint_kimi
+    "minimax" -> R.string.agent_provider_hint_minimax
+    else -> R.string.agent_provider_hint_custom
+}

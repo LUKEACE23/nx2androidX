@@ -707,4 +707,10 @@
     <string name="agent_provider_kimi">Kimi (Moonshot)</string>
     <string name="agent_provider_minimax">MiniMax</string>
     <string name="agent_provider_custom">Custom</string>
+    <string name="agent_provider_hint_glm">A GLM API key from open.bigmodel.cn</string>
+    <string name="agent_provider_hint_deepseek">A DeepSeek API key from platform.deepseek.com</string>
+    <string name="agent_provider_hint_doubao">An Ark API key; the model name is the endpoint id (ep-…)</string>
+    <string name="agent_provider_hint_kimi">A Moonshot API key from platform.moonshot.cn</string>
+    <string name="agent_provider_hint_minimax">A MiniMax API key from the MiniMax open platform</string>
+    <string name="agent_provider_hint_custom">Any OpenAI-compatible endpoint and model name</string>
 </resources>
