@@ -54,6 +54,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
@@ -318,6 +319,22 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
     }
 
+    /**
+     * 横屏时窗口铺满整块屏幕：默认的挖孔策略下，系统把整个窗口避开刘海/挖孔，窗口窄一条。
+     * 游戏画面是在这个窗口里居中的，于是整幅画面被推到右边，左边多出一条黑带（挖孔正好在那条带上）。
+     * 允许画进挖孔区之后，窗口就是整块屏幕，画面居中到整块屏上，左右黑边等宽，挖孔落在黑边里。
+     *
+     * 还要让内容自己铺满：挖孔的 inset 照样上报给 app（那是给内容避让用的），
+     * 内容框若按它裁剪，游戏的画面仍旧窄一条、黑边依旧不对称。
+     */
+    private fun drawOverCutout() {
+        if (Build.VERSION.SDK_INT < 28) return   // 挖孔从 Android 9 起才有；更早的设备本来就不避让
+        val lp = window.attributes
+        lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        window.attributes = lp
+        WindowCompat.setDecorFitsSystemWindows(window, false)   // 内容铺满整块屏幕，inset 自己处理
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 游戏进程自己的日志（App 的日志只在主进程里开过，这里也开一份：游戏出问题时看得到）
@@ -329,6 +346,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         packName = intent.getStringExtra(EXTRA_NAME) ?: ""
         forceRebuild = intent.getBooleanExtra(EXTRA_REBUILD, false)
         immersive()
+        drawOverCutout()
         if (hostRunning) { installGameUi(); setupExternalDisplay(); return }   // a recreation (the system rebuilt the activity): the running game takes the new window in surfaceCreated
         // 没带包的一条（resume 的自愈）：这个进程里没有正在跑的游戏，也没有准备在进行——
         // 它是「从不杀」模型下的清道夫，把幽灵进程收掉。
