@@ -64,9 +64,16 @@ python3 -m porter inspect "<game folder>"
 It prints the title ID, the base game, the updates and the DLC it found, and whether the game is supported
 on Android. The port **refuses**:
 
-- a game whose own `main` renders with **Vulkan or OpenGL** — the Android host replays NVN only;
-- a game whose shaders can only be produced by **running the game on a computer** (a GLSLC capture, an
-  Unreal or Oodle-packed shader archive, a PlatinumGames archive).
+- a game whose own `main` renders with **Vulkan** — the Android host replays NVN and OpenGL ES only (a game
+  that draws with OpenGL goes to the device's own GLES driver);
+- a game whose shaders need a step that **boots the game in the Mac host** (legacy Unreal paks, version 4 —
+  Dragon Quest XI S — and PlatinumGames PKZ archives).
+
+The compressed shader archives are no reason to stop: Game Freak's Oodle archives (the Pokémon Legends games)
+and Unreal's shader code archives (Octopath Traveler 0, FINAL FANTASY RESONANCE) are decoded with the game's
+own decoder, on the Android device the port already uses or on the phone itself when the porter runs there,
+and the shaders a game compiles at boot with its own GLSLC (Catherine: Full Body) are captured on the
+device the same way.
 
 If the game is refused, the project wants to know: open a **Port request** issue and paste the output. It
 goes on the checklist with the reason, so the next person does not spend the evening either.
