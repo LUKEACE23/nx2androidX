@@ -715,6 +715,14 @@
     <string name="agent_provider_hint_kimi">A Moonshot API key from platform.moonshot.cn</string>
     <string name="agent_provider_hint_minimax">A MiniMax API key from the MiniMax open platform</string>
     <string name="agent_provider_hint_custom">Any OpenAI-compatible endpoint and model name</string>
+    <string name="agent_chip_crash">Why crash</string>
+    <string name="agent_chip_no_build">Won\'t build</string>
+    <string name="agent_chip_playable">Playable?</string>
+    <string name="agent_chip_build_fail">Build failed</string>
+    <string name="agent_chip_build_log">Build log</string>
+    <string name="agent_chip_build_why">Explain it</string>
+    <string name="agent_chip_save_backup">Back up saves</string>
+    <string name="agent_chip_env">Environment</string>
     <string name="agent_bubble_desc">Assistant</string>
     <string name="agent_panel_collapse">Collapse the assistant</string>
     <string name="agent_panel_expand">Open the full chat</string>

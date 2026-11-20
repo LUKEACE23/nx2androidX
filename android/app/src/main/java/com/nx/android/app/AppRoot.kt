@@ -656,14 +656,20 @@ fun MainScreen(
                 },
                 navActive = navHost == NavHost.AGENT,
             )
-        }
-        // The assistant's side panel and its floating ball: the ball lives on every page (ADR-007); the
+        }        // The assistant's side panel and its floating ball: the ball lives on every page (ADR-007); the
         // panel docks on the right edge over the page's own content and takes taps — the page beneath
-        // keeps its gamepad keys
+        // keeps its gamepad keys. The rail's quick questions follow the page the player is on (the light
+        // version of the context-aware chips — full PageContext injection comes with the phase-2 work)
+        val agentChips = when (Tab.entries[tab]) {
+            Tab.LIBRARY -> listOf(R.string.agent_chip_crash, R.string.agent_chip_no_build, R.string.agent_chip_playable)
+            Tab.BUILDS -> listOf(R.string.agent_chip_build_fail, R.string.agent_chip_build_log, R.string.agent_chip_build_why)
+            else -> listOf(R.string.agent_chip_save_backup, R.string.agent_chip_env)
+        }
         if (!agentFullOpen) {
             if (agentPanelOpen) {
                 AgentPanel(
                     viewModel = hiltViewModel(),
+                    chips = agentChips,
                     onCollapse = { agentPanelOpen = false },
                     onExpand = {
                         agentPanelOpen = false
@@ -674,7 +680,6 @@ fun MainScreen(
                         settingsSection = SettingsSection.AGENT
                         settingsOpen = true
                     },
-                    modifier = Modifier.align(Alignment.CenterEnd),
                 )
             } else {
                 AgentBubble(

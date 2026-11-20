@@ -714,6 +714,14 @@
     <string name="agent_provider_hint_kimi">月之暗面开放平台的 API key</string>
     <string name="agent_provider_hint_minimax">MiniMax 开放平台的 API key</string>
     <string name="agent_provider_hint_custom">任意 OpenAI 兼容端点与模型名</string>
+    <string name="agent_chip_crash">为啥闪退</string>
+    <string name="agent_chip_no_build">无法构建</string>
+    <string name="agent_chip_playable">能玩吗</string>
+    <string name="agent_chip_build_fail">构建失败</string>
+    <string name="agent_chip_build_log">构建日志</string>
+    <string name="agent_chip_build_why">解释下</string>
+    <string name="agent_chip_save_backup">备份存档</string>
+    <string name="agent_chip_env">检查环境</string>
     <string name="agent_bubble_desc">助手</string>
     <string name="agent_panel_collapse">收起助手</string>
     <string name="agent_panel_expand">打开完整对话</string>
