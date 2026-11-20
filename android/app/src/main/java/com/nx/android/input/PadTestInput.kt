@@ -55,6 +55,19 @@ object PadTestInput {
         mutableStates.value = emptyMap()
     }
 
+    /**
+     * 布局或上报方式改了：手里还按着的键算出来的目标键变了，面板上的亮格要重来一遍
+     * （否则旧的那个目标还亮着，看着像按了两颗键）。
+     */
+    fun clearPressed() {
+        if (!observing) return
+        keyPressed.clear()
+        axisDirections.clear()
+        mutableStates.value = mutableStates.value.mapValues { (_, state) ->
+            state.copy(pressed = emptySet())
+        }
+    }
+
     /** 拔掉的手柄从面板上消失。 */
     fun retainDevices(deviceIds: Set<Int>) {
         if (!observing) return

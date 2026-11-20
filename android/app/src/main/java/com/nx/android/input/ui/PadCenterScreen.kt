@@ -27,9 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.Icon
@@ -38,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -92,7 +91,6 @@ fun PadCenterScreen(
     val devices by GamepadScan.devices.collectAsState()
     val vibrate: (GamepadScan.Info) -> Unit = onVibrate ?: { info -> vibratePad(context, info) }
     val states by PadTestInput.states.collectAsState()
-    var mappingOpen by remember { mutableStateOf(false) }
 
     // 面板开着的时候才看手柄的输入；关掉就放手
     DisposableEffect(Unit) {
@@ -102,11 +100,8 @@ fun PadCenterScreen(
     // 面板开着的时候重扫一遍：列表可能落后于系统（手柄刚重连，设备 id 变了）
     LaunchedEffect(Unit) { GamepadScan.refreshNow(context) }
     LaunchedEffect(devices) { controller.devicesChanged(devices) }
-    LaunchedEffect(mappingOpen) { if (!mappingOpen) controller.cancelCapture() }
 
-    BackHandler(enabled = true) {
-        if (mappingOpen) mappingOpen = false else onClose()
-    }
+    BackHandler(enabled = true) { onClose() }
 
     val selected = devices.firstOrNull { it.id == controller.selectedId }
         ?: devices.firstOrNull()
@@ -124,50 +119,38 @@ fun PadCenterScreen(
                 .align(Alignment.Center),
         ) {
             Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { if (mappingOpen) mappingOpen = false else onClose() }) {
+                IconButton(onClick = { onClose() }) {
                     Icon(
-                        if (mappingOpen) Icons.AutoMirrored.Filled.ArrowBack else Icons.Filled.Close,
+                        Icons.Filled.Close,
                         stringResource(R.string.common_close),
                         tint = Color.White,
                     )
                 }
                 Text(
-                    if (mappingOpen) stringResource(R.string.pad_center_mapping)
-                    else stringResource(R.string.pad_center_physical),
+                    stringResource(R.string.pad_center_physical),
                     style = MaterialTheme.typography.titleLarge,
-                    color = if (mappingOpen) Color.White else NxPalette.Brand,
+                    color = NxPalette.Brand,
                     modifier = Modifier.weight(1f),
                 )
             }
 
-            if (mappingOpen) {
-                Column(
-                    Modifier.weight(1f).fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(top = 8.dp),
-                ) {
-                    PadMappingPanel(controller = controller, deviceId = selected?.id)
-                }
-            } else {
-                if (controller.recovered) {
-                    Text(
-                        stringResource(R.string.pad_center_recovered),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = NxPalette.Building,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
-                    )
-                }
-                PhysicalControllerPage(
-                    controller = controller,
-                    devices = devices,
-                    selected = selected,
-                    state = selected?.let { states[it.id] },
-                    compact = compact,
-                    assignment = assignment,
-                    onOpenMapping = { mappingOpen = true },
-                    onVibrate = vibrate,
+            if (controller.recovered) {
+                Text(
+                    stringResource(R.string.pad_center_recovered),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = NxPalette.Building,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
                 )
             }
+            PhysicalControllerPage(
+                controller = controller,
+                devices = devices,
+                selected = selected,
+                state = selected?.let { states[it.id] },
+                compact = compact,
+                assignment = assignment,
+                onVibrate = vibrate,
+            )
         }
     }
 }
@@ -181,7 +164,6 @@ private fun ColumnScope.PhysicalControllerPage(
     state: PadTestState?,
     compact: Boolean,
     assignment: PadAssignment,
-    onOpenMapping: () -> Unit,
     onVibrate: (GamepadScan.Info) -> Unit,
 ) {
     val context = LocalContext.current
@@ -206,16 +188,8 @@ private fun ColumnScope.PhysicalControllerPage(
         return
     }
 
-    // 面键的四格：每格是**那个方位**的游戏键（按位置还是按标签，玩家自己定）
-    val faceSlots = selected?.let { info ->
-        FaceSlots(
-            top = controller.resolveTarget(info.id, PadMapping.Face.TOP, PadMapping.Face.keyCodeOf(PadMapping.Face.TOP)),
-            left = controller.resolveTarget(info.id, PadMapping.Face.LEFT, PadMapping.Face.keyCodeOf(PadMapping.Face.LEFT)),
-            right = controller.resolveTarget(info.id, PadMapping.Face.RIGHT, PadMapping.Face.keyCodeOf(PadMapping.Face.RIGHT)),
-            bottom = controller.resolveTarget(info.id, PadMapping.Face.BOTTOM, PadMapping.Face.keyCodeOf(PadMapping.Face.BOTTOM)),
-        )
-    } ?: FaceSlots(null, null, null, null)
-
+    // 面键的四格：游戏的那四颗（NS 的 X 上、Y 左、A 右、B 下）——菱形不随布局转，
+    // 亮的是游戏此刻收到的那一颗，面板才是「游戏眼里的真相」。
     Row(Modifier.weight(1f).fillMaxWidth(), verticalAlignment = Alignment.Top) {
         // 左：手柄的列表，下面是「改键」
         Column(
@@ -277,19 +251,6 @@ private fun ColumnScope.PhysicalControllerPage(
                 }
             }
             Spacer(Modifier.height(10.dp))
-            OutlinedButton(
-                onClick = onOpenMapping,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(6.dp),
-            ) {
-                Icon(Icons.Filled.Edit, null, Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    stringResource(R.string.pad_center_mapping),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
         Spacer(Modifier.width(1.dp).fillMaxHeight().background(NxPalette.Surface))
         // 右：此刻的样子
@@ -329,6 +290,20 @@ private fun ColumnScope.PhysicalControllerPage(
                     color = NxPalette.Unbuilt,
                 )
             }
+            if (selected != null) {
+                Spacer(Modifier.height(16.dp))
+                LayoutChoice(
+                    byLabel = controller.profile(selected).labels,
+                    onChange = { byLabel -> controller.setLayout(selected, byLabel) },
+                )
+                Spacer(Modifier.height(12.dp))
+                ReportChoice(
+                    printCoded = controller.profile(selected).printCoded,
+                    probing = controller.probing,
+                    onDetect = { controller.startProbe() },
+                    onCancel = { controller.cancelProbe() },
+                )
+            }
             Spacer(Modifier.height(24.dp))
             // 示波面板是固定 dp 的（按键、菱形、摇杆盘）：窄屏放不下就整块等比缩小 ——
             // 不缩的话行尾的键（面键右边的 A）被顶出屏幕，看不见
@@ -343,7 +318,7 @@ private fun ColumnScope.PhysicalControllerPage(
                     )
                     Spacer(Modifier.height(16.dp))
                     ControllerDiagram(
-                        state, compact, faceSlots,
+                        state, compact,
                         fitScale(available, diagramWidth(compact)),
                     )
                 }
@@ -384,6 +359,95 @@ private fun ColumnScope.PhysicalControllerPage(
                     Text(stringResource(R.string.pad_center_vibrate))
                 }
             }
+        }
+    }
+}
+
+/**
+ * 面键怎么认：按位置（NS 的四个位置：上 X、左 Y、右 A、下 B）还是按印字（手柄上印的 A/B/X/Y）。
+ *
+ * 与上游是同一个模型（那边是 `labels` 一个位，环境变量 `DM_PAD_LABEL` 是默认值），这里逐手柄存。
+ * 选完示波面板立刻按新布局显示：玩家按一按就知道对不对。
+ */
+@Composable
+private fun LayoutChoice(byLabel: Boolean, onChange: (Boolean) -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(
+            stringResource(R.string.pad_layout_title),
+            style = MaterialTheme.typography.labelLarge,
+            color = Color(0xFFA9A9B2),
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LayoutOption(stringResource(R.string.pad_layout_position), !byLabel) { onChange(false) }
+            LayoutOption(stringResource(R.string.pad_layout_label), byLabel) { onChange(true) }
+        }
+    }
+}
+
+/** 布局的一个选项（选中的那个亮着）。 */
+@Composable
+private fun LayoutOption(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.clip(RoundedCornerShape(6.dp))
+            .background(if (selected) NxPalette.Brand.copy(alpha = 0.18f) else NxPalette.Surface)
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (selected) NxPalette.Brand else Color(0xFFA9A9B2),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * 这只手怎么上报：按位置（绝大多数手柄）还是按印字（固件把印字编进了代码里）。
+ *
+ * 认的方式是按一下「印着 Y 的那颗键」：按位置上报的手柄报 307，按印字上报的报 308。
+ * 认错了不要紧——菱形上亮的是游戏收到的键，一眼能看出来。
+ */
+@Composable
+private fun ReportChoice(
+    printCoded: Boolean,
+    probing: Boolean,
+    onDetect: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(R.string.pad_report_title),
+                style = MaterialTheme.typography.labelLarge,
+                color = Color(0xFFA9A9B2),
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                stringResource(if (printCoded) R.string.pad_report_label else R.string.pad_report_position),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFFA9A9B2),
+            )
+            if (probing) {
+                Spacer(Modifier.width(4.dp))
+                TextButton(onClick = onCancel) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            } else {
+                Spacer(Modifier.width(4.dp))
+                TextButton(onClick = onDetect) {
+                    Text(stringResource(R.string.pad_report_detect))
+                }
+            }
+        }
+        if (probing) {
+            Text(
+                stringResource(R.string.pad_report_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = NxPalette.Building,
+            )
         }
     }
 }
@@ -456,14 +520,13 @@ private fun UtilityButtons(pressed: Set<String>, compact: Boolean, scale: Float)
 private fun ControllerDiagram(
     state: PadTestState?,
     compact: Boolean,
-    face: FaceSlots,
     scale: Float,
 ) {
     if (compact) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy((20 * scale).dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 Dpad(state?.pressed.orEmpty(), scale)
-                FaceButtons(state?.pressed.orEmpty(), face, scale)
+                FaceButtons(state?.pressed.orEmpty(), scale)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 StickIndicator("L", state?.leftX ?: 0f, state?.leftY ?: 0f, scale)
@@ -479,7 +542,7 @@ private fun ControllerDiagram(
             Dpad(state?.pressed.orEmpty(), scale)
             StickIndicator("L", state?.leftX ?: 0f, state?.leftY ?: 0f, scale)
             StickIndicator("R", state?.rightX ?: 0f, state?.rightY ?: 0f, scale)
-            FaceButtons(state?.pressed.orEmpty(), face, scale)
+            FaceButtons(state?.pressed.orEmpty(), scale)
         }
     }
 }
@@ -498,37 +561,30 @@ private fun Dpad(pressed: Set<String>, scale: Float) {
 }
 
 /**
- * 面键：手柄上的那个菱形（上面一颗，左边一颗，右边一颗，下面一颗）。
+ * 面键：游戏的那四颗，画成 NS 手柄的菱形（X 上、Y 左、A 右、B 下）。
  *
- * 每格写的是**那个方位**的游戏键——玩家按位置还是按标签，它就跟着换；
- * 亮起来的是玩家此刻按着的那一颗。
+ * 菱形是**游戏**的样子，不随手柄的布局转：游戏是 Switch 游戏，它认的就是这四个位置。
+ * 亮起来的是游戏此刻收到的那一颗——玩家按一下自己手柄上印着 Y 的那颗，
+ * 亮的就是 Y（它在菱形的左边，因为游戏把 Y 放在左边）。面板因此是「游戏眼里的真相」。
  */
 @Composable
-private fun FaceButtons(pressed: Set<String>, slots: FaceSlots, scale: Float) {
+private fun FaceButtons(pressed: Set<String>, scale: Float) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        FaceButton(slots.top, pressed, scale)
+        FaceButton("x", pressed, scale)
         Row {
-            FaceButton(slots.left, pressed, scale)
+            FaceButton("y", pressed, scale)
             Spacer(Modifier.width(DIAMOND_GAP * scale))
-            FaceButton(slots.right, pressed, scale)
+            FaceButton("a", pressed, scale)
         }
-        FaceButton(slots.bottom, pressed, scale)
+        FaceButton("b", pressed, scale)
     }
 }
 
-/** 面键的一格：字是那个方位的游戏键，亮不亮是玩家按着没有。 */
+/** 面键的一格：字是游戏的那颗键，亮不亮是玩家按着没有。 */
 @Composable
-private fun FaceButton(target: String?, pressed: Set<String>, scale: Float) {
-    TestButton(target?.uppercase() ?: "–", target != null && target in pressed, scale)
+private fun FaceButton(target: String, pressed: Set<String>, scale: Float) {
+    TestButton(target.uppercase(), target in pressed, scale)
 }
-
-/** 面键的四方：每个方位上的游戏键（没有绑定就是 null）。 */
-private data class FaceSlots(
-    val top: String?,
-    val left: String?,
-    val right: String?,
-    val bottom: String?,
-)
 
 @Composable
 private fun TestButton(label: String, pressed: Boolean, scale: Float) {

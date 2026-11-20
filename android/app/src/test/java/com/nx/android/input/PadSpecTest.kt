@@ -17,25 +17,35 @@ class PadSpecTest {
                 labels = true,
                 player = 1,
                 calibration = PadCalibration(deadzone = 0.15f, trigger = 0.55f),
-                bindings = mapOf(PadSources.scan(305) to "a", PadSources.scan(314) to PadSources.DISABLED),
             ),
             PadSpec.Device(deviceId = 7, labels = false),
         ))
         val lines = text.trim().lines()
         assertEquals("v1", lines[0])
-        assertEquals("dev 3 labels=1 player=1 dz=0.15 tr=0.55", lines[1])
-        assertTrue(lines.contains("bind scan:305 a"))
-        assertTrue(lines.contains("unbind scan:314"))
-        assertTrue(lines.contains("dev 7 labels=0 player=0 dz=0.12 tr=0.5"))
+        assertEquals("dev 3 labels=1 coded=0 player=1 dz=0.15 tr=0.55", lines[1])
+        assertTrue(lines.contains("dev 7 labels=0 coded=0 player=0 dz=0.12 tr=0.5"))
     }
 
     @Test
-    fun `junk never reaches the host`() {
+    fun `the table carries only the layout, the player and the calibration`() {
         val text = PadSpec.build(listOf(
-            PadSpec.Device(deviceId = 1, labels = false, bindings = mapOf("nonsense" to "a", PadSources.scan(305) to "nosuchbutton")),
+            PadSpec.Device(deviceId = 1, labels = false),
         ))
-        assertTrue(!text.contains("nonsense"))
-        assertTrue(!text.contains("nosuchbutton"))
+        assertTrue(!text.contains("bind"))
+        assertTrue(!text.contains("unbind"))
+        assertEquals("dev 1 labels=0 coded=0 player=0 dz=0.12 tr=0.5", text.trim().lines()[1])
+    }
+
+    @Test
+    fun `the reporting kind rides in the dev line`() {
+        // 按印字上报的手柄：宿主换一张面键表（代码名就是印字）
+        val text = PadSpec.build(listOf(
+            PadSpec.Device(deviceId = 5, labels = true, printCoded = true),
+            PadSpec.Device(deviceId = 6, labels = false),
+        ))
+        val lines = text.trim().lines()
+        assertEquals("dev 5 labels=1 coded=1 player=0 dz=0.12 tr=0.5", lines[1])
+        assertEquals("dev 6 labels=0 coded=0 player=0 dz=0.12 tr=0.5", lines[2])
     }
 
     @Test
@@ -46,8 +56,8 @@ class PadSpecTest {
             PadSpec.Device(deviceId = 4, labels = false),
         ))
         val lines = text.trim().lines()
-        assertEquals("dev 2 labels=0 player=0 dz=0.12 tr=0.5 ztrig=1 rxstick=1", lines[1])
-        assertEquals("dev 3 labels=0 player=0 dz=0.12 tr=0.5 ztrig=1", lines[2])
-        assertEquals("dev 4 labels=0 player=0 dz=0.12 tr=0.5", lines[3])   // 没有角色就没有新键：与老表逐字节一致
+        assertEquals("dev 2 labels=0 coded=0 player=0 dz=0.12 tr=0.5 ztrig=1 rxstick=1", lines[1])
+        assertEquals("dev 3 labels=0 coded=0 player=0 dz=0.12 tr=0.5 ztrig=1", lines[2])
+        assertEquals("dev 4 labels=0 coded=0 player=0 dz=0.12 tr=0.5", lines[3])   // 没有角色就没有新键：与老表逐字节一致
     }
 }

@@ -3,28 +3,31 @@ package com.nx.android.input.ui
 import android.content.Context
 import android.hardware.input.InputManager
 import android.os.Build
-import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.InputDevice
-import android.view.MotionEvent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.nx.android.data.AppLog
 import com.nx.android.input.GamepadScan
 import com.nx.android.input.PadCalibration
-import com.nx.android.input.PadCaptureSession
 import com.nx.android.input.PadMapping
 import com.nx.android.input.PadProfileKey
 import com.nx.android.input.PadProfileStore
-import com.nx.android.input.PadSources
+import com.nx.android.input.PadTestInput
 import java.io.File
 
 /**
- * 手柄中心的状态：档案、当前看哪只手柄、抓键与撞车。
+ * 手柄中心的状态：档案、当前看哪只手柄。
  *
  * 中心在两处开（首页的顶栏入口、游戏里的抽屉），状态放在这里，两处共用一份：
  * 档案写的是同一个文件（每只手柄一份，存在 App 自己的目录里），游戏读到的也是它。
+ *
+ * 手柄的键怎么认，**只有布局这一个选择**：按位置（NS 的四个位置：上 X、左 Y、右 A、下 B）
+ * 或按印字（手柄上印的 A/B/X/Y）。这与上游的做法一致（那边是一个 `labels` 位，
+ * 环境变量 `DM_PAD_LABEL` 还是默认值）；逐键改键没有了——怪手柄靠布局选对就行，
+ * 实在不行换一只印法合的手柄。
  *
  * 改完档案 [onChanged] 会被叫一次：游戏里那次要把新表推给宿主（改完即时生效，不用重启游戏）；
  * 首页那次没有宿主可推，存下就好（游戏下次起来自己读）。
@@ -33,18 +36,7 @@ class PadCenterController(
     private val store: PadProfileStore,
     private val onChanged: (Map<String, PadProfileStore.Profile>) -> Unit = {},
     private val devices: () -> List<GamepadScan.Info> = { GamepadScan.devices.value },
-    private val now: () -> Long = { SystemClock.uptimeMillis() },
 ) {
-
-    /** 撞车的那个绑定，等玩家选：替换、交换还是取消。 */
-    data class Conflict(
-        val deviceId: Int,
-        val source: String,      // 玩家刚按下的那个物理键
-        val target: String,      // 他想绑的游戏键
-        val otherSource: String?,   // 原来占着这个目标键的物理键
-        val otherTarget: String?,   // 玩家按下的那个键原来绑着什么
-        val defaultedTarget: String? = null, // 按出厂字典这个来源本来是谁的（只有它与别的撞车时不给交换：一个来源驱动不了两颗键）
-    )
 
     private val loaded = store.load()
 
@@ -60,17 +52,6 @@ class PadCenterController(
     var selectedId by mutableStateOf<Int?>(null)
         private set
 
-    /** 正在等玩家按下的那个游戏键（改键时）。 */
-    var capturing by mutableStateOf<String?>(null)
-        private set
-
-    /** 撞车了，等玩家选。 */
-    var conflict by mutableStateOf<Conflict?>(null)
-        private set
-
-    private val capture = PadCaptureSession()
-    private var captureDeviceId: Int? = null
-
     /** 这只手柄的档案（没有就是空的那一份）。 */
     fun profile(info: GamepadScan.Info): PadProfileStore.Profile =
         profiles[info.profileKey] ?: PadProfileStore.Profile(info.profileKey)
@@ -78,82 +59,81 @@ class PadCenterController(
     /** 面板上看哪一只。 */
     fun select(id: Int?) {
         selectedId = id
-    }
-
-    /** 抓一个物理键：抓到就绑到那个游戏键上。 */
-    fun capture(deviceId: Int, target: String) {
-        conflict = null
-        capturing = target
-        captureDeviceId = deviceId
-        capture.start(deviceId, now()) { source ->
-            captured(deviceId, target, source)
-        }
-    }
-
-    /** 抓到了：没有撞车就绑上，撞车了让玩家选。 */
-    private fun captured(deviceId: Int, target: String, source: String) {
-        capturing = null
-        captureDeviceId = null
-        val info = device(deviceId) ?: return
-        val profile = profile(info)
-        val hit = PadMapping.conflict(profile.bindings, source, target)
-        if (hit != null) {
-            conflict = Conflict(deviceId, source, target, hit.targetSource, hit.sourceTarget)
-            return
-        }
-        // 与出厂字典撞车：这个来源按出厂是另一个键的。绑下去那个键就落空了——明说，让玩家选。
-        val owner = PadMapping.defaultOwnerOf(source, profile.labels)
-        if (owner != null && owner != target && owner != PadSources.DISABLED) {
-            conflict = Conflict(deviceId, source, target, otherSource = null, otherTarget = null, defaultedTarget = owner)
-            return
-        }
-        save(profile.copy(bindings = PadMapping.withBinding(profile.bindings, source, target)))
-    }
-
-    /** 玩家选了：替换（新的顶掉旧的）、交换（两个对调）、取消（什么都不做）。 */
-    fun resolveConflict(replace: Boolean, swap: Boolean) {
-        val hit = conflict ?: return
-        conflict = null
-        val info = device(hit.deviceId) ?: return
-        val profile = profile(info)
-        val bindings = when {
-            swap && hit.defaultedTarget == null -> PadMapping.swapBinding(profile.bindings, hit.source, hit.target)
-            replace -> PadMapping.withBinding(profile.bindings, hit.source, hit.target)
-            else -> profile.bindings
-        }
-        save(profile.copy(bindings = bindings))
-    }
-
-    /** 去掉一条绑定（那个键落回出厂字典）。 */
-    fun clearBinding(info: GamepadScan.Info, source: String) {
-        val profile = profile(info)
-        save(profile.copy(bindings = PadMapping.withoutBinding(profile.bindings, source)))
+        if (probing) probing = false   // 换了一只，认的那只就不是它了
     }
 
     /**
-     * 一键预设：面键按 **Xbox 的印字**（下面 A、右边 B、上 Y、左 X）。
+     * 面键怎么认：按位置（false）或按印字（true）。
      *
-     * 出厂字典是 NS 的位置（游戏嘴里的 A/B/X/Y 指 NS 手柄上的四个位置）；
-     * Xbox 印字的手柄想要「印字说了算」，点这个就行——它只是写四条绑定，
-     * 「恢复默认」一键撤回。
+     * 存的是档案里的那一个位（`labels`），宿主那边按它选字典（`pad_default_bit` 的两套：
+     * 位置与印字）。即存即生效——游戏里推新表，首页存下。
      */
-    fun applyXboxPrint(info: GamepadScan.Info) {
+    fun setLayout(info: GamepadScan.Info, byLabel: Boolean) {
         val profile = profile(info)
-        val faces = setOf("a", "b", "x", "y")
-        val print = mapOf(
-            PadSources.scan(PadMapping.Scan.SOUTH) to "a",   // 下面那颗
-            PadSources.scan(PadMapping.Scan.EAST) to "b",    // 右边那颗
-            PadSources.scan(PadMapping.Scan.NORTH) to "y",   // 上面那颗
-            PadSources.scan(PadMapping.Scan.WEST) to "x",    // 左边那颗
-        )
-        val bindings = profile.bindings.filterValues { it !in faces } + print
-        save(profile.copy(bindings = bindings))
+        if (profile.labels == byLabel) return
+        save(profile.copy(labels = byLabel))
+        PadTestInput.clearPressed()   // 按着的键算出来的目标键变了：面板上的亮格重来
     }
 
-    /** 全部绑定恢复出厂。 */
-    fun resetBindings(info: GamepadScan.Info) {
+    /**
+     * 这只手的面键**怎么上报**：按位置（false）还是按印字（true）。
+     *
+     * 固件说了算：按印字上报的手柄把「印着哪个字」编进了代码里（印 X 的报 307、
+     * 印 Y 的报 308），同一份「按位置/按印字」表对它就不对了。
+     */
+    fun setPrintCoded(info: GamepadScan.Info, printCoded: Boolean) {
         val profile = profile(info)
-        save(profile.copy(bindings = emptyMap()))
+        if (profile.printCoded == printCoded) return
+        save(profile.copy(printCoded = printCoded))
+        PadTestInput.clearPressed()
+    }
+
+    /** 正在等玩家按「印着 Y 的那颗键」吗（面板上要显示这句话）。 */
+    var probing by mutableStateOf(false)
+        private set
+
+    /** 开始认这只手的上报方式。 */
+    fun startProbe() {
+        probing = true
+        AppLog.line("pad: the probe waits for the button printed Y (selected=$selectedId)")
+    }
+
+    /** 不认了。 */
+    fun cancelProbe() {
+        probing = false
+    }
+
+    /**
+     * 认键：玩家按下的那一颗（扫描码，没有就按 keyCode）。
+     *
+     * 按印字上报的手柄：印着 Y 的那颗报 308；按位置上报的：报 307。
+     * 别的码认不出来（就当按位置上报——那是绝大多数手柄的样子）。
+     *
+     * @return true：这个键被认走了（不该再进游戏）。
+     */
+    fun probeKey(deviceId: Int, scanCode: Int, keyCode: Int): Boolean {
+        if (!probing) return false
+        AppLog.line("pad: the probe got a key: device=$deviceId scan=$scanCode key=$keyCode selected=$selectedId")
+        if (deviceId != selectedId) {
+            AppLog.line("pad: the probe ignores it (another controller)")
+            return false
+        }
+        val info = device(deviceId) ?: return false
+        val coded = when {
+            scanCode == PadMapping.Scan.WEST -> true
+            scanCode == PadMapping.Scan.NORTH -> false
+            // 没有扫描码时按 keyCode：通用键位表把 308 起名叫 BUTTON_Y
+            scanCode == 0 && keyCode == PadMapping.Key.BUTTON_Y -> true
+            scanCode == 0 && keyCode == PadMapping.Key.BUTTON_X -> false
+            else -> {
+                AppLog.line("pad: the probe does not know that key (scan=$scanCode key=$keyCode)")
+                return false
+            }
+        }
+        probing = false
+        AppLog.line("pad: the probe says ${if (coded) "by label" else "by position"} (${info.profileKey})")
+        setPrintCoded(info, coded)
+        return true
     }
 
     /** 校准（死区与扳机阈值）。 */
@@ -162,69 +142,21 @@ class PadCenterController(
         save(profile.copy(calibration = calibration))
     }
 
-    /** 抓键的会话作废（玩家改了主意，或者面板关了）。 */
-    fun cancelCapture() {
-        capture.cancel()
-        capturing = null
-        captureDeviceId = null
-    }
-
     /**
-     * 手柄的增减：拔掉的那只从面板上消失，抓它的会话作废。
+     * 手柄的增减：拔掉的那只从面板上消失。
+     *
+     * 面板上没有选中项时它显示第一只设备——那这里也把它选上：状态要跟着显示走，
+     * 否则「认上报方式」那种要对着**当前这只**手柄做的事会落空。
      */
     fun devicesChanged(devices: List<GamepadScan.Info>) {
         val ids = devices.mapTo(mutableSetOf()) { it.id }
         if (selectedId != null && selectedId !in ids) selectedId = null
-        captureDeviceId?.let { id ->
-            if (id !in ids) {
-                capture.cancelDisconnectedDevice(id)
-                capturing = null
-                captureDeviceId = null
-            }
-        }
+        if (selectedId == null) selectedId = devices.firstOrNull()?.id
     }
 
     /**
-     * 一个按键事件进来（抓键用）。
-     *
-     * @return true = 这个事件被吃掉了（抓键的时候不该再下泄给游戏）。
-     */
-    fun offerKey(
-        deviceId: Int,
-        isGamepad: Boolean,
-        down: Boolean,
-        up: Boolean,
-        repeatCount: Int,
-        scanCode: Int,
-        keyCode: Int,
-    ): Boolean {
-        val offer = capture.offerKey(
-            deviceId, isGamepad, down, up, repeatCount, scanCode, keyCode, now(),
-        )
-        if (offer.cancelled) {
-            capturing = null
-            captureDeviceId = null
-        }
-        return offer.consumed
-    }
-
-    /**
-     * 一根模拟轴进来（抓键用：扳机推到底、十字键帽扳到边也算一次按键）。
-     *
-     * @return true = 这个事件被吃掉了。
-     */
-    fun offerAxis(deviceId: Int, isGamepad: Boolean, axisValues: List<Pair<Int, Float>>): Boolean {
-        val offer = capture.offerAxis(deviceId, isGamepad, axisValues, now())
-        if (offer.cancelled) {
-            capturing = null
-            captureDeviceId = null
-        }
-        return offer.consumed
-    }
-
-    /**
-     * 这个物理键（deviceId 的那只）现在是哪个游戏键：档案的绑定优先，出厂字典兜底。
-     * 示波画的就是这一层——玩家按了手柄上印着 A 的那颗，「按位置」时亮的是 B。
+     * 这个物理键（deviceId 的那只）现在是哪个游戏键：出厂字典（按这只手的布局与上报方式）。
+     * 示波画的就是这一层——玩家按了手柄上印着 A 的那颗，按印字时亮的是 A，按位置时亮的是 B。
      */
     fun resolveTarget(deviceId: Int, scanCode: Int, keyCode: Int): String? {
         val info = device(deviceId)
@@ -233,9 +165,12 @@ class PadCenterController(
             ?: InputDevice.getDevice(deviceId)?.let { PadProfileKey.forDevice(it).key }
             ?: return null
         val profile = profiles[key]
-        val mapping = profile?.bindings ?: emptyMap()
-        val labels = profile?.labels ?: false
-        return PadMapping.resolveButton(mapping, labels, scanCode, keyCode)
+        return PadMapping.resolveButton(
+            labels = profile?.labels ?: false,
+            printCoded = profile?.printCoded ?: false,
+            scanCode = scanCode,
+            keyCode = keyCode,
+        )
     }
 
     /** 这只手柄的死区（示波画的是游戏收到的那一份：死区里的偏移算 0）。 */
@@ -266,13 +201,6 @@ class PadCenterController(
         )
     }
 }
-
-/** 这只设备的可抓轴（扳机与十字键帽）与它们此刻的值：Z/RZ 只在这只手柄的量程单向（形似扳机）时进来。 */
-fun capturableAxes(event: MotionEvent): List<Pair<Int, Float>> =
-    event.device?.motionRanges.orEmpty()
-        .filter { it.isFromSource(InputDevice.SOURCE_JOYSTICK) }
-        .filter { PadSources.bindableRange(it.axis, it.min) }
-        .map { it.axis to event.getAxisValue(it.axis) }
 
 /** 测振动：设备马达优先，机身兜底（蓝牙手柄常常没有马达）。 */
 fun vibratePad(context: Context, info: GamepadScan.Info) {

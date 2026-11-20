@@ -31,42 +31,58 @@ HARNESS = r'''
 static void defaults(void) {
     // By position: the scan code says where the button IS (the same on every controller).
     // The Switch's arrangement: X on top, Y on the left, A on the right, B at the bottom.
-    assert(pad_default_bit(PAD_SCAN_SOUTH, 0, 0) == DM_BTN_B);
-    assert(pad_default_bit(PAD_SCAN_EAST, 0, 0) == DM_BTN_A);
-    assert(pad_default_bit(PAD_SCAN_NORTH, 0, 0) == DM_BTN_X);
-    assert(pad_default_bit(PAD_SCAN_WEST, 0, 0) == DM_BTN_Y);
-    assert(pad_default_bit(PAD_SCAN_L1, 0, 0) == DM_BTN_L);
-    assert(pad_default_bit(PAD_SCAN_R1, 0, 0) == DM_BTN_R);
-    assert(pad_default_bit(PAD_SCAN_L2, 0, 0) == DM_BTN_ZL);
-    assert(pad_default_bit(PAD_SCAN_R2, 0, 0) == DM_BTN_ZR);
-    assert(pad_default_bit(PAD_SCAN_L3, 0, 0) == DM_BTN_LS);
-    assert(pad_default_bit(PAD_SCAN_R3, 0, 0) == DM_BTN_RS);
-    assert(pad_default_bit(PAD_SCAN_START, 0, 0) == DM_BTN_PLUS);
-    assert(pad_default_bit(PAD_SCAN_SELECT, 0, 0) == DM_BTN_MINUS);
+    assert(pad_default_bit(PAD_SCAN_SOUTH, 0, 0, 0) == DM_BTN_B);
+    assert(pad_default_bit(PAD_SCAN_EAST, 0, 0, 0) == DM_BTN_A);
+    assert(pad_default_bit(PAD_SCAN_NORTH, 0, 0, 0) == DM_BTN_X);
+    assert(pad_default_bit(PAD_SCAN_WEST, 0, 0, 0) == DM_BTN_Y);
+    assert(pad_default_bit(PAD_SCAN_L1, 0, 0, 0) == DM_BTN_L);
+    assert(pad_default_bit(PAD_SCAN_R1, 0, 0, 0) == DM_BTN_R);
+    assert(pad_default_bit(PAD_SCAN_L2, 0, 0, 0) == DM_BTN_ZL);
+    assert(pad_default_bit(PAD_SCAN_R2, 0, 0, 0) == DM_BTN_ZR);
+    assert(pad_default_bit(PAD_SCAN_L3, 0, 0, 0) == DM_BTN_LS);
+    assert(pad_default_bit(PAD_SCAN_R3, 0, 0, 0) == DM_BTN_RS);
+    assert(pad_default_bit(PAD_SCAN_START, 0, 0, 0) == DM_BTN_PLUS);
+    assert(pad_default_bit(PAD_SCAN_SELECT, 0, 0, 0) == DM_BTN_MINUS);
 
     // The position wins over the key code's name: a controller whose key layout calls the top
     // button BUTTON_Y (the Nintendo one does) still gets X there.
-    assert(pad_default_bit(PAD_SCAN_NORTH, PAD_KEY_BUTTON_Y, 0) == DM_BTN_X);
-    assert(pad_default_bit(PAD_SCAN_WEST, PAD_KEY_BUTTON_X, 0) == DM_BTN_Y);
-    assert(pad_default_bit(PAD_SCAN_NORTH, PAD_KEY_BUTTON_X, 0) == DM_BTN_X);
-    assert(pad_default_bit(PAD_SCAN_SOUTH, PAD_KEY_BUTTON_A, 0) == DM_BTN_B);
+    assert(pad_default_bit(PAD_SCAN_NORTH, PAD_KEY_BUTTON_Y, 0, 0) == DM_BTN_X);
+    assert(pad_default_bit(PAD_SCAN_WEST, PAD_KEY_BUTTON_X, 0, 0) == DM_BTN_Y);
+    assert(pad_default_bit(PAD_SCAN_NORTH, PAD_KEY_BUTTON_X, 0, 0) == DM_BTN_X);
+    assert(pad_default_bit(PAD_SCAN_SOUTH, PAD_KEY_BUTTON_A, 0, 0) == DM_BTN_B);
 
     // No scan code (the d-pad has none): the key code's name it is.
-    assert(pad_default_bit(0, PAD_KEY_DPAD_UP, 0) == DM_BTN_UP);
-    assert(pad_default_bit(0, PAD_KEY_DPAD_DOWN, 0) == DM_BTN_DOWN);
-    assert(pad_default_bit(0, PAD_KEY_DPAD_LEFT, 0) == DM_BTN_LEFT);
-    assert(pad_default_bit(0, PAD_KEY_DPAD_RIGHT, 0) == DM_BTN_RIGHT);
-    assert(pad_default_bit(0, 9999, 0) == 0);
-    assert(pad_default_bit(9999, 0, 0) == 0);
+    assert(pad_default_bit(0, PAD_KEY_DPAD_UP, 0, 0) == DM_BTN_UP);
+    assert(pad_default_bit(0, PAD_KEY_DPAD_DOWN, 0, 0) == DM_BTN_DOWN);
+    assert(pad_default_bit(0, PAD_KEY_DPAD_LEFT, 0, 0) == DM_BTN_LEFT);
+    assert(pad_default_bit(0, PAD_KEY_DPAD_RIGHT, 0, 0) == DM_BTN_RIGHT);
+    assert(pad_default_bit(0, 9999, 0, 0) == 0);
+    assert(pad_default_bit(9999, 0, 0, 0) == 0);
 
     // by print (deprecated): the Xbox print - A at the bottom, B on the right, Y on top, X on the left
-    assert(pad_default_bit(PAD_SCAN_SOUTH, 0, 1) == DM_BTN_A);
-    assert(pad_default_bit(PAD_SCAN_EAST, 0, 1) == DM_BTN_B);
-    assert(pad_default_bit(PAD_SCAN_NORTH, 0, 1) == DM_BTN_Y);
-    assert(pad_default_bit(PAD_SCAN_WEST, 0, 1) == DM_BTN_X);
-    assert(pad_default_bit(PAD_SCAN_L1, 0, 1) == DM_BTN_L);
-    assert(pad_default_bit(PAD_SCAN_START, 0, 1) == DM_BTN_PLUS);
-    assert(pad_default_bit(0, 9999, 1) == 0);
+    assert(pad_default_bit(PAD_SCAN_SOUTH, 0, 1, 0) == DM_BTN_A);
+    assert(pad_default_bit(PAD_SCAN_EAST, 0, 1, 0) == DM_BTN_B);
+    assert(pad_default_bit(PAD_SCAN_NORTH, 0, 1, 0) == DM_BTN_Y);
+    assert(pad_default_bit(PAD_SCAN_WEST, 0, 1, 0) == DM_BTN_X);
+    assert(pad_default_bit(PAD_SCAN_L1, 0, 1, 0) == DM_BTN_L);
+    assert(pad_default_bit(PAD_SCAN_START, 0, 1, 0) == DM_BTN_PLUS);
+    assert(pad_default_bit(0, 9999, 1, 0) == 0);
+
+    // A controller that reports by its print (the firmware puts the letter in the code: the button
+    // printed X is 307, the one printed Y is 308): the top and the left swap around.
+    assert(pad_default_bit(PAD_SCAN_NORTH, 0, 0, 1) == DM_BTN_Y);
+    assert(pad_default_bit(PAD_SCAN_WEST, 0, 0, 1) == DM_BTN_X);
+    assert(pad_default_bit(PAD_SCAN_SOUTH, 0, 0, 1) == DM_BTN_B);
+    assert(pad_default_bit(PAD_SCAN_EAST, 0, 0, 1) == DM_BTN_A);
+    assert(pad_default_bit(PAD_SCAN_NORTH, 0, 1, 1) == DM_BTN_X);
+    assert(pad_default_bit(PAD_SCAN_WEST, 0, 1, 1) == DM_BTN_Y);
+    assert(pad_default_bit(PAD_SCAN_SOUTH, 0, 1, 1) == DM_BTN_A);
+    assert(pad_default_bit(PAD_SCAN_EAST, 0, 1, 1) == DM_BTN_B);
+    // the key code's name is the print there: BUTTON_X is the button printed X
+    assert(pad_default_bit(0, PAD_KEY_BUTTON_X, 1, 1) == DM_BTN_X);
+    assert(pad_default_bit(0, PAD_KEY_BUTTON_Y, 1, 1) == DM_BTN_Y);
+    assert(pad_default_bit(0, PAD_KEY_BUTTON_X, 0, 1) == DM_BTN_Y);
+    assert(pad_default_bit(0, PAD_KEY_BUTTON_Y, 0, 1) == DM_BTN_X);
 }
 
 static void table(void) {
@@ -76,8 +92,9 @@ static void table(void) {
         "dev 3 labels=1 dz=0.15 tr=0.55 player=1\n"
         "bind scan:305 a\n"
         "unbind scan:314\n"
-        "dev 7 labels=0 dz=0.12 tr=0.5 player=-1\n";
-    assert(pad_map_parse(&map, spec) == 2);
+        "dev 7 labels=0 dz=0.12 tr=0.5 player=-1\n"
+        "dev 11 labels=1 coded=1\n";
+    assert(pad_map_parse(&map, spec) == 3);
 
     // the device's own table: the binding wins over the dictionary
     assert(pad_map_key_bit(&map, 3, 305, 97) == DM_BTN_A);
@@ -93,6 +110,10 @@ static void table(void) {
     assert(pad_map_key_bit(&map, 7, 308, 100) == DM_BTN_Y);
     // a device without a table: the dictionary, by position
     assert(pad_map_key_bit(&map, 9, 0, 96) == DM_BTN_B);
+
+    // a controller that reports by its print: the top button (307) is the one printed X
+    assert(pad_map_key_bit(&map, 11, 307, 99) == DM_BTN_X);
+    assert(pad_map_key_bit(&map, 11, 308, 100) == DM_BTN_Y);
 
     // the player a device plays: the table says, a device the table does not know plays player 1
     assert(pad_map_player(&map, 3) == 1);

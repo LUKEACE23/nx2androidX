@@ -7,7 +7,7 @@
 // host has no JSON parser):
 //
 //   v1
-//   dev 3 labels=1 dz=0.15 tr=0.55 player=1 ztrig=1 rxstick=1
+//   dev 3 labels=1 coded=1 dz=0.15 tr=0.55 player=1 ztrig=1 rxstick=1
 //   bind scan:305 a
 //   unbind scan:314
 //   dev 7 labels=0 dz=0.12 tr=0.5
@@ -25,6 +25,11 @@
 // everywhere (each vendor has its own key layout), so they are only the fallback for the buttons that carry no
 // scan code (the d-pad). With "labels" the face buttons go by their print instead (an Xbox controller's A is the
 // game's A): the print belongs to the controller, not to the game.
+//
+// "coded" says how the controller REPORTS them: by position (the top button is 307 on every controller) or by its
+// print (the firmware puts the letter in the code: the button printed X is 307, the one printed Y is 308). The
+// second kind needs the two dictionaries swapped around: the code names are the prints there, so the top button
+// is the one printed Y.
 #ifndef DM_PAD_MAP_H
 #define DM_PAD_MAP_H
 
@@ -87,6 +92,7 @@ typedef struct { char source[PAD_MAP_SRC_MAX]; int target; } pad_map_binding;
 typedef struct {
     int device;          // the Android input device id
     int labels;          // 1: the face buttons by their label, 0: by their position
+    int coded;           // 1: the controller reports its face buttons by their print (the code names are the prints)
     int player;          // 0: player 1, 1..7: players 2..8, -1: set aside (the controller does nothing)
     float deadzone;      // < 0: the default
     float trigger;       // < 0: the default
@@ -122,13 +128,14 @@ static inline int pad_log_keys(void) {
 
 // The default dictionary: the Switch's layout by position (X on top, Y on the left, A on the right, B at the bottom).
 // The game speaks Switch positions; what the controller prints on its buttons is only a sticker.
-static inline uint64_t pad_default_bit(int scan, int key, int labels) {
+static inline uint64_t pad_default_bit(int scan, int key, int labels, int coded) {
     if (scan > 0) {   // by position: the scan code says where the button IS (the same on every controller)
         switch (scan) {
         case PAD_SCAN_SOUTH: return labels ? DM_BTN_A : DM_BTN_B;
         case PAD_SCAN_EAST: return labels ? DM_BTN_B : DM_BTN_A;
-        case PAD_SCAN_NORTH: return labels ? DM_BTN_Y : DM_BTN_X;
-        case PAD_SCAN_WEST: return labels ? DM_BTN_X : DM_BTN_Y;
+        // The top and the left: which one carries X depends on how the controller reports them (see "coded").
+        case PAD_SCAN_NORTH: return coded ? (labels ? DM_BTN_X : DM_BTN_Y) : (labels ? DM_BTN_Y : DM_BTN_X);
+        case PAD_SCAN_WEST:  return coded ? (labels ? DM_BTN_Y : DM_BTN_X) : (labels ? DM_BTN_X : DM_BTN_Y);
         case PAD_SCAN_L1: return DM_BTN_L; case PAD_SCAN_R1: return DM_BTN_R;
         case PAD_SCAN_L2: return DM_BTN_ZL; case PAD_SCAN_R2: return DM_BTN_ZR;
         case PAD_SCAN_L3: return DM_BTN_LS; case PAD_SCAN_R3: return DM_BTN_RS;
@@ -140,8 +147,8 @@ static inline uint64_t pad_default_bit(int scan, int key, int labels) {
     switch (key) {
     case PAD_KEY_BUTTON_A: return labels ? DM_BTN_A : DM_BTN_B;
     case PAD_KEY_BUTTON_B: return labels ? DM_BTN_B : DM_BTN_A;
-    case PAD_KEY_BUTTON_X: return labels ? DM_BTN_Y : DM_BTN_X;
-    case PAD_KEY_BUTTON_Y: return labels ? DM_BTN_X : DM_BTN_Y;
+    case PAD_KEY_BUTTON_X: return coded ? (labels ? DM_BTN_X : DM_BTN_Y) : (labels ? DM_BTN_Y : DM_BTN_X);
+    case PAD_KEY_BUTTON_Y: return coded ? (labels ? DM_BTN_Y : DM_BTN_X) : (labels ? DM_BTN_X : DM_BTN_Y);
     case PAD_KEY_BUTTON_L1: return DM_BTN_L; case PAD_KEY_BUTTON_R1: return DM_BTN_R;
     case PAD_KEY_BUTTON_L2: return DM_BTN_ZL; case PAD_KEY_BUTTON_R2: return DM_BTN_ZR;
     case PAD_KEY_BUTTON_THUMBL: return DM_BTN_LS; case PAD_KEY_BUTTON_THUMBR: return DM_BTN_RS;
@@ -216,6 +223,7 @@ static inline int pad_map_parse(pad_map_t *m, const char *spec) {
             cur = pad_map_device_mut(m, device);
             if (!cur) continue;
             cur->labels = pad_map_value(line, "labels", -1);
+            cur->coded = pad_map_value(line, "coded", 0);   // how it reports the face buttons (the app works it out)
             cur->player = pad_map_value(line, "player", 0);   // 0: player 1 (the default), -1: set aside
             cur->deadzone = pad_map_float(line, "dz", -1);
             cur->trigger = pad_map_float(line, "tr", -1);
@@ -272,7 +280,7 @@ static inline uint64_t pad_map_key_bit(const pad_map_t *m, int device, int scan,
         if (b) return b->target < 0 ? 0 : pad_button_bit(b->target);
     }
     int labels = d ? (d->labels >= 0 ? d->labels : pad_env_labels_cached()) : pad_env_labels_cached();
-    return pad_default_bit(scan, key, labels);
+    return pad_default_bit(scan, key, labels, d ? d->coded : 0);
 }
 
 // The face buttons' flip for a device: the table's, else the environment's.

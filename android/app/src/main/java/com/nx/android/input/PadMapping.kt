@@ -3,14 +3,18 @@ package com.nx.android.input
 /**
  * 查表规则：物理键 → 游戏键。
  *
- * 顺序是「玩家自己绑的 → 出厂字典」：玩家没动过的地方，落回出厂字典。
+ * 一只手的键怎么认，是**两个维度**拼出来的：
  *
- * 出厂字典按**位置**说话，而位置是扫描码的事（Linux 手柄规范：304 是下面那颗，307 是上面那颗）：
- * 同一个键在任何手柄上都是同一个扫描码，而 Android 给它起的名字（BUTTON_A、BUTTON_X…）**每家不一样**
- * ——任天堂的手柄有自己的键位表，把上面那颗叫 BUTTON_Y。名字不可信，位置才可信。
+ * - **上报方式**（手柄的固件说了算）：按位置上报（上面那颗报 307）还是按印字上报
+ *   （印着 Y 的那颗报 308——代码名就是它印的字）。两种固件都存在，游戏里都常见。
+ * - **模式**（玩家在手柄中心选的）：按位置（物理的上下左右 → NS 的 X/Y/A/B）还是
+ *   按印字（手柄上印的字 → 同名的游戏键）。
+ *
+ * 两个维度拼出四张面键的表（见下面的四张）。面键之外的那些键（肩键、扳机、加减）
+ * 两种上报方式都一样，不必分表。
  *
  * 游戏嘴里的 A/B/X/Y 指的就是 **NS 手柄上的四个位置**：X 在上、Y 在左、A 在右、B 在下。
- * 手柄上印的字只是贴纸；想要「印字说了算」的玩家在改键页自己绑（或者点那个一键预设）。
+ * 手柄上印的字只是贴纸——想要「印字说了算」的玩家在手柄中心里选「按印字」。
  *
  * 没有扫描码的键（十字键）按 Android 的 keyCode 兜底——那上面没有歧义。
  *
@@ -54,37 +58,59 @@ object PadMapping {
         const val R3 = 318
     }
 
-    /** 一个键占了两个目标时的冲突：源原来绑的、目标原来是谁的。 */
-    data class Conflict(val sourceTarget: String?, val targetSource: String?)
-
-    /**
-     * 出厂字典（按位置）：**扫描码 → 游戏键**。
-     *
-     * NS 的位置：X 在上、Y 在左、A 在右、B 在下。游戏说的是这四个位置，
-     * 手柄上印的字只是贴纸（想要印字说了算的，改键页有一键预设）。
-     */
-    private val POSITION: Map<Int, String> = mapOf(
-        Scan.SOUTH to "b", Scan.EAST to "a", Scan.NORTH to "x", Scan.WEST to "y",
+    /** 面键之外的那些键：上报方式与模式都不影响它们。 */
+    private val TAIL: Map<Int, String> = mapOf(
         Scan.L1 to "l", Scan.R1 to "r", Scan.L2 to "zl", Scan.R2 to "zr",
         Scan.L3 to "ls", Scan.R3 to "rs",
         Scan.SELECT to "minus", Scan.START to "plus",
     )
 
     /**
-     * 按印字的出厂字典（弃用：面键按位置还是按印字的老开关，恒 false）。
-     * 留着是为了老档案读得出来也不作数——它按 Xbox 的印字：下 A、右 B、上 Y、左 X。
+     * 面键：按位置上报 · 按位置。上面那颗（307）就是 NS 的 X，左边（308）是 Y。
+     *
+     * 这是绝大多数手柄的样子（Xbox 的 xpad 驱动、Switch Pro……）。
      */
-    private val PRINT: Map<Int, String> = POSITION + mapOf(
+    private val FACE_POSITIONAL_POSITION: Map<Int, String> = mapOf(
+        Scan.SOUTH to "b", Scan.EAST to "a", Scan.NORTH to "x", Scan.WEST to "y",
+    )
+
+    /**
+     * 面键：按位置上报 · 按印字。上面那颗在 Xbox 布局的手柄上印着 Y，它就是游戏的 Y。
+     */
+    private val FACE_POSITIONAL_LABEL: Map<Int, String> = mapOf(
         Scan.SOUTH to "a", Scan.EAST to "b", Scan.NORTH to "y", Scan.WEST to "x",
     )
 
     /**
-     * 没有扫描码时的兜底：**Android 的 keyCode → 游戏键**。
+     * 面键：按印字上报 · 按位置。
      *
-     * 只有十字键真的走这条路（它的扫描码是 0）。面键的 keyCode 各家手柄起名字不一样，
-     * 拿它当准绳就是之前那个「按上面却变成左边」的毛病，所以它只是兜底。
+     * 这种固件把「印着哪个字」直接编进代码里（印 X 的报 307、印 Y 的报 308），
+     * 于是左右那两颗要按 Xbox 布局对调：印 X 的那颗在左边，NS 的左边是 Y。
      */
-    private val BY_KEY: Map<Int, String> = mapOf(
+    private val FACE_CODED_POSITION: Map<Int, String> = mapOf(
+        Scan.SOUTH to "b", Scan.EAST to "a", Scan.NORTH to "y", Scan.WEST to "x",
+    )
+
+    /**
+     * 面键：按印字上报 · 按印字。代码名就是印字，信它：印 X 的报 307 → 游戏的 X。
+     */
+    private val FACE_CODED_LABEL: Map<Int, String> = mapOf(
+        Scan.SOUTH to "a", Scan.EAST to "b", Scan.NORTH to "x", Scan.WEST to "y",
+    )
+
+    /** 四张表（面键 + 其余的键）。 */
+    private val SCAN_POSITIONAL_POSITION = FACE_POSITIONAL_POSITION + TAIL
+    private val SCAN_POSITIONAL_LABEL = FACE_POSITIONAL_LABEL + TAIL
+    private val SCAN_CODED_POSITION = FACE_CODED_POSITION + TAIL
+    private val SCAN_CODED_LABEL = FACE_CODED_LABEL + TAIL
+
+    /**
+     * 没有扫描码时的兜底：**Android 的 keyCode → 游戏键**（按位置上报 · 按位置）。
+     *
+     * 通用键位表（Generic.kl）按数字顺序起名：304→BUTTON_A、307→BUTTON_X、308→BUTTON_Y，
+     * 于是 BUTTON_X 是上面那颗、BUTTON_Y 是左边那颗。
+     */
+    private val KEY_POSITIONAL_POSITION: Map<Int, String> = mapOf(
         Key.BUTTON_A to "b", Key.BUTTON_B to "a", Key.BUTTON_X to "x", Key.BUTTON_Y to "y",
         Key.BUTTON_L1 to "l", Key.BUTTON_R1 to "r", Key.BUTTON_L2 to "zl", Key.BUTTON_R2 to "zr",
         Key.BUTTON_THUMBL to "ls", Key.BUTTON_THUMBR to "rs",
@@ -92,15 +118,19 @@ object PadMapping {
         Key.DPAD_UP to "up", Key.DPAD_DOWN to "down", Key.DPAD_LEFT to "left", Key.DPAD_RIGHT to "right",
     )
 
-    /** 按印字的 keyCode 兜底（弃用，与宿主那份一致）。 */
-    private val BY_KEY_PRINT: Map<Int, String> = BY_KEY + mapOf(
+    /** 兜底 · 按位置上报 · 按印字。 */
+    private val KEY_POSITIONAL_LABEL: Map<Int, String> = KEY_POSITIONAL_POSITION + mapOf(
         Key.BUTTON_A to "a", Key.BUTTON_B to "b", Key.BUTTON_X to "y", Key.BUTTON_Y to "x",
     )
 
-    /** 出厂字典查表用的扫描码顺序（改键页显示「默认 · scan:xxx」用）。 */
-    private val SCANS = intArrayOf(
-        Scan.SOUTH, Scan.EAST, Scan.NORTH, Scan.WEST, Scan.L1, Scan.R1,
-        Scan.L2, Scan.R2, Scan.SELECT, Scan.START, Scan.L3, Scan.R3,
+    /** 兜底 · 按印字上报 · 按位置：名字就是印字，按 Xbox 布局换位。 */
+    private val KEY_CODED_POSITION: Map<Int, String> = KEY_POSITIONAL_POSITION + mapOf(
+        Key.BUTTON_X to "y", Key.BUTTON_Y to "x",
+    )
+
+    /** 兜底 · 按印字上报 · 按印字：名字就是印字，信它。 */
+    private val KEY_CODED_LABEL: Map<Int, String> = KEY_POSITIONAL_LABEL + mapOf(
+        Key.BUTTON_X to "x", Key.BUTTON_Y to "y",
     )
 
     /**
@@ -108,111 +138,39 @@ object PadMapping {
      *
      * @param scanCode 这个键的扫描码（0：没有）
      * @param keyCode Android 给它起的名字（只在没有扫描码时兜底）
-     * @param labels 弃用：面键按位置还是按印字的老开关（恒 false）。面键的语义现在由逐键绑定表达。
+     * @param labels 面键按印字（true）还是按位置（false）
+     * @param printCoded 这只手按印字上报（true：代码名就是印字）还是按位置上报（false）
      */
-    fun defaultTarget(scanCode: Int, keyCode: Int, labels: Boolean = false): String? {
-        if (scanCode > 0) {
-            val byPosition = (if (labels) PRINT else POSITION)[scanCode]
-            if (byPosition != null) return byPosition
-        }
-        return (if (labels) BY_KEY_PRINT else BY_KEY)[keyCode]
-    }
-
-    /**
-     * 某个游戏键的默认来源（出厂字典：扫描码优先，没有就 keyCode）：设置页显示默认绑定用。
-     *
-     * 走的是**运行时那一条路**（扫描码 → 出厂字典），所以面板上写的默认来源
-     * 与游戏真的收到的一致。
-     */
-    fun defaultSourceFor(target: String, labels: Boolean = false): String? {
-        for (scan in SCANS) {
-            if (defaultTarget(scan, 0, labels) == target) return PadSources.scan(scan)
-        }
-        for (key in BY_KEY.keys) if (defaultTarget(0, key, labels) == target) return PadSources.key(key)
-        return null
-    }
-
-    /**
-     * 出厂字典里这个来源本来是谁的（不在字典里就是 null）：撞车提示用。
-     * 一个来源如果按出厂字典属于另一个游戏键，把它绑给玩家想要的键时那个键会落空——得说出来。
-     */
-    fun defaultOwnerOf(source: String, labels: Boolean = false): String? = when {
-        source.startsWith("scan:") -> defaultTarget(source.removePrefix("scan:").toIntOrNull() ?: 0, 0, labels)
-        source.startsWith("key:") -> defaultTarget(0, source.removePrefix("key:").toIntOrNull() ?: 0, labels)
-        else -> null
-    }
-
-    /** 查表：玩家自己绑的先（扫描码优先，keyCode 兜底），没有就落回出厂字典。 */
-    fun resolveButton(
-        mapping: Map<String, String>,
-        labels: Boolean,
+    fun defaultTarget(
         scanCode: Int,
         keyCode: Int,
+        labels: Boolean = false,
+        printCoded: Boolean = false,
     ): String? {
         if (scanCode > 0) {
-            val bound = mapping[PadSources.scan(scanCode)]
-            if (bound != null) return if (bound == PadSources.DISABLED) null else bound
+            val byScan = if (labels) {
+                if (printCoded) SCAN_CODED_LABEL else SCAN_POSITIONAL_LABEL
+            } else {
+                if (printCoded) SCAN_CODED_POSITION else SCAN_POSITIONAL_POSITION
+            }
+            val target = byScan[scanCode]
+            if (target != null) return target
         }
-        val bound = mapping[PadSources.key(keyCode)]
-        if (bound != null) return if (bound == PadSources.DISABLED) null else bound
-        return defaultTarget(scanCode, keyCode, labels)
-    }
-
-    /** 这个键被禁用了吗（禁用是「在这儿，但什么都不做」）。 */
-    fun isDisabled(mapping: Map<String, String>, scanCode: Int, keyCode: Int): Boolean {
-        if (scanCode > 0 && mapping[PadSources.scan(scanCode)] == PadSources.DISABLED) return true
-        return mapping[PadSources.key(keyCode)] == PadSources.DISABLED
-    }
-
-    /** 模拟轴的绑定：命中就是那个目标键，没绑就是 null。 */
-    fun resolveAxis(mapping: Map<String, String>, axis: Int, value: Float): String? {
-        if (!PadSources.isCapturableAxis(axis)) return null
-        val bound = mapping[PadSources.axis(axis, value)] ?: return null
-        return if (bound == PadSources.DISABLED) null else bound
-    }
-
-    /** 这个轴有玩家自己的绑定吗（宿主那边：有就不再用它的默认触发）。 */
-    fun hasAxisBinding(mapping: Map<String, String>, axis: Int): Boolean =
-        PadSources.isCapturableAxis(axis) &&
-            (mapping.containsKey(PadSources.axis(axis, -1f)) || mapping.containsKey(PadSources.axis(axis, 1f)))
-
-    /** 绑一个键：它原来的绑定让位，别人占着的目标被腾出来（新绑的赢）。 */
-    fun withBinding(mapping: Map<String, String>, source: String, target: String): Map<String, String> {
-        if (!PadSources.isKnown(source) || !PadTargets.isValid(target)) return mapping
-        val out = mapping.toMutableMap()
-        out.entries.removeAll { it.value == target && it.key != source }
-        out[source] = target
-        return out
-    }
-
-    /** 这个绑定会不会撞车：源原来绑着别的、目标原来是谁的。 */
-    fun conflict(mapping: Map<String, String>, source: String, target: String): Conflict? {
-        val sourceTarget = mapping[source]?.takeIf { it != target && it != PadSources.DISABLED }
-        val targetSource = if (target == PadSources.DISABLED) null else
-            mapping.entries.firstOrNull {
-                it.key != source && it.value == target && it.value != PadSources.DISABLED
-            }?.key
-        return if (sourceTarget == null && targetSource == null) null else Conflict(sourceTarget, targetSource)
-    }
-
-    /** 禁用一个键。 */
-    fun disableBinding(mapping: Map<String, String>, source: String): Map<String, String> =
-        if (PadSources.isKnown(source)) mapping + (source to PadSources.DISABLED) else mapping
-
-    /** 交换两个键的绑定：新的那个拿到目标，旧的那个拿到新的原来的目标（没有就松开）。 */
-    fun swapBinding(mapping: Map<String, String>, source: String, target: String): Map<String, String> {
-        val conflict = conflict(mapping, source, target) ?: return mapping
-        val otherSource = conflict.targetSource ?: return mapping
-        return mapping.toMutableMap().apply {
-            put(source, target)
-            val oldTarget = conflict.sourceTarget
-            if (oldTarget != null) put(otherSource, oldTarget) else remove(otherSource)
+        val byKey = if (labels) {
+            if (printCoded) KEY_CODED_LABEL else KEY_POSITIONAL_LABEL
+        } else {
+            if (printCoded) KEY_CODED_POSITION else KEY_POSITIONAL_POSITION
         }
+        return byKey[keyCode]
     }
 
-    /** 去掉一条绑定（那个键落回出厂字典）。 */
-    fun withoutBinding(mapping: Map<String, String>, source: String): Map<String, String> =
-        if (mapping.containsKey(source)) mapping - source else mapping
+    /** 这个物理键是哪个游戏键（出厂字典 + 这只手的两种约定）。 */
+    fun resolveButton(
+        labels: Boolean,
+        printCoded: Boolean,
+        scanCode: Int,
+        keyCode: Int,
+    ): String? = defaultTarget(scanCode, keyCode, labels, printCoded)
 
     /**
      * 面键的**方位**：手柄上那四颗键各在哪儿。
@@ -229,6 +187,12 @@ object PadMapping {
         const val RIGHT = Scan.EAST
         /** 下面那颗。 */
         const val BOTTOM = Scan.SOUTH
+
+        /** 四颗面键的扫描码。 */
+        val CODES = intArrayOf(TOP, LEFT, RIGHT, BOTTOM)
+
+        /** 这是不是一颗面键。 */
+        fun isFace(scanCode: Int): Boolean = scanCode in CODES
 
         /**
          * 那颗键在 Android 那边通常叫什么 keyCode（通用键位表：扫描码与 keyCode 是一对）。

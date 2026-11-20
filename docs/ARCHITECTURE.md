@@ -371,6 +371,22 @@ touched. The key events carry the scan code now (`dm_java_event`'s `key_scan`, f
 is what makes a binding survive a change of phone. The calibration is per controller too: the dead zone is applied
 when the axis event comes in, the trigger's threshold when the button is derived from it.
 
+The face buttons are recognised by **one choice per controller**: by position (the Switch's four
+places: X on top, Y on the left, A on the right, B at the bottom) or by label (the A/B/X/Y the
+controller prints). It is the same model upstream uses (a `labels` bit, with `DM_PAD_LABEL` as the
+default), stored per controller in its profile; the scope in the gamepad center shows what the game
+actually receives, so the player can check it by pressing. There is no per-key remapping: the
+controller's own print and the four positions are what a player has to live with.
+
+One controller family needs a second bit, though: some controllers report their face buttons **by
+their print** (the firmware puts the letter in the code: the button printed X is 307, the one printed
+Y is 308) instead of by position. The same dictionary is then wrong on two of the four buttons, so
+the profile keeps a `printCoded` bit per controller and the gamepad center works it out with one
+press ("press the button printed Y": 307 means it reports by position, 308 by its print). The pushed
+table carries it as `coded=1` in the `dev` line, and the host picks the matching pair of
+dictionaries. The scope always draws the **game's** diamond (the Switch's four places) and lights
+what the game received, so it tells the truth whatever the controller's firmware does.
+
 The pushed table also carries the controller's **axis roles** (`ztrig=1`, `rxstick=1` in the `dev` line): where its
 triggers and its right stick live. Not every family agrees — the NS and the old Android convention put the right
 stick on Z/RZ and the triggers on LTRIGGER/RTRIGGER, while the Xbox family (the USB `xpad`, the Bluetooth XInput
