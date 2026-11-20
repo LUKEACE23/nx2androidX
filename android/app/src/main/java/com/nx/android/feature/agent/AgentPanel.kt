@@ -91,7 +91,7 @@ fun AgentPanel(
             // ---- the tool rail: the entry marks and the context's quick questions ----------------------
             Column(
                 Modifier
-                    .width(72.dp)
+                    .width(96.dp)
                     .fillMaxHeight()
                     .background(NxPalette.Background)
                     .padding(vertical = 14.dp, horizontal = 7.dp),
