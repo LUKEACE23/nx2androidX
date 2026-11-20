@@ -35,7 +35,6 @@
     <string name="common_cancelled">Cancelled</string>
     <string name="common_failed">Failed</string>
     <string name="common_done">Done</string>
-    <string name="common_complete">Done</string>
     <string name="common_porting">Porting</string>
     <string name="common_not_ported">Not ported</string>
     <string name="common_interrupted">Interrupted</string>
@@ -332,7 +331,7 @@
     <string name="builds_source">Source: %1$s</string>
     <string name="builds_options_title">Build options</string>
     <string name="builds_change">Change</string>
-    <string name="builds_clear">Clear</string>
+    <string name="builds_clear">Cancel selection</string>
     <string name="builds_touch_game">Touch game (the gamepad starts hidden)</string>
     <string name="builds_60fps">60 fps</string>
     <string name="builds_experimental">Experimental port (a game that is not adapted yet)</string>
@@ -394,6 +393,8 @@
     <string name="builds_port_action">Port</string>
     <string name="builds_minutes_seconds">%1$s min %2$s s</string>
     <string name="builds_cancel_port">Cancel the port</string>
+    <string name="builds_cancel_confirm_title">Cancel this port?</string>
+    <string name="builds_cancel_confirm_text">The port stops now. The stages already done are kept and reused next time; only the step in progress starts over.</string>
     <string name="builds_no_output">No output yet</string>
     <string name="builds_log_view">View all</string>
     <string name="builds_log_earlier">Earlier</string>
@@ -403,13 +404,9 @@
     <string name="builds_log_empty">This build has no output to share yet.</string>
     <string name="builds_log_waiting">Waiting for this build to produce output.</string>
     <string name="builds_log_share">Share the log</string>
-    <string name="builds_artifact">Data pack</string>
     <string name="builds_artifact_path">Data pack: %1$s</string>
     <string name="builds_run_action">▶ Run</string>
     <string name="builds_result">Result</string>
-    <string name="builds_prev_failed">The last port failed - the reason is in the log below; fix the options and start again</string>
-    <string name="builds_prev_cancelled">The last port was cancelled - the options are still there; start again</string>
-    <string name="builds_prev_interrupted">The last port was interrupted by the system - you can start again</string>
     <string name="builds_history">History</string>
     <string name="builds_history_retention">The latest 20 completed builds are kept.</string>
     <string name="builds_log_legacy">This older build has no separate log.</string>
@@ -420,7 +417,7 @@
     <string name="builds_info_experimental">Experimental profile</string>
     <string name="builds_info_ios_only">iOS profile only</string>
     <string name="builds_info_unsupported">Not adapted yet</string>
-    <string name="builds_info_pack">Packs %1$s</string>
+    <string name="builds_info_pack">Data pack version %1$s</string>
     <string name="builds_files_title">Files found</string>
     <string name="builds_files_base">Base</string>
     <string name="builds_files_update">Updates</string>
@@ -668,7 +665,7 @@
     <string name="drawer_player_n">Player %1$d</string>
     <string name="drawer_player_auto">Automatic</string>
     <string name="drawer_player_none">No controller</string>
-    <string name="drawer_players_note">Player 1 is the phone: the on-screen gamepad and the motion are its, and it takes the controllers nobody else plays (automatic). Lock it to one controller and the others sit out. A controller plays one player only.</string>
+    <string name="drawer_players_note">Player 1 is the phone: the on-screen gamepad and the motion are its, and it takes the controllers nobody else plays (automatic). Lock it to one controller and the others sit out. A controller plays one player only. While a controller holds player 1 the on-screen gamepad steps aside; assign that controller to player 2 and the on-screen gamepad is player 1 (two players at once).</string>
     <string name="pad_center_player">Player %1$d</string>
     <string name="pad_center_idle">Idle</string>
     <!-- 常见问题页 -->

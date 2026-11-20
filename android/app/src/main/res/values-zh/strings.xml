@@ -34,7 +34,6 @@
     <string name="common_cancelled">已取消</string>
     <string name="common_failed">失败</string>
     <string name="common_done">已完成</string>
-    <string name="common_complete">完成</string>
     <string name="common_porting">移植中</string>
     <string name="common_not_ported">未移植</string>
     <string name="common_interrupted">被中断</string>
@@ -331,7 +330,7 @@
     <string name="builds_source">来源：%1$s</string>
     <string name="builds_options_title">构建选项</string>
     <string name="builds_change">更换</string>
-    <string name="builds_clear">清除</string>
+    <string name="builds_clear">取消选择</string>
     <string name="builds_touch_game">触屏游戏（隐藏手柄）</string>
     <string name="builds_60fps">60 帧</string>
     <string name="builds_experimental">实验性移植（还没适配的游戏）</string>
@@ -393,6 +392,8 @@
     <string name="builds_port_action">移植</string>
     <string name="builds_minutes_seconds">%1$s 分 %2$s 秒</string>
     <string name="builds_cancel_port">取消移植</string>
+    <string name="builds_cancel_confirm_title">确定取消移植？</string>
+    <string name="builds_cancel_confirm_text">正在进行的移植会立即中止；已完成的阶段会保留，下次构建接着用，只有当前这一步要重做。</string>
     <string name="builds_no_output">还没有输出</string>
     <string name="builds_log_view">查看全部</string>
     <string name="builds_log_earlier">更早的</string>
@@ -402,13 +403,9 @@
     <string name="builds_log_empty">这次构建还没有输出可分享。</string>
     <string name="builds_log_waiting">正在等待本次构建输出。</string>
     <string name="builds_log_share">分享日志</string>
-    <string name="builds_artifact">产物</string>
     <string name="builds_artifact_path">产物：%1$s</string>
     <string name="builds_run_action">▶ 运行</string>
     <string name="builds_result">结果</string>
-    <string name="builds_prev_failed">上次移植失败——原因在下面的日志里，改好参数可以重新开始</string>
-    <string name="builds_prev_cancelled">上次移植被取消——参数还在，可以重新开始</string>
-    <string name="builds_prev_interrupted">上次移植被系统中断——可以重新开始</string>
     <string name="builds_history">历史</string>
     <string name="builds_history_retention">保留最近 20 次已完成的构建。</string>
     <string name="builds_log_legacy">这是旧版记录，没有单独保存日志。</string>
@@ -419,7 +416,7 @@
     <string name="builds_info_experimental">实验性档案</string>
     <string name="builds_info_ios_only">仅 iOS 档案</string>
     <string name="builds_info_unsupported">尚未适配</string>
-    <string name="builds_info_pack">打包 %1$s</string>
+    <string name="builds_info_pack">数据包版本 %1$s</string>
     <string name="builds_files_title">识别到的文件</string>
     <string name="builds_files_base">本体</string>
     <string name="builds_files_update">更新</string>
@@ -667,7 +664,7 @@
     <string name="drawer_player_n">玩家 %1$d</string>
     <string name="drawer_player_auto">自动</string>
     <string name="drawer_player_none">没有手柄</string>
-    <string name="drawer_players_note">玩家 1 永远是手机：触屏的虚拟按键与体感都是它的，它再接手柄。默认「自动」——没被指派走的手柄都算玩家 1（单人游戏插两只手柄都能玩）。锁死某一只之后，别的就闲置了（按了没人管）。一只手柄只能属于一个玩家。</string>
+    <string name="drawer_players_note">玩家 1 永远是手机：触屏的虚拟按键与体感都是它的，它再接手柄。默认「自动」——没被指派走的手柄都算玩家 1（单人游戏插两只手柄都能玩）。锁死某一只之后，别的就闲置了（按了没人管）。一只手柄只能属于一个玩家。物理手柄占着玩家 1 时触屏按键让位；把它指派给玩家 2，触屏按键就是玩家 1 的了（两个人一起玩）。</string>
     <string name="pad_center_player">玩家 %1$d</string>
     <string name="pad_center_idle">闲置</string>
     <!-- 常见问题页 -->
