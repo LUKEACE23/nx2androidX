@@ -251,7 +251,7 @@ private fun StatusCapsule(config: AgentModelConfig) {
 
 /** A turn failed: one line under the top bar, the words say which kind (the code says nothing). */
 @Composable
-private fun ErrorStrip(reason: AgentFailure, onDismiss: () -> Unit) {
+internal fun ErrorStrip(reason: AgentFailure, onDismiss: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -291,7 +291,7 @@ private fun failureText(reason: AgentFailure): Int = when (reason) {
 
 /** One rendered message: the player's bubble, or the assistant's block. */
 @Composable
-private fun MessageRow(message: AgentMessage) {
+internal fun MessageRow(message: AgentMessage) {
     if (message.role == AgentRole.USER) UserBubbleText(message.text) else AssistantBlock(message)
 }
 
@@ -331,7 +331,7 @@ private fun AssistantBlock(message: AgentMessage) {
 
 /** One tool call: collapsed it is a line (the name, a one-sentence result, the state's dot); a tap unfolds the details. */
 @Composable
-private fun ToolCard(card: AgentToolCard) {
+internal fun ToolCard(card: AgentToolCard) {
     var expanded by remember(card.id) { mutableStateOf(false) }
     val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "agent-tool-arrow")
     val (tint, stateWord) = when (card.state) {
@@ -409,7 +409,7 @@ private fun ToolCard(card: AgentToolCard) {
 
 /** The bottom bar: the box grows up to four lines; the round button sends, or stops while a turn runs. */
 @Composable
-private fun AgentInputBar(running: Boolean, onSend: (String) -> Unit, onStop: () -> Unit) {
+internal fun AgentInputBar(running: Boolean, onSend: (String) -> Unit, onStop: () -> Unit) {
     var text by remember { mutableStateOf("") }
     val canSend = !running && text.isNotBlank()
     Row(

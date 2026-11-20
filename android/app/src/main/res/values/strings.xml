@@ -713,4 +713,7 @@
     <string name="agent_provider_hint_kimi">A Moonshot API key from platform.moonshot.cn</string>
     <string name="agent_provider_hint_minimax">A MiniMax API key from the MiniMax open platform</string>
     <string name="agent_provider_hint_custom">Any OpenAI-compatible endpoint and model name</string>
+    <string name="agent_bubble_desc">Assistant</string>
+    <string name="agent_panel_collapse">Collapse the assistant</string>
+    <string name="agent_panel_expand">Open the full chat</string>
 </resources>

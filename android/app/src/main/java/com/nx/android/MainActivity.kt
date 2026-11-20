@@ -138,9 +138,9 @@ class MainActivity : ComponentActivity() {
      *  这一份是**唯一**的那份：分发层（dispatchKeyEvent）与页面读的都是它。 */
     var padCenterOpen by mutableStateOf(false)
 
-    /** Is the assistant's chat page open (the portrait one)? The one copy: AppRoot's entry writes it,
-     *  the orientation collector in onCreate reads it. */
-    private var agentOpen by mutableStateOf(false)
+    /** The assistant's full chat page is open (the portrait one)? The one copy: AppRoot's entry writes it,
+     *  the orientation collector in onCreate reads it. The side panel does not count — it is landscape. */
+    private var agentFullOpen by mutableStateOf(false)
 
     /** 摇杆与十字键帽各自的边沿状态：推到底发一次，回中才复位。 */
     private val hatEdge = NavEdge(HAT_THRESHOLD)
@@ -180,14 +180,14 @@ class MainActivity : ComponentActivity() {
             AppRoot(prefs, locale, port, library, onboarding, drivers, environmentSetup, actions,
                 launchTab, launchBuildId, padController,
                 padCenterOpen = padCenterOpen, onPadCenter = { padCenterOpen = it },
-                agentOpen = agentOpen, onAgent = { agentOpen = it },
+                agentFullOpen = agentFullOpen, onAgentFull = { agentFullOpen = it },
                 crash = crash, onCrashHandled = { crash = null })
         }
         // The chat page is portrait: while it is open the screen turns; closed, the sensor landscape lock
         // returns. orientation sits in the manifest's configChanges, so this only re-lays the tree out —
         // no page is rebuilt, nothing restarts.
         lifecycleScope.launch {
-            snapshotFlow { agentOpen }.collect { open ->
+            snapshotFlow { agentFullOpen }.collect { open ->
                 requestedOrientation =
                     if (open) ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                     else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
