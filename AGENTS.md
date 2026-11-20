@@ -32,7 +32,7 @@
 玩家手机里装的是 **APK**；移植、数据包、游戏运行全在手机上完成。
 
 - ✅ 构建 APK：`bash packaging/android-apk/build_apk.sh [debug|release]`
-  （需要 gh CLI 对私有 release `NixPort/nixport-rootfs` 的读权限；下载缓存在 `packaging/android-apk/.cache`，不入库）
+  （需要 gh CLI 已登录即可；payload 来自公开 release `NixPort/nixport-rootfs`，不需要额外 token；下载缓存在 `packaging/android-apk/.cache`，不入库）
 - ✅ CI：`.github/workflows/android-apk.yml` —— **只有打 tag 才构建**（`workflow_dispatch` 手动出构建产物；推分支不构建）。tag 一推，构建就开始，等 release 建好后自动把 APK 附上去
 - ✅ 装机与真机调试：adb，设备信息在 `devtools/device.json`；方法见 `.claude/skills/switch-android-port`
 - ✅ 宿主/着色器改动后的重编译：`nxnative/dm/android/build.py`

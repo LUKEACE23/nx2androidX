@@ -14,7 +14,7 @@ licenses, commit messages in full: [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md).
 | Android NDK r27c, .NET SDK 10, platform-tools (adb) | ports and the phone app's payload | `python -m porter tools --download` fetches all three (about 1 GB) from Google and Microsoft |
 | A test device | trying a port | Android 8.0+, a GPU that reads BC textures (Adreno / Xclipse); the tested one is a Lenovo Legion Y700 |
 | JDK 17 and the Android SDK | building the APK | any JDK 17 works (CI uses Temurin); no Android Studio needed, just the SDK |
-| The `gh` CLI | building the APK | the rootfs payload comes from the private release `NixPort/nixport-rootfs@payload-latest`, so `gh` must be signed in with read access to it |
+| The `gh` CLI | building the APK | the rootfs payload comes from the public release `NixPort/nixport-rootfs@payload-latest`, so `gh` must be signed in (any account, no extra token) |
 
 ## Set up
 

@@ -31,7 +31,7 @@ cd android && ./gradlew :app:assembleDebug -PnoPayload     # 900 KB, 10 s
 The payload is what makes the APK big (700 MB); the environment itself lives in the app's own folder, so an update
 that leaves the payload out keeps it: the app sees that the environment is there and only runs its check.
 
-The script needs the `gh` CLI (the rootfs comes from the private supply channel
+The script needs the `gh` CLI (the rootfs comes from the public supply channel
 `NixPort/nixport-rootfs@payload-latest`), Python 3.11+ and the Android SDK. The APK lands in
 `android/app/build/outputs/apk/`.
 
