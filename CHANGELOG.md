@@ -74,9 +74,9 @@ The release page has the APK and the full notes: <https://github.com/zFitness/nx
 - Every pack in the package rebuilds against the 0.4.0 host, and many
   games carry a frame-pacing preset now instead of a guess. A
   re-import buys the engine fixes above for every game.
-- Unreal allocator patches arrived for OCTOPATH TRAVELER 0, Advance
-  Wars 1+2: Re-Boot Camp, DRAGON QUEST VII Reimagined, and FINAL
-  FANTASY RESONANCE (both releases).
+- Unreal allocator patches arrived for OCTOPATH TRAVELER 0 (both
+  releases), DRAGON QUEST VII Reimagined, and FINAL FANTASY RESONANCE
+  (both releases).
 - FINAL FANTASY RESONANCE (Asian release): the missing fires were a
   translator bug, fixed with the 0.4.0 host. The profile asks for the
   Turnip driver.
