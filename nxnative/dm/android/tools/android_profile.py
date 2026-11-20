@@ -147,8 +147,9 @@ class AndroidProfile:
         if self.get('orientation', 'landscape') not in ('landscape', 'any'): bad.append('orientation: landscape or any')
         if self.get('romfs', 'raw') not in ('raw', 'zstd'): bad.append('romfs: raw or zstd')
         if self.vulkan_driver not in ('system', 'turnip'): bad.append('vulkan_driver: system or turnip')
-        readme = [k for k in ('readme_image', 'readme_tag', 'readme_note') if self.get(k)]
-        if (readme or self.get('readme_name')) and len(readme) != 3: bad.append('readme_image, readme_tag and readme_note go together (README.md games table, docs/gen_tables.py)')
+        readme = [k for k in ('readme_image', 'readme_tag') if self.get(k)]
+        if (readme or self.get('readme_name')) and len(readme) != 2: bad.append('readme_image and readme_tag go together (the games list and the game\'s own README.md, docs/gen_tables.py)')
+        # readme_note is this line's own note about the port (upstream dropped the row when it moved the note into the per-game page it generates); it is optional
         if self.get('readme_tag') and not re.fullmatch(r'v\d+\.\d+\.\d+', self.get('readme_tag')): bad.append(f"readme_tag {self.get('readme_tag')!r}: the nx2android version tested, v<major>.<minor>.<patch>")
         # the image's path is checked against the repository: a checkout has docs/ (the README's images), the app's tool copy on a device
         # has none, and there the check is skipped (the repository's own test, tests/test_docs_tables.py, holds the images honest)
