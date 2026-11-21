@@ -2,7 +2,9 @@ package com.nx.android.agent.tools
 
 import com.nx.android.appstate.LibraryState
 import com.nx.android.appstate.PortState
+import com.nx.android.data.GameLog
 import com.nx.android.data.porting.BuildSessionRepository
+import com.nx.android.domain.GameEntry
 import com.nx.android.domain.GameStatus
 import com.nx.android.domain.porting.PortPhase
 import io.agentscope.core.tool.Tool
@@ -95,6 +97,80 @@ class AgentTools @Inject constructor(
         return out.toString()
     }
 
+    @Tool(
+        name = "game_log",
+        description = "读取某款游戏的运行日志（host 把自己的 stderr 写在游戏数据包里）。" +
+            "排查闪退、起不来、黑屏时用这个。注意：崩溃的回溯通常在上一次运行的日志里" +
+            "（host 每次启动都会把日志改名，所以崩的那次的日志留在 log.prev.txt）；" +
+            "游戏重编过 runtime 的话，起不来的原因在 rebuild.log。",
+        readOnly = true,
+        concurrencySafe = true,
+    )
+    fun gameLog(
+        @ToolParam(name = "game", description = "游戏名或 title ID；不给则取最近运行过的那个游戏")
+        game: String?,
+        @ToolParam(
+            name = "which",
+            description = "读哪份日志：last（最近一次运行）/ prev（上一次运行，崩溃回溯在这里）/ rebuild（runtime 重编日志）",
+            required = false,
+        )
+        which: String = "last",
+        @ToolParam(name = "lines", description = "要读取的行数，默认 60，上限 200", required = false)
+        lines: Int = 60,
+    ): String {
+        val n = lines.coerceIn(1, MAX_GAME_LOG_LINES)
+        val entry = resolveGame(game) ?: run {
+            val recent = mostRecentlyRun()
+                ?: return "没有找到游戏（给的是「$game」）。游戏库里现有的游戏见 library_status。"
+            recent
+        }
+        val pack = library.packDirOf(entry) ?: return "游戏 ${entry.label} 的数据包不在本机。"
+        val file = when (which.lowercase().trim()) {
+            "prev" -> GameLog.previousInPack(pack)
+            "rebuild" -> GameLog.rebuildInPack(pack)
+            else -> GameLog.inPack(pack)
+        } ?: return when (which.lowercase().trim()) {
+            "rebuild" -> "${entry.label} 没有做过 runtime 重编，没有 rebuild.log。"
+            "prev" -> "${entry.label} 只运行过一次，没有上一次的日志。"
+            else -> "${entry.label} 还没有运行日志（游戏没启动过）。"
+        }
+        val tail = file.readLines().takeLast(n)
+        if (tail.isEmpty()) return "${entry.label} 的日志是空的（${file.name}）。"
+        val head = "${entry.label} 的${when (which.lowercase().trim()) {
+            "prev" -> "上一次运行"
+            "rebuild" -> "runtime 重编"
+            else -> "最近一次运行"
+        }}日志（${file.name}，最后 ${tail.size} 行）："
+        val out = StringBuilder(head)
+        for (line in tail) out.append('\n').append(safeLine(line))
+        if (which == "prev") out.append("\n（崩溃回溯通常在这份里：找 backtrace、FATAL 或 signal 开头的行。）")
+        return out.toString()
+    }
+
+    /** The entry a game word points at: by exact title ID, or by the label containing the words. */
+    private fun resolveGame(game: String?): GameEntry? {
+        val words = game?.trim() ?: return null
+        if (words.isEmpty()) return null
+        val byId = library.visible().firstOrNull { it.titleId.equals(words, ignoreCase = true) }
+        if (byId != null) return byId
+        return library.visible().firstOrNull { it.label.contains(words, ignoreCase = true) }
+    }
+
+    /** The game whose log was written most recently — the one the player just tried, most likely. */
+    private fun mostRecentlyRun(): GameEntry? {
+        var best: GameEntry? = null
+        var bestAt = Long.MIN_VALUE
+        for (e in library.visible()) {
+            val pack = library.packDirOf(e) ?: continue
+            val at = GameLog.inPack(pack)?.lastModified() ?: continue
+            if (at > bestAt) {
+                bestAt = at
+                best = e
+            }
+        }
+        return best
+    }
+
     // ---- the words ----
 
     /** One honest sentence about what the machine is doing, from the states the tools already hold */
@@ -144,5 +220,6 @@ class AgentTools @Inject constructor(
         private const val MAX_TAIL_LINES = 100
         private const val MAX_LINE_CHARS = 200
         private const val SECRET_LINE_MIN = 40
+        private const val MAX_GAME_LOG_LINES = 200
     }
 }

@@ -1,6 +1,10 @@
 package com.nx.android.agent.runtime
 
+import com.nx.android.agent.runtime.AgentWorkspace
+import com.nx.android.agent.runtime.AgentSessionStore
 import com.nx.android.agent.tools.AgentTools
+import com.nx.android.agent.tools.MemoryTools
+import com.nx.android.agent.tools.UiTools
 import com.nx.android.agent.AgentChat
 import com.nx.android.agent.AgentEvent
 import com.nx.android.agent.AgentFailure
@@ -10,13 +14,13 @@ import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentRole
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
-import com.nx.android.agent.tools.UiTools
 import io.agentscope.core.ReActAgent
 import io.agentscope.core.event.AgentEvent as FrameworkEvent
 import io.agentscope.core.event.TextBlockDeltaEvent
 import io.agentscope.core.event.ToolCallStartEvent
 import io.agentscope.core.event.ToolResultEndEvent
 import io.agentscope.core.event.ToolResultTextDeltaEvent
+import io.agentscope.core.message.AssistantMessage
 import io.agentscope.core.message.UserMessage
 import io.agentscope.core.model.transport.HttpTransportConfig
 import io.agentscope.core.model.transport.OkHttpTransport
@@ -25,8 +29,10 @@ import io.agentscope.extensions.model.openai.OpenAIChatModel
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.reactive.asFlow
 
 /**
@@ -41,6 +47,9 @@ class AgentChatImpl @Inject constructor(
     private val settings: AgentSettingsStore,
     private val tools: AgentTools,
     private val uiTools: UiTools,
+    private val memoryTools: MemoryTools,
+    private val workspace: AgentWorkspace,
+    private val sessionStore: AgentSessionStore,
 ) : AgentChat {
 
     private companion object {
@@ -68,12 +77,19 @@ class AgentChatImpl @Inject constructor(
     private var nextId: Long = 0
     private var list: MutableList<AgentMessage> = mutableListOf()
 
+    init {
+        workspace.ensure()
+        list = sessionStore.load().toMutableList()
+        nextId = (list.maxOfOrNull { it.id } ?: -1L) + 1L
+    }
+
     override val messages: List<AgentMessage> get() = list
 
     override fun reset() {
         agent = null
         builtFor = null
         list = mutableListOf()
+        sessionStore.clear()
     }
 
     override suspend fun send(userText: String, context: AgentPageContext?): Flow<AgentEvent> = flow {
@@ -86,7 +102,7 @@ class AgentChatImpl @Inject constructor(
         // The user's message joins the history at once (even if the turn fails, the question was asked);
         // the history keeps the bare words — the page context rides into the model message only
         list.add(AgentMessage(nextId++, AgentRole.USER, userText))
-        val composed = composeTurn(userText, context)
+        val composed = composeTurn(userText, workspace.readMemory().take(AgentWorkspace.MEMORY_INJECT_CHARS), context)
         val fingerprint = "${config.baseUrl}|${config.modelName}|${config.apiKey.hashCode()}"
         val theAgent = agent?.takeIf { builtFor == fingerprint } ?: buildAgent(config).also {
             agent = it
@@ -110,6 +126,7 @@ class AgentChatImpl @Inject constructor(
         }
 
         finalize(text, cards)
+        sessionStore.save(list)
         emit(AgentEvent.TurnDone(text.toString().trim()))
     }
 
@@ -171,6 +188,7 @@ class AgentChatImpl @Inject constructor(
         val toolkit = Toolkit()
         toolkit.registerTool(tools)
         toolkit.registerTool(uiTools)
+        toolkit.registerTool(memoryTools)
         return ReActAgent.builder()
             .name("nx2a-assistant")
             .sysPrompt(SYSTEM_PROMPT)
@@ -204,18 +222,25 @@ internal const val CONTEXT_CHARS = 800
 /**
  * The page context as the model reads it: a bounded block prepended to the player's words. Pure so the
  * JVM tests can drive the budget. The player's own words always come last; over budget the tail facts
- * drop and the cut is announced.
+ * drop and the cut is announced. [memory] is the long-term memory (already truncated by the caller).
  */
-internal fun composeTurn(userText: String, context: AgentPageContext?): String {
-    if (context == null) return userText
-    val block = StringBuilder("[页面上下文] ")
-    if (context.subject != null) {
-        block.append("正在处理：${context.subject.title}（${context.subject.id}）。")
+internal fun composeTurn(userText: String, memory: String, context: AgentPageContext?): String {
+    val hasMemory = memory.isNotBlank()
+    val hasContext = context != null
+    if (!hasMemory && !hasContext) return userText
+    val sb = StringBuilder()
+    if (hasMemory) sb.append("[助手记忆] ").append(memory.trim()).append('\n')
+    if (hasContext) {
+        val block = StringBuilder("[页面上下文] ")
+        if (context.subject != null) {
+            block.append("正在处理：${context.subject.title}（${context.subject.id}）。")
+        }
+        for ((k, v) in context.facts) block.append("$k：$v。")
+        if (block.length > CONTEXT_CHARS) {
+            block.setLength(CONTEXT_CHARS)
+            block.append("…（上下文超预算，已截断）")
+        }
+        sb.append(block).append('\n')
     }
-    for ((k, v) in context.facts) block.append("$k：$v。")
-    if (block.length > CONTEXT_CHARS) {
-        block.setLength(CONTEXT_CHARS)
-        block.append("…（上下文超预算，已截断）")
-    }
-    return "$block\n\n玩家说：$userText"
+    return sb.append("玩家说：").append(userText).toString()
 }

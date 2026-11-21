@@ -24,7 +24,7 @@ class AgentContextRenderTest {
 
     @Test
     fun `with a context the block rides ahead of the words`() {
-        val composed = composeTurn("为啥闪退", context)
+        val composed = composeTurn("为啥闪退", "", context)
         assertTrue(composed.startsWith("[页面上下文]"))
         assertTrue(composed.contains("游戏X"))
         assertTrue(composed.contains("E-SHADER-010"))
@@ -33,7 +33,15 @@ class AgentContextRenderTest {
 
     @Test
     fun `without a context the message is just the words`() {
-        assertEquals("为啥闪退", composeTurn("为啥闪退", null))
+        assertEquals("为啥闪退", composeTurn("为啥闪退", "", null))
+    }
+
+    @Test
+    fun `memory rides ahead of everything`() {
+        val composed = composeTurn("试试", "某设备上某游戏的修法", context)
+        assertTrue(composed.startsWith("[助手记忆] 某设备上某游戏的修法"))
+        assertTrue(composed.indexOf("[助手记忆]") < composed.indexOf("[页面上下文]"))
+        assertTrue(composed.endsWith("玩家说：试试"))
     }
 
     @Test
@@ -44,7 +52,7 @@ class AgentContextRenderTest {
                 "细节" to "说明文字".repeat(200),
             ),
         )
-        val composed = composeTurn("怎么了", chatty)
+        val composed = composeTurn("怎么了", "", chatty)
         assertTrue(composed.length <= 800 + "…（上下文超预算，已截断）".length + "怎么了".length + 20)
         assertTrue(composed.contains("已截断"))
         // the player's words survive the cut: they come after the block
@@ -54,7 +62,7 @@ class AgentContextRenderTest {
     @Test
     fun `a subject-less page still renders its facts`() {
         val bare = AgentPageContext(page = "settings", subject = null, facts = linkedMapOf("环境" to "就绪"))
-        val composed = composeTurn("检查环境", bare)
+        val composed = composeTurn("检查环境", "", bare)
         assertFalse(composed.contains("正在处理"))
         assertTrue(composed.contains("环境：就绪"))
         assertTrue(composed.endsWith("玩家说：检查环境"))
