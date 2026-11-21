@@ -1,4 +1,4 @@
-package com.nx.android.data.agent.tools
+package com.nx.android.agent.tools
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

@@ -93,7 +93,7 @@ import com.nx.android.domain.GameEntry
 import com.nx.android.domain.GameIdentity
 import com.nx.android.domain.drivers.DriverRepository
 import com.nx.android.domain.environment.EnvironmentSetup
-import com.nx.android.feature.agent.AgentScreen
+import com.nx.android.agent.ui.AgentScreen
 import com.nx.android.feature.builds.BuildsRoute
 import com.nx.android.feature.builds.BuildsViewModel
 import com.nx.android.feature.drivers.DriverRoute
@@ -104,8 +104,8 @@ import com.nx.android.feature.environment.GameProfilesDialog
 import com.nx.android.feature.filepicker.FilePickerScreen
 import com.nx.android.feature.filepicker.PickerMode
 import com.nx.android.feature.filepicker.PickerRequest
-import com.nx.android.feature.agent.AgentBubble
-import com.nx.android.feature.agent.AgentPanel
+import com.nx.android.agent.ui.AgentBubble
+import com.nx.android.agent.ui.AgentPanel
 import com.nx.android.feature.faq.FaqScreen
 import com.nx.android.feature.gamedetail.GameDetailRoute
 import com.nx.android.feature.library.HeroBackground
@@ -114,8 +114,8 @@ import com.nx.android.feature.library.LibraryViewModel
 import com.nx.android.feature.logs.LogOverlay
 import com.nx.android.feature.onboarding.OnboardingScreen
 import com.nx.android.feature.onboarding.OnboardingViewModel
-import com.nx.android.feature.agent.AgentViewModel
-import com.nx.android.feature.settings.AgentSettingsSection
+import com.nx.android.agent.ui.AgentViewModel
+import com.nx.android.agent.ui.AgentSettingsSection
 import com.nx.android.feature.settings.SettingsScreen
 import com.nx.android.feature.settings.SettingsSection
 import com.nx.android.feature.storage.StorageViewModel

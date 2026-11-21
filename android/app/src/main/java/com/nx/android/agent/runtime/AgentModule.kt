@@ -1,7 +1,7 @@
-package com.nx.android.data.agent
+package com.nx.android.agent.runtime
 
-import com.nx.android.domain.agent.AgentChat
-import com.nx.android.domain.agent.AgentSettings
+import com.nx.android.agent.AgentChat
+import com.nx.android.agent.AgentSettings
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn

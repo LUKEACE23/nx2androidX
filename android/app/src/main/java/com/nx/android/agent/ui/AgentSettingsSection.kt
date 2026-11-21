@@ -1,4 +1,4 @@
-package com.nx.android.feature.settings
+package com.nx.android.agent.ui
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
@@ -39,9 +39,9 @@ import com.nx.android.core.ui.components.CapsuleButton
 import com.nx.android.core.ui.components.Hint
 import com.nx.android.core.ui.components.Section
 import com.nx.android.core.ui.theme.NxPalette
-import com.nx.android.domain.agent.AgentModelConfig
-import com.nx.android.domain.agent.AgentPresets
-import com.nx.android.feature.agent.AgentViewModel
+import com.nx.android.agent.AgentModelConfig
+import com.nx.android.agent.AgentPresets
+import com.nx.android.agent.ui.AgentViewModel
 /**
  * The assistant's settings section: the BYOK form (ADR-003) — the player's own key, one OpenAI-compatible
  * endpoint of their choice. Lives here because it is global configuration; the assistant's surfaces (the

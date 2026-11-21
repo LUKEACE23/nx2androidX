@@ -1,4 +1,4 @@
-package com.nx.android.domain.agent
+package com.nx.android.agent
 
 /**
  * The BYOK presets (ADR-003) and the settings the chat page needs to read and write.

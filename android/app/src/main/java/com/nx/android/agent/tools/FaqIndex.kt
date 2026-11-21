@@ -1,4 +1,4 @@
-package com.nx.android.data.agent.tools
+package com.nx.android.agent.tools
 
 import android.content.Context
 import com.nx.android.data.AppLocale

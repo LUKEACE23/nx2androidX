@@ -1,4 +1,4 @@
-package com.nx.android.feature.agent
+package com.nx.android.agent.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

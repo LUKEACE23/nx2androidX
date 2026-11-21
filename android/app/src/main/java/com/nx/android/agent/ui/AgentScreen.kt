@@ -1,4 +1,4 @@
-package com.nx.android.feature.agent
+package com.nx.android.agent.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
@@ -61,14 +61,12 @@ import com.nx.android.core.ui.nav.NavKey
 import com.nx.android.core.ui.nav.OnNavKey
 import com.nx.android.core.ui.theme.GlassPanel
 import com.nx.android.core.ui.theme.NxPalette
-import com.nx.android.domain.agent.AgentFailure
-import com.nx.android.domain.agent.AgentMessage
-import com.nx.android.domain.agent.AgentModelConfig
-import com.nx.android.domain.agent.AgentRole
-import com.nx.android.domain.agent.AgentToolCard
-import com.nx.android.domain.agent.AgentToolState
-import com.nx.android.feature.settings.providerLabelRes
-import com.nx.android.feature.settings.shortModel
+import com.nx.android.agent.AgentFailure
+import com.nx.android.agent.AgentMessage
+import com.nx.android.agent.AgentModelConfig
+import com.nx.android.agent.AgentRole
+import com.nx.android.agent.AgentToolCard
+import com.nx.android.agent.AgentToolState
 
 /** The user bubble's ground: the design spec's one off-palette neutral (a step above the palette's Surface). */
 private val UserBubble = Color(0xFF26262A)

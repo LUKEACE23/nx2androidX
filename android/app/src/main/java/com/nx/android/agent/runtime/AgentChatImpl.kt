@@ -1,14 +1,14 @@
-package com.nx.android.data.agent
+package com.nx.android.agent.runtime
 
-import com.nx.android.data.agent.tools.AgentTools
-import com.nx.android.domain.agent.AgentChat
-import com.nx.android.domain.agent.AgentEvent
-import com.nx.android.domain.agent.AgentFailure
-import com.nx.android.domain.agent.AgentMessage
-import com.nx.android.domain.agent.AgentModelConfig
-import com.nx.android.domain.agent.AgentRole
-import com.nx.android.domain.agent.AgentToolCard
-import com.nx.android.domain.agent.AgentToolState
+import com.nx.android.agent.tools.AgentTools
+import com.nx.android.agent.AgentChat
+import com.nx.android.agent.AgentEvent
+import com.nx.android.agent.AgentFailure
+import com.nx.android.agent.AgentMessage
+import com.nx.android.agent.AgentModelConfig
+import com.nx.android.agent.AgentRole
+import com.nx.android.agent.AgentToolCard
+import com.nx.android.agent.AgentToolState
 import io.agentscope.core.ReActAgent
 import io.agentscope.core.event.AgentEvent as FrameworkEvent
 import io.agentscope.core.event.TextBlockDeltaEvent
@@ -141,7 +141,7 @@ class AgentChatImpl @Inject constructor(
         )
     }
 
-    private fun buildAgent(config: com.nx.android.domain.agent.AgentModelConfig): ReActAgent {
+    private fun buildAgent(config: AgentModelConfig): ReActAgent {
         val model = OpenAIChatModel.builder()
             .apiKey(config.apiKey)
             .baseUrl(config.baseUrl)

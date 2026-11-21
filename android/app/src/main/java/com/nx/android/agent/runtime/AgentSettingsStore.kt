@@ -1,11 +1,11 @@
-package com.nx.android.data.agent
+package com.nx.android.agent.runtime
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.nx.android.data.PrefsStore
-import com.nx.android.domain.agent.AgentModelConfig
-import com.nx.android.domain.agent.AgentSettings
+import com.nx.android.agent.AgentModelConfig
+import com.nx.android.agent.AgentSettings
 import javax.inject.Inject
 import javax.inject.Singleton
 

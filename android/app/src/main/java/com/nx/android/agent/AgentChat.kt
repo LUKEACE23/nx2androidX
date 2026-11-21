@@ -1,4 +1,4 @@
-package com.nx.android.domain.agent
+package com.nx.android.agent
 
 import kotlinx.coroutines.flow.Flow
 

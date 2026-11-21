@@ -1,4 +1,4 @@
-package com.nx.android.feature.agent
+package com.nx.android.agent.ui
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -6,13 +6,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nx.android.domain.agent.AgentChat
-import com.nx.android.domain.agent.AgentEvent
-import com.nx.android.domain.agent.AgentFailure
-import com.nx.android.domain.agent.AgentMessage
-import com.nx.android.domain.agent.AgentModelConfig
-import com.nx.android.domain.agent.AgentRole
-import com.nx.android.domain.agent.AgentSettings
+import com.nx.android.agent.AgentChat
+import com.nx.android.agent.AgentEvent
+import com.nx.android.agent.AgentFailure
+import com.nx.android.agent.AgentMessage
+import com.nx.android.agent.AgentModelConfig
+import com.nx.android.agent.AgentRole
+import com.nx.android.agent.AgentSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException

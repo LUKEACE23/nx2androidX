@@ -44,7 +44,8 @@ import com.nx.android.R
 import com.nx.android.appstate.OnboardingState
 import com.nx.android.feature.storage.StorageViewModel
 import com.nx.android.feature.storage.StorageSection
-import com.nx.android.feature.agent.AgentViewModel
+import com.nx.android.agent.ui.AgentSettingsSection
+import com.nx.android.agent.ui.AgentViewModel
 import com.nx.android.feature.updates.UpdateViewModel
 import com.nx.android.data.AppLocale
 import com.nx.android.domain.drivers.Driver
