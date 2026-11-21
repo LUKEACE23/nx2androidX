@@ -153,6 +153,9 @@ android {
         debugImplementation("androidx.compose.ui:ui-tooling")
         implementation("androidx.compose.material3:material3")
         implementation("androidx.compose.material:material-icons-extended")
+        // the assistant's answers are markdown (ADR-009): full renderer — tables, links, nested lists
+        implementation("com.mikepenz:multiplatform-markdown-renderer-m3:0.27.0-rc02")
+        implementation("com.mikepenz:multiplatform-markdown-renderer-coil3:0.27.0-rc02")
         implementation("androidx.activity:activity-compose:1.13.0")
         implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
         implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")

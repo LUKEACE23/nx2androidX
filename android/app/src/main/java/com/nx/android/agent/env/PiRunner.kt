@@ -42,17 +42,23 @@ class PiRunner @Inject constructor(
         }
 
         val proxyPort = proxy.ensure()
-        val pb = ProcessBuilder(listOf(binary.absolutePath, "-p", "--model", fullModelId(config), prompt))
+        val pb = ProcessBuilder(listOf(binary.absolutePath, "-p", "--model", PiCatalog.fullModelId(config), prompt))
             .directory(nx2a)
         pb.redirectErrorStream(true)
         // stdin is /dev/null: an open pipe makes pi wait for an EOF that never comes
         // (0 cpu, no sockets, no session — verified once on device the hard way)
         pb.redirectInput(ProcessBuilder.Redirect.from(File("/dev/null")))
         pb.environment().putAll(base)
+        // the supplement libs the guest's own userland needs (ls/grep/cp pull selinux/pcre2/cap/...)
+        // that the slim rootfs does not carry; prepended so they win
+        val agentLib = File(nx2a, "agent/lib")
+        if (agentLib.isDirectory) {
+            pb.environment()["LD_LIBRARY_PATH"] = agentLib.absolutePath + ":" + (base["LD_LIBRARY_PATH"] ?: "")
+        }
         pb.environment()["http_proxy"] = "http://127.0.0.1:$proxyPort"
         pb.environment()["https_proxy"] = pb.environment()["http_proxy"]
         pb.environment()["TERM"] = "dumb"
-        val (keyName, keyValue) = keyEnv(config.providerId, config.apiKey)
+        val (keyName, keyValue) = PiCatalog.keyEnv(config.providerId, config.apiKey)
         pb.environment()[keyName] = keyValue
 
         try {
@@ -84,25 +90,5 @@ class PiRunner @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
-    }
-
-    /** pi's model id: the catalog wants provider/model — the settings store keeps the bare name. */
-    private fun fullModelId(config: com.nx.android.agent.AgentModelConfig): String =
-        if (config.modelName.contains('/')) config.modelName
-        else when (config.providerId) {
-            "minimax" -> "minimax-cn/${config.modelName}"
-            "glm" -> "zai/${config.modelName}"
-            "deepseek" -> "deepseek/${config.modelName}"
-            "kimi" -> "moonshot/${config.modelName}"
-            else -> config.modelName
-        }
-
-    /** The provider's key travels as the env var pi reads; the app never writes it to a file. */
-    private fun keyEnv(providerId: String, key: String): Pair<String, String> = when (providerId) {
-        "minimax" -> "MINIMAX_CN_API_KEY" to key
-        "glm" -> "ZAI_CODING_CN_API_KEY" to key
-        "deepseek" -> "DEEPSEEK_API_KEY" to key
-        "kimi" -> "MOONSHOT_API_KEY" to key
-        else -> "OPENAI_API_KEY" to key
     }
 }

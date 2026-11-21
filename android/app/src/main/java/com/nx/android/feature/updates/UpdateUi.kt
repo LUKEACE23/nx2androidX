@@ -32,6 +32,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.DialogProperties
 import com.nx.android.R
 import com.nx.android.domain.UpdatePhase
 import com.nx.android.feature.updates.UpdateViewModel
@@ -91,7 +92,12 @@ fun UpdatePopup(viewModel: UpdateViewModel, modifier: Modifier = Modifier) {
         // 这里让它按可用宽度铺开、两侧留 16dp 边距；大屏上封顶 520dp。
         // 顺序要紧：边距在外、封顶在中间、铺满在内——这样弹框的窗口按内容收缩（平台居中），
         // 卡片本身落在边距里面，宽屏上也不会被拉到 520dp 之外。
+        //
+        // usePlatformDefaultWidth = false 是前提：默认的 true 会把弹框的窗口宽度钳在平台的窄
+        // 默认值上（手机上内容只有 ~280dp），上面那条链只能在窗口允许的范围内铺开，铺不开。
+        // 关掉它，窗口才跟着下面的链走。
         modifier = Modifier.padding(horizontal = 16.dp).widthIn(max = 520.dp).fillMaxWidth(),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
         title = {
             Text(stringResource(R.string.update_available, state.latest), fontWeight = FontWeight.Bold)
         },

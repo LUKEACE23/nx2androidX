@@ -6,14 +6,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.nx.android.agent.AgentChat
 import com.nx.android.agent.AgentEvent
 import com.nx.android.agent.AgentFailure
 import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentRole
-import com.nx.android.agent.AgentSettings
+import com.nx.android.agent.env.PiAgentChat
 import com.nx.android.agent.env.PiRunner
+import com.nx.android.agent.runtime.AgentSettingsStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -48,12 +48,12 @@ data class AgentUiState(
  */
 @HiltViewModel
 class AgentViewModel @Inject constructor(
-    private val chat: AgentChat,
-    private val settings: AgentSettings,
+    private val piChat: PiAgentChat,
+    private val settings: AgentSettingsStore,
     private val piRunner: PiRunner,
 ) : ViewModel() {
 
-    private var messages by mutableStateOf(chat.messages)
+    private var messages by mutableStateOf(piChat.messages)
     private var running by mutableStateOf(false)
     private var failure by mutableStateOf<AgentFailure?>(null)
     private var config by mutableStateOf(settings.config)
@@ -61,7 +61,7 @@ class AgentViewModel @Inject constructor(
     private var piResult by mutableStateOf<String?>(null)
 
     /** The ids are this list's own: they start above whatever the chat brought along. */
-    private var nextId = (chat.messages.maxOfOrNull { it.id } ?: 0L) + 1
+    private var nextId = (piChat.messages.maxOfOrNull { it.id } ?: 0L) + 1
 
     /** The assistant message the running turn's events land in; the turn's first event makes it. */
     private var draftId: Long? = null
@@ -94,7 +94,7 @@ class AgentViewModel @Inject constructor(
         running = true
         turn = viewModelScope.launch {
             try {
-                chat.send(words, context).collect { fold(it) }
+                piChat.send(words, context).collect { fold(it) }
             } catch (e: CancellationException) {
                 throw e   // the stop button: the cancel stays visible to the scope
             } catch (e: Exception) {
@@ -115,7 +115,7 @@ class AgentViewModel @Inject constructor(
     /** The menu's new chat: the turn stops, the conversation and the strip are forgotten. */
     fun newSession() {
         stop()
-        chat.reset()
+        piChat.reset()
         messages = emptyList()
         failure = null
     }

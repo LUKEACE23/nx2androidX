@@ -64,6 +64,10 @@ class AgentWorkspace @Inject constructor(@ApplicationContext ctx: Context) {
             - 玩家说「运行失败」「闪退」，指的是本机 app 里的运行：先查游戏库和 game_log（崩溃回溯在 prev 那份里），不要谈 PC / Steam / 主机版。
             - 结论落在事实上：先用工具查，查不到就说查不到，不编造。
             - 把值得记住的经验（某台设备某个游戏的修法、某个坑）用 memory_save 存下来。
+
+            ## 环境事实
+            - bash 的环境已经配好（PATH、库路径、python3 都直接可用），不要在命令前写 export。
+            - 只读诊断，不要修改、删除任何文件。
         """.trimIndent()
         private val SEED_KNOWLEDGE = "host 每次启动把上一次日志改名：log.txt 最近、log.prev.txt 上一次。"
     }

@@ -26,6 +26,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Stop
@@ -40,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import com.mikepenz.markdown.m3.Markdown
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -315,16 +318,58 @@ private fun UserBubbleText(text: String) {
     }
 }
 
-/** The assistant's answer: the tool cards it used, then the words running the full width. */
+/** The assistant's answer: the running tool shows live, the finished ones fold into one summary row, then the words. */
 @Composable
 private fun AssistantBlock(message: AgentMessage) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        message.tools.forEach { card ->
-            ToolCard(card)
-        }
+        // the call in flight: the live feedback the player watches
+        message.tools.filter { it.state == AgentToolState.RUNNING }.forEach { ToolCard(it) }
+        // everything finished folds into a single line — ten tool calls must not bury the question
+        val finished = message.tools.filter { it.state != AgentToolState.RUNNING }
+        if (finished.isNotEmpty()) ToolSummary(finished, message.id)
         if (message.text.isNotEmpty()) {
-            AgentMarkdownText(message.text)
+            Markdown(message.text)
         }
+    }
+}
+
+/**
+ * The finished tool calls, folded: one line says the count and the per-tool tallies; a tap unfolds
+ * the full cards. The fold is per message, so it stays as the player left it across recompositions.
+ */
+@Composable
+private fun ToolSummary(tools: List<AgentToolCard>, messageId: Long) {
+    var expanded by remember(messageId) { mutableStateOf(false) }
+    val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "agent-tools-fold")
+    if (expanded) {
+        tools.forEach { ToolCard(it) }
+    }
+    val tallies = tools.groupingBy { it.name }.eachCount()
+        .entries.sortedByDescending { it.value }
+        .joinToString(" · ") { "${it.key}×${it.value}" }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .clickable { expanded = !expanded }
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            stringResource(R.string.agent_tools_summary, tools.size) +
+                if (tallies.isNotBlank()) " · $tallies" else "",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            Icons.Filled.ExpandMore,
+            contentDescription = null,
+            Modifier.size(16.dp).rotate(rotation),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

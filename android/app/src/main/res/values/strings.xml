@@ -707,6 +707,7 @@
     <string name="agent_env_title">Env agent (Pi, experimental)</string>
     <string name="agent_env_hint">Runs a full coding agent (read files, run commands, dig logs) inside the app\'s Linux environment. Same model as above; the answer can take a minute.</string>
     <string name="agent_env_run">Run test</string>
+        <string name="agent_tools_summary">%1$d tool calls</string>
     <string name="agent_env_running">Running…</string>
     <string name="agent_provider_glm">GLM (Zhipu)</string>
     <string name="agent_provider_deepseek">DeepSeek</string>
