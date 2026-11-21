@@ -70,8 +70,12 @@ interface AgentChat {
     /** The conversation so far, oldest first. */
     val messages: List<AgentMessage>
 
-    /** Run one turn: send [userText], stream what the assistant does until the turn ends. */
-    suspend fun send(userText: String): Flow<AgentEvent>
+    /**
+     * Run one turn: send [userText], stream what the assistant does until the turn ends. [context] is the
+     * page snapshot for this turn (ADR-007): it rides along with the message into the model but never
+     * shows in the UI.
+     */
+    suspend fun send(userText: String, context: AgentPageContext? = null): Flow<AgentEvent>
 
     /** Forget the conversation (a new session; the old one is simply dropped — v0 has no history list). */
     fun reset()

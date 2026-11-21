@@ -6,9 +6,11 @@ import com.nx.android.agent.AgentEvent
 import com.nx.android.agent.AgentFailure
 import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentModelConfig
+import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentRole
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
+import com.nx.android.agent.tools.UiTools
 import io.agentscope.core.ReActAgent
 import io.agentscope.core.event.AgentEvent as FrameworkEvent
 import io.agentscope.core.event.TextBlockDeltaEvent
@@ -38,17 +40,24 @@ import kotlinx.coroutines.reactive.asFlow
 class AgentChatImpl @Inject constructor(
     private val settings: AgentSettingsStore,
     private val tools: AgentTools,
+    private val uiTools: UiTools,
 ) : AgentChat {
 
     private companion object {
         const val MAX_ITERS = 12
-
         /** The tool-result summaries shown on the cards stay short; the model sees the full text. */
         const val RESULT_SUMMARY_CHARS = 160
 
+        /**
+         * The page context rides into the model inside the user's turn; the block is capped by the
+         * file-level CONTEXT_CHARS budget (35-页面上下文.md: ≤400 tokens).
+         */
+
         val SYSTEM_PROMPT = """
             你是 nx2androidX（一个把 Switch 游戏移植到 Android 的应用）的内置助手，用简体中文回答。
-            你能做：检索应用内置的 FAQ（kb_search）、查看游戏库状态（library_status）、查看最近一次构建的日志尾部（build_log_tail）。
+            你能做：检索应用内置的 FAQ（kb_search）、查看游戏库状态（library_status）、查看最近一次构建的日志尾部（build_log_tail）、
+            以及用 navigate 把玩家带到某个页面（游戏库/构建/设置，可选带上一个游戏直接选中）。
+            玩家的消息里可能带「[页面上下文]」块：那是玩家此刻正在看的页面状态，回答优先结合它；它不是玩家说的话，不要复述它。
             你不能做：读取或输出 prod.keys 的内容；读取游戏文件内容；修改任何设置或文件——你没有任何写工具，不要假装有，也不要建议玩家手动改文件。
             纪律：结论落在事实上——先用工具查，查不到就说查不到，不要猜；回答简洁，直接回答玩家的问题。
         """.trimIndent()
@@ -67,16 +76,17 @@ class AgentChatImpl @Inject constructor(
         list = mutableListOf()
     }
 
-    override suspend fun send(userText: String): Flow<AgentEvent> = flow {
+    override suspend fun send(userText: String, context: AgentPageContext?): Flow<AgentEvent> = flow {
         val config = settings.config
         if (!config.configured) {
             emit(AgentEvent.Failed(AgentFailure.NO_KEY))
             return@flow
         }
 
-        // The user's message joins the history at once (even if the turn fails, the question was asked)
+        // The user's message joins the history at once (even if the turn fails, the question was asked);
+        // the history keeps the bare words — the page context rides into the model message only
         list.add(AgentMessage(nextId++, AgentRole.USER, userText))
-
+        val composed = composeTurn(userText, context)
         val fingerprint = "${config.baseUrl}|${config.modelName}|${config.apiKey.hashCode()}"
         val theAgent = agent?.takeIf { builtFor == fingerprint } ?: buildAgent(config).also {
             agent = it
@@ -89,7 +99,7 @@ class AgentChatImpl @Inject constructor(
 
         try {
             theAgent
-                .streamEvents(listOf(UserMessage(userText)))
+                .streamEvents(listOf(UserMessage(composed)))
                 .asFlow()
                 .collect { event -> mapEvent(event, text, cards, resultBuffers)?.let { emit(it) } }
         } catch (e: CancellationException) {
@@ -160,6 +170,7 @@ class AgentChatImpl @Inject constructor(
             .build()
         val toolkit = Toolkit()
         toolkit.registerTool(tools)
+        toolkit.registerTool(uiTools)
         return ReActAgent.builder()
             .name("nx2a-assistant")
             .sysPrompt(SYSTEM_PROMPT)
@@ -185,4 +196,26 @@ class AgentChatImpl @Inject constructor(
             AgentFailure.MODEL_NO_TOOLS
         else -> AgentFailure.LOOP_ERROR
     }
+}
+
+/** The page context's budget: ≤400 tokens ≈ 800 chars of CJK (35-页面上下文.md). */
+internal const val CONTEXT_CHARS = 800
+
+/**
+ * The page context as the model reads it: a bounded block prepended to the player's words. Pure so the
+ * JVM tests can drive the budget. The player's own words always come last; over budget the tail facts
+ * drop and the cut is announced.
+ */
+internal fun composeTurn(userText: String, context: AgentPageContext?): String {
+    if (context == null) return userText
+    val block = StringBuilder("[页面上下文] ")
+    if (context.subject != null) {
+        block.append("正在处理：${context.subject.title}（${context.subject.id}）。")
+    }
+    for ((k, v) in context.facts) block.append("$k：$v。")
+    if (block.length > CONTEXT_CHARS) {
+        block.setLength(CONTEXT_CHARS)
+        block.append("…（上下文超预算，已截断）")
+    }
+    return "$block\n\n玩家说：$userText"
 }

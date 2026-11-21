@@ -64,7 +64,7 @@ class AgentViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AgentUiState())
 
     /** One turn: the words land at once, the answer streams in as the events arrive. */
-    fun send(text: String) {
+    fun send(text: String, context: com.nx.android.agent.AgentPageContext? = null) {
         val words = text.trim()
         if (words.isEmpty() || running) return
         failure = null
@@ -72,7 +72,7 @@ class AgentViewModel @Inject constructor(
         running = true
         turn = viewModelScope.launch {
             try {
-                chat.send(words).collect { fold(it) }
+                chat.send(words, context).collect { fold(it) }
             } catch (e: CancellationException) {
                 throw e   // the stop button: the cancel stays visible to the scope
             } catch (e: Exception) {
