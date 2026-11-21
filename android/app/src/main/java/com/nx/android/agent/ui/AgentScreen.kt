@@ -43,6 +43,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import com.mikepenz.markdown.m3.Markdown
+import com.mikepenz.markdown.m3.markdownTypography
+import com.mikepenz.markdown.model.MarkdownTypography
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,7 +74,8 @@ import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
 
 /** The user bubble's ground: the design spec's one off-palette neutral (a step above the palette's Surface). */
-private val UserBubble = Color(0xFF26262A)
+/** The player's own bubble: the brand's tint — warmer than the grey, still quiet. */
+private val UserBubble = Color(0x33FF8A00)
 
 /**
  * The assistant's chat page: a full cover like the settings and the FAQ, but portrait (the activity turns
@@ -159,6 +162,8 @@ fun AgentScreen(
                     }
                 }
                 AgentInputBar(
+                    text = state.draft,
+                    onTextChange = { viewModel.updateDraft(it) },
                     running = state.running,
                     onSend = { viewModel.send(it) },
                     onStop = { viewModel.stop() },
@@ -328,10 +333,25 @@ private fun AssistantBlock(message: AgentMessage) {
         val finished = message.tools.filter { it.state != AgentToolState.RUNNING }
         if (finished.isNotEmpty()) ToolSummary(finished, message.id)
         if (message.text.isNotEmpty()) {
-            Markdown(message.text)
+            Markdown(message.text, typography = agentMarkdownTypography())
         }
     }
 }
+
+/**
+ * The panel's density: the answers sit in a 340dp column, the base text is the same 14sp the
+ * player's bubble uses — the library's defaults (16sp, 22sp headings) read oversized there.
+ */
+@Composable
+private fun agentMarkdownTypography(): MarkdownTypography = markdownTypography(
+    h1 = MaterialTheme.typography.titleMedium,
+    h2 = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Normal),
+    h3 = MaterialTheme.typography.titleSmall,
+    h4 = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Normal),
+    text = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
+    code = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+    link = MaterialTheme.typography.bodyMedium.copy(color = NxPalette.Brand),
+)
 
 /**
  * The finished tool calls, folded: one line says the count and the per-tool tallies; a tap unfolds
@@ -453,8 +473,13 @@ internal fun ToolCard(card: AgentToolCard) {
 
 /** The bottom bar: the box grows up to four lines; the round button sends, or stops while a turn runs. */
 @Composable
-internal fun AgentInputBar(running: Boolean, onSend: (String) -> Unit, onStop: () -> Unit) {
-    var text by remember { mutableStateOf("") }
+internal fun AgentInputBar(
+    text: String,
+    onTextChange: (String) -> Unit,
+    running: Boolean,
+    onSend: (String) -> Unit,
+    onStop: () -> Unit,
+) {
     val canSend = !running && text.isNotBlank()
     Row(
         Modifier.fillMaxWidth().imePadding().padding(bottom = 10.dp),
@@ -463,7 +488,7 @@ internal fun AgentInputBar(running: Boolean, onSend: (String) -> Unit, onStop: (
     ) {
         OutlinedTextField(
             text,
-            { text = it },
+            { onTextChange(it) },
             Modifier.weight(1f),
             placeholder = { Text(stringResource(R.string.agent_input_hint)) },
             maxLines = 4,
@@ -476,10 +501,7 @@ internal fun AgentInputBar(running: Boolean, onSend: (String) -> Unit, onStop: (
                 .background(if (running || canSend) NxPalette.Brand else NxPalette.Surface)
                 .clickable(enabled = running || canSend) {
                     if (running) onStop()
-                    else {
-                        onSend(text)
-                        text = ""
-                    }
+                    else onSend(text)   // the ViewModel clears the draft as the words land
                 },
             contentAlignment = Alignment.Center,
         ) {

@@ -36,6 +36,9 @@ data class AgentUiState(
     /** The env agent's smoke test (ADR-009): its button's state and the turn's text. */
     val piRunning: Boolean = false,
     val piResult: String? = null,
+
+    /** The words half-typed: the drawer closes and opens, the draft stays (it lives here, not in composition). */
+    val draft: String = "",
 )
 
 /**
@@ -59,6 +62,7 @@ class AgentViewModel @Inject constructor(
     private var config by mutableStateOf(settings.config)
     private var piRunning by mutableStateOf(false)
     private var piResult by mutableStateOf<String?>(null)
+    private var draft by mutableStateOf("")
 
     /** The ids are this list's own: they start above whatever the chat brought along. */
     private var nextId = (piChat.messages.maxOfOrNull { it.id } ?: 0L) + 1
@@ -68,8 +72,13 @@ class AgentViewModel @Inject constructor(
     private var turn: Job? = null
 
     val uiState: StateFlow<AgentUiState> = snapshotFlow {
-        AgentUiState(messages, running, failure, config, config.configured, piRunning, piResult)
+        AgentUiState(messages, running, failure, config, config.configured, piRunning, piResult, draft)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AgentUiState())
+
+    /** The input box is controlled: closing the drawer must not eat the player's half-typed words. */
+    fun updateDraft(text: String) {
+        draft = text
+    }
 
     /** The env agent's smoke test: one headless pi turn through the app's own proxy (ADR-009). */
     fun runPiTest() {
@@ -90,6 +99,7 @@ class AgentViewModel @Inject constructor(
         val words = text.trim()
         if (words.isEmpty() || running) return
         failure = null
+        draft = ""
         messages = messages + AgentMessage(nextId++, AgentRole.USER, words)
         running = true
         turn = viewModelScope.launch {
