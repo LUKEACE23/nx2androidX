@@ -16,6 +16,8 @@ import io.agentscope.core.event.ToolCallStartEvent
 import io.agentscope.core.event.ToolResultEndEvent
 import io.agentscope.core.event.ToolResultTextDeltaEvent
 import io.agentscope.core.message.UserMessage
+import io.agentscope.core.model.transport.HttpTransportConfig
+import io.agentscope.core.model.transport.OkHttpTransport
 import io.agentscope.core.tool.Toolkit
 import io.agentscope.extensions.model.openai.OpenAIChatModel
 import javax.inject.Inject
@@ -142,11 +144,19 @@ class AgentChatImpl @Inject constructor(
     }
 
     private fun buildAgent(config: AgentModelConfig): ReActAgent {
+        // The transport must be handed over explicitly: the factory default picks the JDK's
+        // java.net.http.HttpClient, which Android does not ship — the first real request would
+        // crash with ClassNotFoundException (found on device). OkHttp is native here and already
+        // on the classpath.
+        val transport = OkHttpTransport.builder()
+            .config(HttpTransportConfig.builder().build())
+            .build()
         val model = OpenAIChatModel.builder()
             .apiKey(config.apiKey)
             .baseUrl(config.baseUrl)
             .modelName(config.modelName)
             .stream(true)
+            .httpTransport(transport)
             .build()
         val toolkit = Toolkit()
         toolkit.registerTool(tools)
