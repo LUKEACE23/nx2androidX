@@ -8,7 +8,7 @@ Left out because they have an official Android release: Unpacking (ported here a
 
 "Profile here": `nxnative/dm/games/<title ID>/` has the game's profile from nxnative, synced from upstream (see [UPSTREAM_PROFILES.md](UPSTREAM_PROFILES.md)): the profile is here, the game is not necessarily ported to Android yet. A game without an `android.tsv` can still be tried as an experimental port (`porter build --experimental`). "60 fps with X" is upstream's note: they run that update at 60 fps (30 on the Switch).
 
-**66 / 114 ported**
+**67 / 114 ported**
 
 **Credit.** A ported game names the person who brought it up (`ported by @handle`), taken from the commit that added its profile. The ports from before this was written down are credited to the author of the commit that introduced them.
 
@@ -49,7 +49,7 @@ Left out because they have an official Android release: Unpacking (ported here a
 - [x] FINAL FANTASY TACTICS - The Ivalice Chronicles · `010038B015560000` · profile here
 - [ ] FINAL FANTASY X/X-2 HD Remaster · `0100BC300CB48000` · upstream profile
 - [x] Fire Emblem Engage · `0100A6301214E000` · profile here · 60 fps with 2.0.0
-- [ ] Fire Emblem: Three Houses · `010055D009F78000` · profile here · 60 fps with 1.2.0
+- [x] Fire Emblem: Three Houses · `010055D009F78000` · profile here · 60 fps with 1.2.0
 - [x] FM24 Touch · `01008B101B87A000`
 - [x] Football Manager 26 Touch · `0100D4A023450000`
 - [x] Graveyard Keeper 2 · `0100005027A18000` · ported by @shirai91
