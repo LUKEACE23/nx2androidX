@@ -680,6 +680,7 @@
     <string name="agent_menu_new">新会话</string>
     <string name="agent_menu_settings">模型设置</string>
     <string name="agent_empty">还没有对话，下面问一句开始。</string>
+    <string name="agent_thinking">正在思考…</string>
     <string name="agent_input_hint">问点什么</string>
     <string name="agent_send">发送</string>
     <string name="agent_stop">停止</string>

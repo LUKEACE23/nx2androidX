@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nx.android.R
+import com.nx.android.agent.AgentRole
 import com.nx.android.core.ui.components.CapsuleButton
 import com.nx.android.core.ui.components.Hint
 import com.nx.android.core.ui.theme.NxPalette
@@ -65,7 +66,7 @@ fun AgentPanel(
     val listState = rememberLazyListState()
 
     val last = state.messages.lastOrNull()
-    LaunchedEffect(state.messages.size, last?.text?.length, last?.tools?.size) {
+    LaunchedEffect(state.messages.size, last?.text?.length, last?.tools?.size, state.running) {
         if (state.messages.isNotEmpty() && !listState.isScrollInProgress) {
             listState.scrollToItem(state.messages.size - 1)
         }
@@ -172,6 +173,12 @@ fun AgentPanel(
                         }
                         items(state.messages, key = { it.id }) { message ->
                             MessageRow(message)
+                        }
+                        // the turn's first tokens are seconds away: say so instead of sitting silent
+                        if (state.running && state.messages.lastOrNull()?.role != AgentRole.ASSISTANT) {
+                            item(key = "agent-thinking") {
+                                Hint(stringResource(R.string.agent_thinking), size = 12.sp)
+                            }
                         }
                     }
                     AgentInputBar(

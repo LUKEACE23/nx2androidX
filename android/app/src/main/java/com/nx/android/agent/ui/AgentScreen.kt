@@ -323,11 +323,7 @@ private fun AssistantBlock(message: AgentMessage) {
             ToolCard(card)
         }
         if (message.text.isNotEmpty()) {
-            Text(
-                message.text,
-                style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.5.sp),
-                color = MaterialTheme.colorScheme.onBackground,
-            )
+            AgentMarkdownText(message.text)
         }
     }
 }

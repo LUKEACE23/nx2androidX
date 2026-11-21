@@ -681,6 +681,7 @@
     <string name="agent_menu_new">New chat</string>
     <string name="agent_menu_settings">Model settings</string>
     <string name="agent_empty">Nothing yet. Ask below to start.</string>
+    <string name="agent_thinking">Thinking…</string>
     <string name="agent_input_hint">Ask something</string>
     <string name="agent_send">Send</string>
     <string name="agent_stop">Stop</string>

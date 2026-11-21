@@ -132,8 +132,15 @@ class AgentViewModel @Inject constructor(
             }
 
             is AgentEvent.TurnDone -> {
-                // the final text is the canonical one ("" meant the turn was all tool calls)
-                if (event.assistantText.isNotEmpty()) updateLastAssistant { it.copy(text = event.assistantText) }
+                // the turn's answer lands as a new assistant message (or updates the draft if one exists)
+                if (event.assistantText.isNotEmpty()) {
+                    val last = messages.lastOrNull()
+                    if (last?.role == AgentRole.ASSISTANT) {
+                        update(last.id) { it.copy(text = event.assistantText) }
+                    } else {
+                        messages = messages + AgentMessage(nextId++, AgentRole.ASSISTANT, event.assistantText)
+                    }
+                }
                 draftId = null
             }
 
