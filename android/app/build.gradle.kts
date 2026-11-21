@@ -165,9 +165,8 @@ android {
         // platform's Conscrypt does not export: the app pairs with itself to switch off Android's
         // child-process limit (data/PhantomFix.kt)
         implementation("org.conscrypt:conscrypt-android:2.7.0")
-        implementation("io.agentscope:agentscope-core:2.0.5")
-        implementation("io.agentscope:agentscope-harness:2.0.5")
-        implementation("io.agentscope:agentscope-extensions-model-openai:2.0.5")
+        implementation("ai.koog:koog-agents:1.3.0")
+        implementation("com.squareup.okhttp3:okhttp-android:5.3.2")
         // AgentScope runs on Project Reactor; this is the bridge that turns a Flux into a coroutine Flow
         // (and disposes the subscription when the collector is cancelled — the chat page's stop button)
         implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactive:1.10.2")

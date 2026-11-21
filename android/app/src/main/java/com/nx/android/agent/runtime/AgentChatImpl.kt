@@ -1,10 +1,5 @@
 package com.nx.android.agent.runtime
 
-import com.nx.android.agent.runtime.AgentWorkspace
-import com.nx.android.agent.runtime.AgentSessionStore
-import com.nx.android.agent.tools.AgentTools
-import com.nx.android.agent.tools.MemoryTools
-import com.nx.android.agent.tools.UiTools
 import com.nx.android.agent.AgentChat
 import com.nx.android.agent.AgentEvent
 import com.nx.android.agent.AgentFailure
@@ -12,23 +7,12 @@ import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentRole
-import com.nx.android.agent.AgentToolCard
-import com.nx.android.agent.AgentToolState
-import io.agentscope.core.agent.RuntimeContext
-import io.agentscope.core.event.AgentEvent as FrameworkEvent
-import io.agentscope.core.event.TextBlockDeltaEvent
-import io.agentscope.core.event.ToolCallStartEvent
-import io.agentscope.core.event.ToolResultEndEvent
-import io.agentscope.core.event.ToolResultTextDeltaEvent
-import io.agentscope.core.message.AssistantMessage
-import io.agentscope.core.message.UserMessage
-import io.agentscope.core.model.transport.HttpTransportConfig
-import io.agentscope.core.model.transport.OkHttpTransport
-import io.agentscope.core.state.JsonFileAgentStateStore
-import io.agentscope.core.tool.Toolkit
-import io.agentscope.extensions.model.openai.OpenAIChatModel
-import io.agentscope.harness.agent.HarnessAgent
-import java.nio.file.Files
+import com.nx.android.agent.runtime.AgentWorkspace
+import com.nx.android.agent.runtime.AgentSessionStore
+import com.nx.android.agent.tools.AgentTools
+import com.nx.android.agent.tools.MemoryTools
+import java.net.HttpURLConnection
+import java.net.URL
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
@@ -36,57 +20,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.reactive.asFlow
+import org.json.JSONArray
+import org.json.JSONObject
 
-/**
- * The assistant's runtime: one AgentScope [ReActAgent] per conversation, driven turn by turn.
- *
- * The agent is rebuilt when the model choice changes or the session is reset — the framework keeps the
- * conversation's context inside the agent, so a fresh conversation means a fresh agent. v0 tools are all
- * read-only (ADR-004's minimal landing): the permission system has nothing to gate, so it is not wired yet.
- */
 @Singleton
 class AgentChatImpl @Inject constructor(
     private val settings: AgentSettingsStore,
     private val tools: AgentTools,
-    private val uiTools: UiTools,
     private val memoryTools: MemoryTools,
     private val workspace: AgentWorkspace,
     private val sessionStore: AgentSessionStore,
 ) : AgentChat {
 
-    private companion object {
-        const val MAX_ITERS = 12
-
-        /**
-         * The stable call identity. Harness addresses its state and memory buckets by (userId, sessionId)
-         * — without these it mints a fresh random session id per call, so nothing persists and the memory
-         * fragments into per-call buckets. One player device: one bucket.
-         */
-        private val CALL_CONTEXT: RuntimeContext = RuntimeContext.builder()
-            .userId("player")
-            .sessionId("main")
-            .build()
-        /** The tool-result summaries shown on the cards stay short; the model sees the full text. */
-        const val RESULT_SUMMARY_CHARS = 160
-
-        /**
-         * The page context rides into the model inside the user's turn; the block is capped by the
-         * file-level CONTEXT_CHARS budget (35-页面上下文.md: ≤400 tokens).
-         */
-
-        val SYSTEM_PROMPT = """
-            你是 nx2androidX（一个把 Switch 游戏移植到 Android 的应用）的内置助手，用简体中文回答。
-            你能做：检索应用内置的 FAQ（kb_search）、查看游戏库状态（library_status）、查看最近一次构建的日志尾部（build_log_tail）、
-            以及用 navigate 把玩家带到某个页面（游戏库/构建/设置，可选带上一个游戏直接选中）。
-            玩家的消息里可能带「[页面上下文]」块：那是玩家此刻正在看的页面状态，回答优先结合它；它不是玩家说的话，不要复述它。
-            你不能做：读取或输出 prod.keys 的内容；读取游戏文件内容；修改任何设置或文件——你没有任何写工具，不要假装有，也不要建议玩家手动改文件。
-            纪律：结论落在事实上——先用工具查，查不到就说查不到，不要猜；回答简洁，直接回答玩家的问题。
-        """.trimIndent()
-    }
-
-    private var agent: HarnessAgent? = null
-    private var builtFor: String? = null
+    override val messages: List<AgentMessage> get() = list
     private var nextId: Long = 0
     private var list: MutableList<AgentMessage> = mutableListOf()
 
@@ -96,156 +42,91 @@ class AgentChatImpl @Inject constructor(
         nextId = (list.maxOfOrNull { it.id } ?: -1L) + 1L
     }
 
-    override val messages: List<AgentMessage> get() = list
-
-    override fun reset() {
-        agent = null
-        builtFor = null
-        list = mutableListOf()
-        sessionStore.clear()
-    }
+    override fun reset() { list = mutableListOf(); sessionStore.clear() }
 
     override suspend fun send(userText: String, context: AgentPageContext?): Flow<AgentEvent> = flow {
         val config = settings.config
-        if (!config.configured) {
-            emit(AgentEvent.Failed(AgentFailure.NO_KEY))
-            return@flow
-        }
-
-        // The user's message joins the history at once (even if the turn fails, the question was asked);
-        // the history keeps the bare words — the page context rides into the model message only
+        if (!config.configured) { emit(AgentEvent.Failed(AgentFailure.NO_KEY)); return@flow }
         list.add(AgentMessage(nextId++, AgentRole.USER, userText))
-        val composed = composeTurn(userText, workspace.readMemory().take(AgentWorkspace.MEMORY_INJECT_CHARS), context)
-        val fingerprint = "${config.baseUrl}|${config.modelName}|${config.apiKey.hashCode()}"
-        val theAgent = agent?.takeIf { builtFor == fingerprint } ?: buildAgent(config).also {
-            agent = it
-            builtFor = fingerprint
-        }
+        val composed = composeTurn(userText, workspace.readMemory(), context)
 
-        val text = StringBuilder()
-        val cards = LinkedHashMap<String, AgentToolCard>()
-        val resultBuffers = HashMap<String, StringBuilder>()
+        val text = try {
+            withContext(Dispatchers.IO) { runReAct(config, composed) }
+        } catch (e: CancellationException) { throw e
+        } catch (e: Exception) { emit(AgentEvent.Failed(classify(e))); return@flow }
 
-        try {
-            theAgent
-                .streamEvents(listOf(UserMessage(composed)), CALL_CONTEXT)
-                .asFlow()
-                .collect { event -> mapEvent(event, text, cards, resultBuffers)?.let { emit(it) } }
-        } catch (e: CancellationException) {
-            throw e   // the stop button: the turn is dropped, the history keeps the question
-        } catch (e: Exception) {
-            emit(AgentEvent.Failed(classify(e)))
-            return@flow
-        }
-
-        finalize(text, cards)
+        list.add(AgentMessage(nextId++, AgentRole.ASSISTANT, text.trim()))
         sessionStore.save(list)
-        emit(AgentEvent.TurnDone(text.toString().trim()))
+        emit(AgentEvent.TurnDone(text.trim()))
     }
 
-    /**
-     * Fold one framework event into the chat page's vocabulary, updating the accumulators.
-     * Returns null for the events the page does not show (thinking blocks, call deltas, ...).
-     */
-    private fun mapEvent(
-        event: FrameworkEvent,
-        text: StringBuilder,
-        cards: LinkedHashMap<String, AgentToolCard>,
-        resultBuffers: HashMap<String, StringBuilder>,
-    ): AgentEvent? = when (event) {
-        is TextBlockDeltaEvent -> AgentEvent.TextDelta(event.delta)
-        is ToolCallStartEvent -> {
-            val card = AgentToolCard(event.toolCallId, event.toolCallName, "", AgentToolState.RUNNING)
-            cards[event.toolCallId] = card
-            AgentEvent.ToolStarted(card)
+    private suspend fun runReAct(config: AgentModelConfig, message: String): String {
+        val messages = JSONArray()
+            .put(JSONObject().put("role", "system").put("content", SYSTEM_PROMPT))
+            .put(JSONObject().put("role", "user").put("content", message))
+        for (round in 0 until MAX_ROUNDS) {
+            val resp = callModel(config, messages) ?: return "网络不可用。"
+            val calls = resp.optJSONArray("tool_calls")
+            if (calls == null || calls.length() == 0) return resp.optString("content") ?: ""
+            messages.put(resp)
+            for (i in 0 until calls.length()) {
+                val fn = calls.optJSONObject(i)?.optJSONObject("function") ?: continue
+                val result = dispatch(fn.optString("name", ""), fn.optString("arguments", "{}"))
+                messages.put(JSONObject().put("role", "tool").put("content", result.take(2000)))
+            }
         }
-        is ToolResultTextDeltaEvent -> {
-            resultBuffers.getOrPut(event.toolCallId) { StringBuilder() }.append(event.delta)
-            null
+        return "经过 $MAX_ROUNDS 轮仍未得出最终回答。"
+    }
+
+    private suspend fun callModel(config: AgentModelConfig, messages: JSONArray): JSONObject? =
+        withContext(Dispatchers.IO) {
+            val body = JSONObject().put("model", config.modelName).put("messages", messages)
+            val conn = URL(config.baseUrl.trimEnd('/') + "/chat/completions")
+                .openConnection() as HttpURLConnection
+            try {
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("Authorization", "Bearer ${config.apiKey}")
+                conn.doOutput = true; conn.connectTimeout = 15_000; conn.readTimeout = 120_000
+                conn.outputStream.write(body.toString().toByteArray(Charsets.UTF_8))
+                if (conn.responseCode !in 200..299) throw RuntimeException("HTTP ${conn.responseCode}")
+                JSONObject(conn.inputStream.bufferedReader().readText())
+                    .optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")
+            } finally { conn.disconnect() }
         }
-        is ToolResultEndEvent -> {
-            val summary = resultBuffers[event.toolCallId]?.toString()?.let(::shorten).orEmpty()
-            cards[event.toolCallId]?.let { it.copy(state = AgentToolState.DONE, resultSummary = summary) }
-            AgentEvent.ToolFinished(event.toolCallId, AgentToolState.DONE, summary)
-        }
-        else -> null
+
+    private suspend fun dispatch(name: String, args: String): String = when (name) {
+        "kb_search" -> tools.kbSearch(extractStr(args, "query") ?: args)
+        "library_status" -> tools.libraryStatus()
+        "build_log_tail" -> tools.buildLogTail(extractInt(args, "lines") ?: 40)
+        "game_log" -> tools.gameLog(extractStr(args, "game"), extractStr(args, "which") ?: "last", extractInt(args, "lines") ?: 60)
+        "memory_save" -> memoryTools.save(extractStr(args, "lesson") ?: args)
+        else -> "未知工具"
     }
 
-    /** The turn is over: fold what accumulated into the history the next turn starts from. */
-    private fun finalize(text: StringBuilder, cards: LinkedHashMap<String, AgentToolCard>) {
-        list.add(
-            AgentMessage(
-                nextId++,
-                AgentRole.ASSISTANT,
-                text.toString().trim(),
-                cards.values.toList(),
-            ),
-        )
-    }
+    private fun extractStr(args: String, key: String): String? = try {
+        val o = JSONObject(args); if (o.has(key) && !o.isNull(key)) o.optString(key) else null
+    } catch (e: Exception) { null }
 
-    private fun buildAgent(config: AgentModelConfig): HarnessAgent {
-        // The transport must be handed over explicitly: the factory default picks the JDK's
-        // java.net.http.HttpClient, which Android does not ship — the first real request would
-        // crash with ClassNotFoundException (found on device). OkHttp is native here and already
-        // on the classpath.
-        val transport = OkHttpTransport.builder()
-            .config(HttpTransportConfig.builder().build())
-            .build()
-        val model = OpenAIChatModel.builder()
-            .apiKey(config.apiKey)
-            .baseUrl(config.baseUrl)
-            .modelName(config.modelName)
-            .stream(true)
-            .httpTransport(transport)
-            .build()
-        val toolkit = Toolkit()
-        toolkit.registerTool(tools)
-        toolkit.registerTool(uiTools)
-        toolkit.registerTool(memoryTools)
-        // The workspace IS the harness workspace now (ADR-007): AGENTS.md / MEMORY.md / memory/ /
-        // knowledge/ already live here in the same layout, so the harness reads and grows them in place.
-        // The state store goes into our own files dir too: the default (~/.agentscope/state) does not
-        // exist on Android. The tool switches (filesystem/shell/web) stay OPEN for now — the permission
-        // layer is a planned follow-up; until then the system prompt carries the discipline.
-        workspace.ensure()
-        return HarnessAgent.builder()
-            .name("nx2a-assistant")
-            .sysPrompt(SYSTEM_PROMPT)
-            .model(model)
-            .toolkit(toolkit)
-            .maxIters(MAX_ITERS)
-            .workspace(workspace.root.toPath())
-            .stateStore(JsonFileAgentStateStore(workspace.root.resolve("state").toPath()))
-            .disableSubagents()
-            .build()
-    }
+    private fun extractInt(args: String, key: String): Int? = try {
+        val o = JSONObject(args); if (o.has(key) && !o.isNull(key)) o.optInt(key) else null
+    } catch (e: Exception) { null }
 
-    private fun shorten(s: String): String =
-        if (s.length <= RESULT_SUMMARY_CHARS) s
-        else s.take(RESULT_SUMMARY_CHARS) + "…"
-
-    /**
-     * Failures are classified from what the model call threw: the chat page gives the words
-     * (the data layer reports codes — my-docs/踩坑/01-界面语言.md §4).
-     */
     internal fun classify(error: Throwable): AgentFailure = when {
         error is CancellationException -> throw error
         error.message?.contains("401") == true || error.message?.contains("403") == true -> AgentFailure.BAD_KEY
         error is java.io.IOException -> AgentFailure.NETWORK
-        error.message?.contains("tool") == true && error.message?.contains("support") == true ->
-            AgentFailure.MODEL_NO_TOOLS
         else -> AgentFailure.LOOP_ERROR
+    }
+
+    private companion object {
+        const val MAX_ROUNDS = 6
+        const val SYSTEM_PROMPT = "你是 nx2androidX 的内置助手，用简体中文回答。"
     }
 }
 
-/** The page context's budget: ≤400 tokens ≈ 800 chars of CJK (35-页面上下文.md). */
 internal const val CONTEXT_CHARS = 800
 
-/**
- * The page context as the model reads it: a bounded block prepended to the player's words. Pure so the
- * JVM tests can drive the budget. The player's own words always come last; over budget the tail facts
- * drop and the cut is announced. [memory] is the long-term memory (already truncated by the caller).
- */
 internal fun composeTurn(userText: String, memory: String, context: AgentPageContext?): String {
     val hasMemory = memory.isNotBlank()
     val hasContext = context != null
@@ -254,14 +135,9 @@ internal fun composeTurn(userText: String, memory: String, context: AgentPageCon
     if (hasMemory) sb.append("[助手记忆] ").append(memory.trim()).append('\n')
     if (hasContext) {
         val block = StringBuilder("[页面上下文] ")
-        if (context.subject != null) {
-            block.append("正在处理：${context.subject.title}（${context.subject.id}）。")
-        }
+        if (context.subject != null) block.append("正在处理：${context.subject.title}。")
         for ((k, v) in context.facts) block.append("$k：$v。")
-        if (block.length > CONTEXT_CHARS) {
-            block.setLength(CONTEXT_CHARS)
-            block.append("…（上下文超预算，已截断）")
-        }
+        if (block.length > CONTEXT_CHARS) { block.setLength(CONTEXT_CHARS); block.append("…已截断") }
         sb.append(block).append('\n')
     }
     return sb.append("玩家说：").append(userText).toString()
