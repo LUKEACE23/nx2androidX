@@ -166,6 +166,7 @@ android {
         // child-process limit (data/PhantomFix.kt)
         implementation("org.conscrypt:conscrypt-android:2.7.0")
         implementation("io.agentscope:agentscope-core:2.0.5")
+        implementation("io.agentscope:agentscope-harness:2.0.5")
         implementation("io.agentscope:agentscope-extensions-model-openai:2.0.5")
         // AgentScope runs on Project Reactor; this is the bridge that turns a Flux into a coroutine Flow
         // (and disposes the subscription when the collector is cancelled — the chat page's stop button)

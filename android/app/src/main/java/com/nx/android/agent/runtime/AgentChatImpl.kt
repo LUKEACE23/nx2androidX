@@ -14,7 +14,7 @@ import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentRole
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
-import io.agentscope.core.ReActAgent
+import io.agentscope.core.agent.RuntimeContext
 import io.agentscope.core.event.AgentEvent as FrameworkEvent
 import io.agentscope.core.event.TextBlockDeltaEvent
 import io.agentscope.core.event.ToolCallStartEvent
@@ -24,8 +24,11 @@ import io.agentscope.core.message.AssistantMessage
 import io.agentscope.core.message.UserMessage
 import io.agentscope.core.model.transport.HttpTransportConfig
 import io.agentscope.core.model.transport.OkHttpTransport
+import io.agentscope.core.state.JsonFileAgentStateStore
 import io.agentscope.core.tool.Toolkit
 import io.agentscope.extensions.model.openai.OpenAIChatModel
+import io.agentscope.harness.agent.HarnessAgent
+import java.nio.file.Files
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
@@ -54,6 +57,16 @@ class AgentChatImpl @Inject constructor(
 
     private companion object {
         const val MAX_ITERS = 12
+
+        /**
+         * The stable call identity. Harness addresses its state and memory buckets by (userId, sessionId)
+         * — without these it mints a fresh random session id per call, so nothing persists and the memory
+         * fragments into per-call buckets. One player device: one bucket.
+         */
+        private val CALL_CONTEXT: RuntimeContext = RuntimeContext.builder()
+            .userId("player")
+            .sessionId("main")
+            .build()
         /** The tool-result summaries shown on the cards stay short; the model sees the full text. */
         const val RESULT_SUMMARY_CHARS = 160
 
@@ -72,7 +85,7 @@ class AgentChatImpl @Inject constructor(
         """.trimIndent()
     }
 
-    private var agent: ReActAgent? = null
+    private var agent: HarnessAgent? = null
     private var builtFor: String? = null
     private var nextId: Long = 0
     private var list: MutableList<AgentMessage> = mutableListOf()
@@ -115,7 +128,7 @@ class AgentChatImpl @Inject constructor(
 
         try {
             theAgent
-                .streamEvents(listOf(UserMessage(composed)))
+                .streamEvents(listOf(UserMessage(composed)), CALL_CONTEXT)
                 .asFlow()
                 .collect { event -> mapEvent(event, text, cards, resultBuffers)?.let { emit(it) } }
         } catch (e: CancellationException) {
@@ -170,7 +183,7 @@ class AgentChatImpl @Inject constructor(
         )
     }
 
-    private fun buildAgent(config: AgentModelConfig): ReActAgent {
+    private fun buildAgent(config: AgentModelConfig): HarnessAgent {
         // The transport must be handed over explicitly: the factory default picks the JDK's
         // java.net.http.HttpClient, which Android does not ship — the first real request would
         // crash with ClassNotFoundException (found on device). OkHttp is native here and already
@@ -189,12 +202,21 @@ class AgentChatImpl @Inject constructor(
         toolkit.registerTool(tools)
         toolkit.registerTool(uiTools)
         toolkit.registerTool(memoryTools)
-        return ReActAgent.builder()
+        // The workspace IS the harness workspace now (ADR-007): AGENTS.md / MEMORY.md / memory/ /
+        // knowledge/ already live here in the same layout, so the harness reads and grows them in place.
+        // The state store goes into our own files dir too: the default (~/.agentscope/state) does not
+        // exist on Android. The tool switches (filesystem/shell/web) stay OPEN for now — the permission
+        // layer is a planned follow-up; until then the system prompt carries the discipline.
+        workspace.ensure()
+        return HarnessAgent.builder()
             .name("nx2a-assistant")
             .sysPrompt(SYSTEM_PROMPT)
             .model(model)
             .toolkit(toolkit)
             .maxIters(MAX_ITERS)
+            .workspace(workspace.root.toPath())
+            .stateStore(JsonFileAgentStateStore(workspace.root.resolve("state").toPath()))
+            .disableSubagents()
             .build()
     }
 
