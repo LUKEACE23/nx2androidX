@@ -703,6 +703,10 @@
     <string name="agent_setup_api_key">API key</string>
     <string name="agent_setup_key_toggle">显示 key</string>
     <string name="agent_setup_save">保存</string>
+    <string name="agent_env_title">环境 Agent（Pi，实验）</string>
+    <string name="agent_env_hint">在 app 自带的 Linux 环境里运行一个完整的编码 agent：能读文件、跑命令、查日志。使用上方配置的模型，一次运行可能需要一分钟。</string>
+    <string name="agent_env_run">运行测试</string>
+    <string name="agent_env_running">运行中…</string>
     <string name="agent_provider_glm">GLM（智谱）</string>
     <string name="agent_provider_deepseek">DeepSeek</string>
     <string name="agent_provider_doubao">豆包（火山方舟）</string>

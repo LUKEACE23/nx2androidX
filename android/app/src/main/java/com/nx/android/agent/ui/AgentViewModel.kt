@@ -13,6 +13,7 @@ import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentRole
 import com.nx.android.agent.AgentSettings
+import com.nx.android.agent.env.PiRunner
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -31,6 +32,10 @@ data class AgentUiState(
 
     /** The capsule and the setup gate both read this: a blank key or endpoint means the assistant cannot run. */
     val configured: Boolean = false,
+
+    /** The env agent's smoke test (ADR-009): its button's state and the turn's text. */
+    val piRunning: Boolean = false,
+    val piResult: String? = null,
 )
 
 /**
@@ -45,12 +50,15 @@ data class AgentUiState(
 class AgentViewModel @Inject constructor(
     private val chat: AgentChat,
     private val settings: AgentSettings,
+    private val piRunner: PiRunner,
 ) : ViewModel() {
 
     private var messages by mutableStateOf(chat.messages)
     private var running by mutableStateOf(false)
     private var failure by mutableStateOf<AgentFailure?>(null)
     private var config by mutableStateOf(settings.config)
+    private var piRunning by mutableStateOf(false)
+    private var piResult by mutableStateOf<String?>(null)
 
     /** The ids are this list's own: they start above whatever the chat brought along. */
     private var nextId = (chat.messages.maxOfOrNull { it.id } ?: 0L) + 1
@@ -60,8 +68,22 @@ class AgentViewModel @Inject constructor(
     private var turn: Job? = null
 
     val uiState: StateFlow<AgentUiState> = snapshotFlow {
-        AgentUiState(messages, running, failure, config, config.configured)
+        AgentUiState(messages, running, failure, config, config.configured, piRunning, piResult)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AgentUiState())
+
+    /** The env agent's smoke test: one headless pi turn through the app's own proxy (ADR-009). */
+    fun runPiTest() {
+        if (piRunning) return
+        piRunning = true
+        piResult = null
+        viewModelScope.launch {
+            piResult = piRunner.run("用一句话回答：你是什么模型").fold(
+                onSuccess = { it.ifBlank { "（空回复）" } },
+                onFailure = { "失败：${it.message}" },
+            )
+            piRunning = false
+        }
+    }
 
     /** One turn: the words land at once, the answer streams in as the events arrive. */
     fun send(text: String, context: com.nx.android.agent.AgentPageContext? = null) {

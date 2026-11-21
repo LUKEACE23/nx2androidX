@@ -121,6 +121,27 @@ fun AgentSettingsSection(viewModel: AgentViewModel) {
             enabled = complete,
         )
     }
+
+    // the env agent (ADR-009): pi in the glibc environment, the strong tier — gated on a saved key
+    if (state.configured) {
+        Section(stringResource(R.string.agent_env_title)) {
+            Hint(stringResource(R.string.agent_env_hint), size = 12.sp)
+            CapsuleButton(
+                stringResource(if (state.piRunning) R.string.agent_env_running else R.string.agent_env_run),
+                { viewModel.runPiTest() },
+                Modifier.fillMaxWidth(),
+                enabled = !state.piRunning,
+            )
+            state.piResult?.let { result ->
+                Text(
+                    result,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
 }
 
 /** One provider option: a row that takes the choice, the picked one says so in the brand's color. */
