@@ -13,8 +13,12 @@ pack's runtime has to be rebuilt for the mode to reach the host.
 7: the 0.4.0 base's host (the frame-pacing policy module, the driver quirk table, the regional firmware fonts with
 the CJK fallback, multiplayer's per-player input routing): no new JNI surface, but every pack's runtime is rebuilt
 so its host is this base's — a pack from 0.3.0 keeps its 0.3.0 host otherwise, and none of the new host reaches it.
+8: the app pushes the controller's axis roles and the way it reports its face buttons (twelve axes in the motion
+event, RX/RY appended; the pad table's dev line carries ztrig/rxstick and coded): the app sends them, so a pack's
+runtime has to be rebuilt for the host to read them — the old host takes ten axes and ignores the new rows, and the
+roles stay off without a word.
 """
-PLAYER_API_REVISION = 7
+PLAYER_API_REVISION = 8
 
 # The game profiles the player imports (a package of nxnative/dm/games/<title ID>/ folders) into their own folder: what the package was cut from.
 # PROFILES_REVISION counts the syncs of upstream's profiles (1: the first sync, seedds/nxnative at PROFILES_COMMIT); PROFILES_COMMIT is the upstream commit the

@@ -8,6 +8,103 @@ players on the released version are not pushed onto an alpha.
 
 The release page has the APK and the full notes: <https://github.com/zFitness/nx2androidX/releases>.
 
+## v0.4.0-alpha03 - 2026-11-21
+
+### The app (the APK)
+
+#### Before you update · 更新之前(必读)
+
+- (EN) The game's runtime on the phone is rebuilt after this update, the
+  first time each game starts. The app now tells the host which axes a
+  controller uses and how that controller reports its face buttons; the
+  host of the previous version ignored both. The rebuild happens on the
+  phone and takes a few minutes per game - the library shows it.
+  Nothing has to be imported for this.
+- (中文) 本次更新之后,手机上的游戏运行库会重建一次(每个游戏第一次启动时)。
+  现在 App 会告诉宿主:手柄的摇杆/扳机在哪几根轴上,以及这颗手柄怎么上报面键;
+  旧版宿主会把这两项都丢掉。重建在手机上做,每个游戏几分钟,库页里能看到进度。
+  这一项不需要额外导入任何东西。
+- (EN) The two new games below are in the profiles package of this
+  release. Import it in the environment check (the "manage" box) to get
+  them.
+- (中文) 下面两款新游戏在本次的档案包里。到环境检查里(那个"管理"按钮)
+  导入即可。
+
+#### New
+
+- The gamepad's face buttons are one choice: by position (the Switch's
+  layout - X on top, Y on the left, A on the right, B at the bottom) or
+  by what the controller prints. It is set per controller in the gamepad
+  center and takes effect at once. The per-key rebinding is gone: it
+  needed a capture flow and a binding table, players got lost in it, and
+  a button that was rebound took another key's source away without
+  anyone seeing why. The center's scope shows what the game receives, so
+  pressing a button is the test.
+- The controller's axes are read the way that controller reports them.
+  The Xbox family (a USB xpad, a Bluetooth XInput pad) puts its triggers
+  on Z/RZ and its right stick on RX/RY - the opposite of the usual
+  layout - so those pads' triggers never fired and their right stick
+  never reached the game. The app now works the roles out of the
+  device's own ranges and the host uses them.
+- The touch stick starts where the thumb lands. The offset is taken from
+  the point the finger went down, not from the middle of the stick, so a
+  thumb on the rim has output right away; a small dead zone around that
+  point, and the rim is the full deflection. The right stick is finer at
+  low speed.
+- The game fills the cutout screen: the picture is centred on the whole
+  panel, so the black bars on the sides are the same width and the
+  camera hole sits in one of them.
+
+#### Fixed
+
+- A physical controller's stick value is clamped and its two axes share
+  the round gate. A value past 1 used to come out as the opposite
+  direction (the host packs the axes into 16 bits), and a square-gated
+  controller's corner - both axes at 1.0 - came out as a diagonal faster
+  than the game expects.
+- A game that reads a little past the end of its own image no longer
+  crashes at the start (The Legend of Zelda: Link's Awakening on Android:
+  about half of the launches died in the first frames).
+- The network clock answers offline with the host's time, so the saves
+  are dated right instead of 1970-01-01.
+- The log lines carry the time since the game started, and another
+  thread's text no longer lands in the middle of one.
+
+### The game profiles (the package the player imports)
+
+#### New games
+
+- Divinity: Original Sin 2 - Definitive Edition - playable. Update
+  1.0.12, 60 fps (30 on the Switch). Ported upstream and tested on the
+  Legion Y700 Gen 4 (Snapdragon 8 Elite, Adreno 830): from a new game
+  through the character creation, the intro movie, the prison ship and
+  Fort Joy's beach, with the pause menu and saving. The game's shaders
+  come out of its Larian packages, which the shader split now reads.
+- ROMANCE OF THE THREE KINGDOMS XIV (with the Diplomacy and Strategy
+  Expansion Pack) - playable, 30 fps as on the Switch. Ported upstream
+  and tested on the Xiaomi 2410DPN6CC (Snapdragon 8 Elite, Adreno 830).
+
+#### Changed games
+
+- Xenoblade Chronicles: Definitive Edition - the road to Colony 9 no
+  longer draws black (the road's normal map was read as a floating point
+  view, so it came out as per-pixel noise).
+- Cardfight!! Vanguard Dear Days 2 - the frame limiter sleeps until the
+  next frame is due: a little less of a core and a little less battery,
+  the same frame rate.
+
+### Community ports
+
+- **@n2ray** - the touch stick's new response (through the upstream #414).
+- **@elwoodight** - the stick's round gate and clamp, and the readable
+  zero slack behind each module on Android (through the upstream #420,
+  #419).
+- **@rospec14** - the game data on the SD card, the Xenoblade road fix
+  and the Vanguard frame limiter (through the upstream #433, #459, #454).
+- **@shadyrispy** - what Koei Tecmo's KTGL needs on Android, with
+  ROMANCE OF THE THREE KINGDOMS XIV (through the upstream #436).
+- **@zFitness** - the gamepad's face buttons as one layout choice (#54).
+
 ## v0.4.0-alpha02 - 2026-11-20
 
 ### The app (the APK)

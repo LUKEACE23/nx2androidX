@@ -3,7 +3,7 @@
 # the rewrite for DM_TARGET=android, the Vulkan shader bundle, the host built with the player's NDK, the APK, the data pack and the install.
 # Work files go where upstream's NSP script puts them, <game folder>/<title ID>_build/ (extract/, aoc/, shader/, logs/ are shared with an iOS build of the same folder),
 # with the Android ones in its android/ folder.
-import collections, hashlib, importlib.util, json, mmap, os, re, shutil, socket, struct, subprocess, sys, time, traceback
+import collections, hashlib, importlib.util, json, mmap, os, re, shlex, shutil, socket, struct, subprocess, sys, time, traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -740,7 +740,10 @@ class Port:
         self.oodle_why = src['oodle_packs'][1] if src['oodle_packs'][0] and ('GFPAK' in src['oodle_packs'][1] or 'Trinity' in src['oodle_packs'][1]) else ''
         # Unreal paks (version 11) and IoStore containers: their shader code archives are decoded with the game's own Oodle too (device_ue)
         self.ue_why = src['ue_decode'][1] if src['ue_decode'][0] else ''
-        why = self.oodle_why or self.ue_why
+        # Already decoded UE archives need no device: rebuilding an APK's keyboard or host must also work after the player disconnects adb.
+        ue_cached = self.ue_why and all((self.dirs[v] / 'ue_shaders/stamp').is_file() and
+                                      (self.dirs[v] / 'ue_shaders/stamp').read_text() == nsp.ue_stamp(self.dirs[v]) for v in self.versions)
+        why = self.oodle_why or ('' if ue_cached else self.ue_why)
         # The game's own decoder runs the game's own code (it boots the game's modules): the patches the profile registers for the tested build are needed there, and the rewriter applies
         # them by build ID only. A dump of another build runs without them and the decoder crashes in the game's initialization, so the port stops here, before it starts.
         if why and self.lost:
@@ -765,8 +768,13 @@ class Port:
             # rounds), so the split gets no decoder: it would boot the game for a job of zero entries (and crash on a dump whose build the profile does not register).
             self.oodle_run = self.device_oodle if self.oodle_why else None
         # A game that compiles shaders with its own GLSLC at boot (Fire Emblem: Three Houses, Catherine: Full Body): the outputs are in no game file, so the port runs the game's own
-        # compiler to get them (local_glslc), the way it runs the game's own decoder for the Oodle entries
+        # compiler to get them, the way it runs the game's own decoder for the Oodle entries
         self.glslc_why = src['glslc_capture'][1] if src['glslc_capture'][0] else ''
+        # The capture runs where the game can boot: the phone app's porter IS the device (the game's own compiler runs here, with no adb and no second device), a porter on a
+        # desktop pushes the host to the Android device and boots the game there
+        if self.glslc_why and not on_android() and not self.tools.get('adb'):
+            raise BuildError(f"{self.app_name} compiles some shaders at run time ({self.glslc_why}): the port boots the game on the Android device to capture them, so it needs adb "
+                             f'and the device even without installing. {NO_ADB}; then connect the device (USB debugging on) and port again')
         for k in ('ue_legacy',) + (() if self.ue_why else ('ue_decode',)) + (() if self.oodle_why else ('oodle_packs',)):
             if src[k][0]: raise BuildError(f'{self.app_name} needs a step that boots the game in the Mac host ({src[k][1]}), which the Android port cannot run yet')
 
@@ -792,6 +800,12 @@ class Port:
         nsp.run([PY, DM / 'android/build.py', '--game', self.g.id, '--ndk', self.tools['ndk'], '--out', out, '--exe', '--gfx', 'null', '--no-lsfg', '--jobs', str(self.o.jobs)] + ([] if self.o.debug else ['--release']),
                 self.logs / 'android_glslc_host.log', env=self.env)
         return out / 'dmhost'
+
+    def glslc_capture(self):
+        """The run-time shader capture, where the game can boot: the phone app's porter IS the device (the game's own compiler runs here, with no adb and no second device),
+        a porter on a desktop pushes the host to the Android device and boots the game there (device_glslc)"""
+        if on_android(): return self.local_glslc()
+        return self.device_glslc()
 
     def local_glslc(self):
         """The capture, run here: the phone app's porter IS the device (Android, arm64), so the game's own compiler runs on this machine — no adb, no second device. The host boots
@@ -984,6 +998,72 @@ class Port:
             except AdbError as e: say(f'the Oodle decoder left on the device ({e}): {self.ODEV}')
         if getattr(self, 'oodle_local', False): nsp.rmtree(self.work / 'tmp/oodle')
 
+    # ---- GLSL the game compiles at run time with its own GLSLC, captured by booting the game on the device (the Mac does it in capture_glslc) ----
+    GDEV = '/data/local/tmp/nx2a-glslc'   # dmhost, the rewritten modules, the RomFS stand-in and the captures, removed afterwards
+    GLSLC_SECS = 60   # Fire Emblem: Three Houses compiles its 9 shaders 1.5-1.8 s after start on a Legion Y700; the run stops as soon as every file the profile names is there
+    GLSLC_SMALL = 16 << 20   # RomFS files up to this size go to the device; bigger ones (movies, sound banks, Three Houses' 6.5 GB DATA1.bin) become empty files of their size
+    def device_glslc(self):
+        """A game that compiles some shaders at run time with its own GLSLC (Fire Emblem: Three Houses: 9 built-in GLSL shaders at boot; profile_guess.py shader_sources): no game file holds
+        their outputs. The host built as an executable (build.py --exe) boots the game headless on the device with DM_GLSLC_CAPTURE (dm/host/hle_glslc.c), which saves each output; they are
+        pulled into <version dir>/glslc_capture, where shader_split.py reads them, as the Mac's capture run writes them (the names are FNV-1a hashes of the outputs, so the profile's
+        shader map names the same files). The RomFS goes with its small files only and sparse stand-ins for the big ones: Three Houses compiles before it reads its archives, and
+        0.7 GB push in seconds where 11.5 GB would take minutes"""
+        d = self.dirs[self.pkg_ver]; cap = d / 'glslc_capture'
+        want = nsp.glslc_wanted(self.g)
+        if (got := nsp.glslc_done(cap)) and (got >= want if want else True):
+            say(f'reusing the captured run-time shaders: {cap}'); return
+        PROG.add(1); PROG.stage('GLSLC capture', step='building the host as a tool', done=0, total=len(want) if want else None, unit='shaders')
+        t0 = time.time()
+        adb = Adb(self.tools['adb'], self.o.device or self.cfg.get('device'), log=say)
+        try: adb.pick()
+        except (AdbError, KeyError) as e: raise BuildError(f'{self.app_name} compiles some shaders at run time ({self.glslc_why}): the port boots the game on the Android device '
+                                                           f'to capture them, so connect it (adb, USB debugging on) and port again ({e})') from e
+        host = self.aw / ('host-debug' if self.o.debug else 'host')   # the host stage's own folder: its objects serve both
+        nsp.run([PY, DM / 'android/build.py', '--game', self.g.id, '--ndk', self.tools['ndk'], '--out', host, '--exe', '--jobs', str(self.o.jobs)] + ([] if self.o.debug else ['--release']),
+                self.logs / 'android_glslc_host.log', env=self.env)
+        rom, stage = d / 'RomFS', self.work / 'tmp/glslc_romfs'
+        nsp.rmtree(stage); big = []
+        for p in sorted(rom.rglob('*')):
+            if not p.is_file(): continue
+            rel = p.relative_to(rom)
+            if p.stat().st_size > self.GLSLC_SMALL: big.append((rel.as_posix(), p.stat().st_size)); continue
+            q = stage / rel; q.parent.mkdir(parents=True, exist_ok=True)
+            try: os.link(p, q)   # same drive: nothing is copied
+            except OSError: shutil.copyfile(p, q)
+        G = self.GDEV
+        try:
+            PROG.set(step='the host, the rewritten modules and the small RomFS files to the device')
+            adb.shell(f'rm -rf {G}; mkdir -p {G}/mods {G}/romfs {G}/save {G}/temp {G}/cap', check=False)
+            adb.push_file(host / 'dmhost', f'{G}/dmhost'); adb.push_tree(self.patched, f'{G}/mods')
+            if any(stage.iterdir()): adb.push_tree(stage, f'{G}/romfs')
+            adb.push_file(self.g.table('shader_map.tsv'), f'{G}/shader_map.tsv')
+            for i in range(0, len(big), 50):
+                part = big[i:i + 50]
+                adb.shell('; '.join(f'mkdir -p {shlex.quote(os.path.dirname(f"{G}/romfs/{r}"))}; truncate -s {n} {shlex.quote(f"{G}/romfs/{r}")}' for r, n in part))
+            PROG.set(step='booting the game on the device')
+            n = len(want) if want else 0
+            # the host in the background; the shell waits until the captures are all there (the files are written whole within a moment of their names), the host stops, or the time is up
+            r = adb.shell(f'cd {G} && chmod 755 dmhost && (DM_ROMFS={G}/romfs DM_SAVE={G}/save DM_TEMP={G}/temp DM_NVN_SHMAP={G}/shader_map.tsv DM_GLSLC_CAPTURE={G}/cap '
+                          f'./dmhost mods > run.log 2>&1 & p=$!; i=0; while [ $i -lt {self.GLSLC_SECS * 4} ] && kill -0 $p 2>/dev/null; do '
+                          f'[ {n} -gt 0 ] && [ $(ls cap | grep -c "glslc$") -ge {n} ] && break; sleep 0.25; i=$((i+1)); done; sleep 1; kill $p 2>/dev/null; sleep 1; kill -9 $p 2>/dev/null; '
+                          f'echo "seconds $((i/4))"; ls cap)', timeout=self.GLSLC_SECS + 60)
+            part = d / 'glslc_capture.partial'; nsp.rmtree(part); part.mkdir(parents=True)
+            names = [x for x in r.split() if re.fullmatch(r'[0-9a-f]{16}\.glslc', x)]
+            if names: adb.run('pull', f'{G}/cap/.', str(part), timeout=300)
+            adb.run('pull', f'{G}/run.log', str(self.logs / 'glslc_capture.log'), check=False)
+            got = nsp.glslc_done(part)
+            if not got or (want and not got >= want):
+                PROG.end(ok=False)
+                raise BuildError(f'the game on the device saved {len(got)} run-time shaders' + (f', the profile needs {len(want)}' if want else '')
+                                 + f' (host output: {self.logs / "glslc_capture.log"})')
+            if want and got - want: say(f"[RED] captured files the profile's shader map does not name: {', '.join(sorted(got - want))}")
+            nsp.swap_in(part, cap)
+        finally:
+            nsp.rmtree(stage)
+            try: adb.shell(f'rm -rf {G}', check=False)
+            except AdbError as e: say(f'the capture run left on the device ({e}): {G}')
+        PROG.end(f'{len(got)} shaders in {time.time() - t0:.0f} s')
+
     # ---- 60 fps (--fps60): the profile's own cap (fps_target: frame-step stubs or hle_fpslock.c's rows), else the community's FPSLocker config of the build ----
     def fps_unlock(self):
         self.fps_env, self.fps_files = [], {}
@@ -1035,7 +1115,7 @@ class Port:
         sv = self.versions
         pkg = self.work / 'shader' / 'pkg'
         try:
-            if getattr(self, 'glslc_why', ''): self.local_glslc()   # shaders the game compiles at boot with its own GLSLC: captured by running the game's own compiler here
+            if getattr(self, 'glslc_why', ''): self.glslc_capture()   # shaders the game compiles at boot with its own GLSLC: the game's own compiler, here on the phone app or on the device
             if getattr(self, "ue_why", ""): self.device_ue()   # Unreal's shader code archives, decoded with the game's own Oodle (on the device, or here on the phone app) into <version dir>/ue_shaders before the split reads them
             nsp.split_shaders(PY, NXNATIVE, [self.dirs[v] / 'RomFS' for v in sv], [self.dirs[v] / 'ExeFS/main' for v in sv], pkg, self.env, self.logs, self.g, bool(self.derived or self.provisional),
                                oodle=getattr(self, 'oodle_run', None),   # Oodle-compressed archives: the game's own decoder (on the device, or here on the phone app)
