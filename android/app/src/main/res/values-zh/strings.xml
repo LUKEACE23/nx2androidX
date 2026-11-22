@@ -716,7 +716,10 @@
         <string name="agent_label_quick">快捷提问</string>
         <string name="agent_empty_hint">闪退、构建失败、游戏库状态都可以问——助手自己会翻日志。</string>
         <string name="agent_head_env">本机环境</string>
-        <string name="agent_label_quick_ops">快捷操作</string>
+            <string name="agent_usage_total">总 token</string>
+        <string name="agent_tool_overlay_title">工具调用明细</string>
+        <string name="agent_tool_overlay_empty">这一轮没有工具调用。</string>
+    <string name="agent_label_quick_ops">快捷操作</string>
     <string name="agent_tools_summary">%1$d 次工具调用</string>
     <string name="agent_env_running">运行中…</string>
     <string name="agent_provider_glm">GLM（智谱）</string>

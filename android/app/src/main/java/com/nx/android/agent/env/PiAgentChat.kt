@@ -56,9 +56,12 @@ class PiAgentChat @Inject constructor(
     private var lineBus: Channel<String>? = null
     private var builtFor: String? = null
 
-    /** The session's running totals (ADR-009's usage row); zeroed on switch and new session. */
+    /** The session's context occupancy and its model's window (ADR-009's usage row); zeroed on switch/new. */
     private var sessionTokens: Long = 0L
-    private var sessionCost: Double = 0.0
+    private var sessionWindow: Long = 0L
+
+    /** pi's own session jsonl (from get_state) — the future --resume anchor for session switching. */
+    private var piSessionFile: String? = null
 
     private var nextId: Long = 0
     private var list: MutableList<AgentMessage> = mutableListOf()
@@ -94,8 +97,9 @@ class PiAgentChat @Inject constructor(
         kill()
         list = sessionStore.loadActive().toMutableList()
         nextId = (list.maxOfOrNull { it.id } ?: -1L) + 1L
-        sessionTokens = 0L
-        sessionCost = 0.0
+        val meta = sessionStore.list().firstOrNull { it.id == sessionStore.activeId() }
+        sessionTokens = meta?.contextTokens ?: 0L
+        sessionWindow = meta?.contextWindow ?: 0L
     }
 
     override suspend fun send(userText: String, context: AgentPageContext?): Flow<AgentEvent> = channelFlow {
@@ -106,6 +110,16 @@ class PiAgentChat @Inject constructor(
             ensureProcess(config)
         } catch (e: Exception) {
             send(AgentEvent.Failed(classify(e))); return@channelFlow
+        }
+        // the state ride-along: the model's context window + pi's own session file, for free
+        withContext(Dispatchers.IO) {
+            val proc = checkNotNull(process) { "the pi process went away" }
+            val state = JSONObject()
+                .put("id", "state-$$")
+                .put("type", "get_state")
+                .toString() + "\n"
+            proc.outputStream.write(state.toByteArray(Charsets.UTF_8))
+            proc.outputStream.flush()
         }
         // earlier turns' leftovers (prompt echoes, stray events) must not read as this turn's
         while (true) { bus.tryReceive().getOrNull() ?: break }
@@ -120,8 +134,7 @@ class PiAgentChat @Inject constructor(
 
         val answer = StringBuilder()
         var settled = false
-        var turnTokens = 0L
-        var turnCost = 0.0
+        var turnContext = 0L
         try {
             withContext(Dispatchers.IO) {
                 val proc = checkNotNull(process) { "the pi process went away" }
@@ -136,7 +149,15 @@ class PiAgentChat @Inject constructor(
             for (line in bus) {
                 val obj = runCatching { JSONObject(line) }.getOrNull() ?: continue
                 when (obj.optString("type")) {
-                    "response" -> if (!obj.optBoolean("success", true)) {
+                    "response" -> if (obj.optString("command") == "get_state") {
+                        val data = obj.optJSONObject("data")
+                        data?.optJSONObject("model")?.optLong("contextWindow")?.takeIf { it > 0 }?.let {
+                            sessionWindow = it
+                        }
+                        data?.optString("sessionFile")?.takeIf { it.isNotBlank() }?.let {
+                            piSessionFile = it
+                        }
+                    } else if (!obj.optBoolean("success", true)) {
                         Log.d(TAG, "command failed: ${obj.optString("error").take(200)}")
                         send(AgentEvent.Failed(classify(RuntimeException(obj.optString("error")))))
                         settled = true
@@ -144,9 +165,10 @@ class PiAgentChat @Inject constructor(
 
                     "message_update" -> {
                         obj.optJSONObject("usage")?.let { usage ->
-                            turnTokens = usage.optLong("totalTokens", turnTokens)
-                            turnCost = usage.optJSONObject("cost")?.optDouble("total") ?: turnCost
-                            send(AgentEvent.UsageUpdated(sessionTokens + turnTokens, sessionCost + turnCost))
+                            // context occupancy ≈ what the model saw this call + what it produced
+                            turnContext = usage.optLong("input") + usage.optLong("cacheRead") +
+                                usage.optLong("output")
+                            send(AgentEvent.UsageUpdated(sessionTokens + turnContext, sessionWindow))
                         }
                         val ev = obj.optJSONObject("assistantMessageEvent") ?: continue
                         if (ev.optString("type") == "text_delta") {
@@ -193,13 +215,12 @@ class PiAgentChat @Inject constructor(
             // the process died mid-turn: the next turn respawns it
             kill()
             list.add(AgentMessage(nextId++, AgentRole.ASSISTANT, ""))
-            sessionStore.save(list, sessionTokens, sessionCost)
+            sessionStore.save(list, sessionTokens, sessionWindow)
             send(AgentEvent.Failed(AgentFailure.LOOP_ERROR))
             return@channelFlow
         }
 
-        sessionTokens += turnTokens
-        sessionCost += turnCost
+        sessionTokens += turnContext
         val text = answer.toString().trim()
         list.add(AgentMessage(nextId++, AgentRole.ASSISTANT, text))
         sessionStore.save(list)

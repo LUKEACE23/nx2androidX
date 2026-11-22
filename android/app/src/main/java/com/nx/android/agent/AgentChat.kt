@@ -28,8 +28,8 @@ sealed interface AgentEvent {
     data class TurnDone(val assistantText: String) : AgentEvent
     data class Failed(val reason: AgentFailure) : AgentEvent
 
-    /** The running totals of the session, re-emitted as usage lands (ADR-009's usage row). */
-    data class UsageUpdated(val tokens: Long, val cost: Double) : AgentEvent
+    /** The running context occupancy (tokens in the model's window) and the window itself. */
+    data class UsageUpdated(val contextTokens: Long, val contextWindow: Long) : AgentEvent
 }
 
 enum class AgentFailure { NO_KEY, BAD_KEY, NETWORK, MODEL_NO_TOOLS, LOOP_ERROR }

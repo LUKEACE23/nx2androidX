@@ -47,9 +47,9 @@ data class AgentUiState(
     val sessions: List<AgentSessionMeta> = emptyList(),
     val activeSessionId: String? = null,
 
-    /** The session's running token/cost totals (the tool column's usage row). */
+    /** The session's context occupancy and its model's window (the tool column's usage row). */
     val usageTokens: Long = 0L,
-    val usageCost: Double = 0.0,
+    val usageWindow: Long = 0L,
 )
 
 /**
@@ -75,7 +75,7 @@ class AgentViewModel @Inject constructor(
     private var sessions by mutableStateOf(sessionStore.list())
     private var activeSessionId by mutableStateOf(sessionStore.activeId())
     private var usageTokens by mutableStateOf(0L)
-    private var usageCost by mutableStateOf(0.0)
+    private var usageWindow by mutableStateOf(0L)
     private var piRunning by mutableStateOf(false)
     private var piResult by mutableStateOf<String?>(null)
     private var draft by mutableStateOf("")
@@ -88,7 +88,7 @@ class AgentViewModel @Inject constructor(
     private var turn: Job? = null
 
     val uiState: StateFlow<AgentUiState> = snapshotFlow {
-        AgentUiState(messages, running, failure, config, config.configured, piRunning, piResult, draft, sessions, activeSessionId, usageTokens, usageCost)
+        AgentUiState(messages, running, failure, config, config.configured, piRunning, piResult, draft, sessions, activeSessionId, usageTokens, usageWindow)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AgentUiState())
 
     private fun syncFromChat() {
@@ -116,6 +116,9 @@ class AgentViewModel @Inject constructor(
         if (running || id == activeSessionId) return
         piChat.switchSession(id)
         syncFromChat()
+        val meta = sessions.firstOrNull { it.id == id }
+        usageTokens = meta?.contextTokens ?: 0L
+        usageWindow = meta?.contextWindow ?: 0L
         failure = null
     }
 
@@ -126,7 +129,7 @@ class AgentViewModel @Inject constructor(
         syncFromChat()
         failure = null
         usageTokens = 0L
-        usageCost = 0.0
+        usageWindow = 0L
     }
 
     /** The input box is controlled: closing the drawer must not eat the player's half-typed words. */
@@ -193,8 +196,8 @@ class AgentViewModel @Inject constructor(
     private fun fold(event: AgentEvent) {
         when (event) {
             is AgentEvent.UsageUpdated -> {
-                usageTokens = event.tokens
-                usageCost = event.cost
+                usageTokens = event.contextTokens
+                usageWindow = event.contextWindow
             }
 
             is AgentEvent.TextDelta -> {

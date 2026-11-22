@@ -13,15 +13,15 @@ data class AgentSessionMeta(
     val id: String,
     val title: String,
     val updatedAt: Long,
-    val tokens: Long = 0L,
-    val cost: Double = 0.0,
+    val contextTokens: Long = 0L,
+    val contextWindow: Long = 0L,
 )
 
 /**
  * Multi-session persistence for the assistant's rendered conversation: one JSON file per session
- * under `sessions/`, an `_active` pointer, a `_meta.json` map for the dropdown's extras (tokens,
- * cost), and a one-time migration from the v0 single `session.json`. The title is derived from the
- * first user words — it is what the dropdown shows.
+ * under `sessions/`, an `_active` pointer, a `_meta.json` map for the dropdown's extras (context
+ * occupancy per session), and a one-time migration from the v0 single `session.json`. The title is
+ * derived from the first user words — it is what the dropdown shows.
  */
 @Singleton
 class AgentSessionStore @Inject constructor(private val workspace: AgentWorkspace) {
@@ -45,8 +45,8 @@ class AgentSessionStore @Inject constructor(private val workspace: AgentWorkspac
                     f.nameWithoutExtension,
                     titleOf(f.readText()),
                     f.lastModified(),
-                    m?.optLong("tokens") ?: 0L,
-                    m?.optDouble("cost") ?: 0.0,
+                    m?.optLong("context") ?: 0L,
+                    m?.optLong("window") ?: 0L,
                 )
             }
             ?.sortedByDescending { it.updatedAt }
@@ -60,15 +60,15 @@ class AgentSessionStore @Inject constructor(private val workspace: AgentWorkspac
 
     fun load(id: String): List<AgentMessage> = parse(file(id).takeIf { it.isFile }?.readText().orEmpty())
 
-    /** Persists under the active id (creating it on first save), with the session's usage. */
-    fun save(messages: List<AgentMessage>, tokens: Long = 0L, cost: Double = 0.0): String {
+    /** Persists under the active id (creating it on first save), with the session's context state. */
+    fun save(messages: List<AgentMessage>, context: Long = 0L, window: Long = 0L): String {
         dir.mkdirs()
         val id = activeId() ?: newId()
         val array = JSONArray()
         for (m in messages) array.put(JSONObject().put("id", m.id).put("role", m.role.name).put("text", m.text))
         file(id).writeText(array.toString(2))
         activeFile.writeText(id)
-        writeTokens(id, tokens, cost)
+        writeMeta(id, context, window)
         return id
     }
 
@@ -89,9 +89,9 @@ class AgentSessionStore @Inject constructor(private val workspace: AgentWorkspac
         dir.deleteRecursively()
     }
 
-    private fun writeTokens(id: String, tokens: Long, cost: Double) {
+    private fun writeMeta(id: String, context: Long, window: Long) {
         val meta = readMeta()
-        val entry = (meta.optJSONObject(id) ?: JSONObject()).put("tokens", tokens).put("cost", cost)
+        val entry = (meta.optJSONObject(id) ?: JSONObject()).put("context", context).put("window", window)
         meta.put(id, entry)
         metaFile.writeText(meta.toString(2))
     }

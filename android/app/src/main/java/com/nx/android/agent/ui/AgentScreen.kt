@@ -303,8 +303,8 @@ private fun failureText(reason: AgentFailure): Int = when (reason) {
 
 /** One rendered message: the player's bubble, or the assistant's block. */
 @Composable
-internal fun MessageRow(message: AgentMessage) {
-    if (message.role == AgentRole.USER) UserBubbleText(message.text) else AssistantBlock(message)
+internal fun MessageRow(message: AgentMessage, onToolsClick: ((AgentMessage) -> Unit)? = null) {
+    if (message.role == AgentRole.USER) UserBubbleText(message.text) else AssistantBlock(message, onToolsClick)
 }
 
 /** The player's own words: a bubble on the right, at most 78% of the width. */
@@ -314,49 +314,42 @@ private fun UserBubbleText(text: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Text(
             text,
-            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 24.sp),
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp, lineHeight = 20.sp),
             color = AgentPalette.Ink,
             modifier = Modifier
                 .fillMaxWidth(0.84f)
-                .clip(RoundedCornerShape(14.dp))
-                .background(Color(0x1AFFF0D6))
-                .border(1.dp, Color(0x24FFF0D6))
+                .background(Color(0x1AFFF0D6), RoundedCornerShape(16.dp))
+                .border(1.dp, Color(0x24FFF0D6), RoundedCornerShape(16.dp))
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         )
     }
 }
 
-/** The assistant's answer: the running tool shows live, the finished ones fold into one summary row, then the words. */
+/** The assistant's answer: the running tool shows live, the finished ones fold, then the words. */
 @Composable
-private fun AssistantBlock(message: AgentMessage) {
+private fun AssistantBlock(message: AgentMessage, onToolsClick: ((AgentMessage) -> Unit)? = null) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // the call in flight: the live feedback the player watches
         message.tools.filter { it.state == AgentToolState.RUNNING }.forEach { ToolCard(it) }
-        // everything finished folds into a single line — ten tool calls must not bury the question
         val finished = message.tools.filter { it.state != AgentToolState.RUNNING }
-        if (finished.isNotEmpty()) ToolSummary(finished, message.id)
+        if (finished.isNotEmpty()) ToolSummary(finished, message.id, onToolsClick?.let { cb -> { cb(message) } })
         if (message.text.isNotEmpty()) {
             Markdown(message.text, typography = agentMarkdownTypography())
         }
     }
 }
 
-/**
- * The panel's density: the answers sit in a 340dp column, the base text is the same 14sp the
- * player's bubble uses — the library's defaults (16sp, 22sp headings) read oversized there.
- */
+/** The panel's density: 14sp body on 22, serif headings, ink on the glass. */
 @Composable
 private fun agentMarkdownTypography(): MarkdownTypography = markdownTypography(
     h1 = MaterialTheme.typography.titleLarge.copy(
         fontFamily = FontFamily.Serif, fontSize = 16.sp, color = AgentPalette.Ink,
     ),
     h2 = MaterialTheme.typography.titleMedium.copy(
-        fontFamily = FontFamily.Serif, fontSize = 16.sp, lineHeight = 22.sp,
-        color = AgentPalette.Ink,
+        fontFamily = FontFamily.Serif, fontSize = 15.sp, lineHeight = 21.sp, color = AgentPalette.Ink,
     ),
     h3 = MaterialTheme.typography.titleSmall.copy(fontFamily = FontFamily.Serif, color = AgentPalette.Ink),
     text = MaterialTheme.typography.bodyMedium.copy(
-        fontSize = 15.sp, lineHeight = 26.sp, color = AgentPalette.Ink,
+        fontSize = 13.sp, lineHeight = 22.sp, color = AgentPalette.Ink,
     ),
     code = MaterialTheme.typography.bodySmall.copy(
         fontFamily = FontFamily.Monospace, color = AgentPalette.Ink,
@@ -365,25 +358,22 @@ private fun agentMarkdownTypography(): MarkdownTypography = markdownTypography(
 )
 
 /**
- * The fold: a mono row — the count left, the state right — and the expanded records print each
- * call like a line on a repair ticket (the command, then its output). The hairlines above and
- * below are the frame; no card chrome.
+ * The fold: a mono row — the count left, the state right. With an [onOpen] the tap hands the turn
+ * to the tool overlay (the panel's tool column); without one it expands the records in place.
  */
 @Composable
-private fun ToolSummary(tools: List<AgentToolCard>, messageId: Long) {
+private fun ToolSummary(
+    tools: List<AgentToolCard>,
+    messageId: Long,
+    onOpen: (() -> Unit)? = null,
+) {
     var expanded by remember(messageId) { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
-        Spacer(
-            Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(AgentPalette.Hairline),
-        )
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp, horizontal = 2.dp)
-                .clickable { expanded = !expanded },
+                .padding(vertical = 9.dp, horizontal = 11.dp)
+                .clickable { if (onOpen != null) onOpen() else expanded = !expanded },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -393,7 +383,7 @@ private fun ToolSummary(tools: List<AgentToolCard>, messageId: Long) {
             Text(
                 stringResource(R.string.agent_tools_summary, tools.size) +
                     if (tallies.isNotBlank()) " · $tallies" else "",
-                style = MaterialTheme.typography.labelSmall.copy(
+                style = MaterialTheme.typography.labelMedium.copy(
                     fontFamily = FontFamily.Monospace,
                     color = AgentPalette.Ink2,
                 ),
@@ -405,24 +395,36 @@ private fun ToolSummary(tools: List<AgentToolCard>, messageId: Long) {
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontFamily = FontFamily.Monospace,
                     letterSpacing = 0.4.sp,
-                    color = if (live) AgentPalette.Ink else AgentPalette.Idle,
+                    color = if (live) AgentPalette.Ink else AgentPalette.Ink2,
                 ),
             )
         }
-        if (expanded) {
+        if (onOpen == null && expanded) {
             Column(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
                 tools.forEach { card ->
                     Column(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                         Text(
-                            card.name + (if (card.argsSummary.isNotBlank()) "  " + card.argsSummary else ""),
-                            style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
-                            color = AgentPalette.Ink,
+                            card.name.uppercase(),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 0.5.sp,
+                            ),
+                            color = AgentPalette.Idle,
                         )
+                        if (card.argsSummary.isNotBlank()) {
+                            Text(
+                                card.argsSummary,
+                                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                                color = AgentPalette.Cmd,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
                         card.resultSummary?.let { result ->
                             Text(
                                 "→ $result",
                                 style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
                                 color = AgentPalette.Ink2,
+                                modifier = Modifier.padding(top = 2.dp),
                             )
                         }
                     }
@@ -438,7 +440,6 @@ private fun ToolSummary(tools: List<AgentToolCard>, messageId: Long) {
     }
 }
 
-/** One tool call: collapsed it is a line (the name, a one-sentence result, the state's dot); a tap unfolds the details. */
 @Composable
 internal fun ToolCard(card: AgentToolCard) {
     var expanded by remember(card.id) { mutableStateOf(false) }
