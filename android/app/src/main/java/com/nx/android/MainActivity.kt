@@ -39,6 +39,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.nx.android.R
+import com.nx.android.agent.runtime.AgentEngineStore
+import com.nx.android.agent.runtime.AgentSetup
 import com.nx.android.appstate.LibraryState
 import com.nx.android.appstate.EnvCheckState
 import com.nx.android.appstate.OnboardingState
@@ -122,6 +124,8 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var firmwareRepo: FirmwareRepository
     @Inject lateinit var envCheck: EnvCheckState
     @Inject lateinit var update: UpdateState
+    @Inject lateinit var agentEngine: AgentEngineStore
+    @Inject lateinit var agentSetup: AgentSetup
 
     /** 界面语言：toast 与分享面板的标题从这里取词 */
     /** Which tab the screen opens on (the notification's tap says the builds page) */
@@ -178,7 +182,7 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             AppRoot(prefs, locale, port, library, onboarding, drivers, environmentSetup, actions,
-                launchTab, launchBuildId, padController,
+                launchTab, launchBuildId, padController, agentSetup,
                 padCenterOpen = padCenterOpen, onPadCenter = { padCenterOpen = it },
                 agentFullOpen = agentFullOpen, onAgentFull = { agentFullOpen = it },
                 crash = crash, onCrashHandled = { crash = null })
@@ -197,6 +201,26 @@ class MainActivity : ComponentActivity() {
         // (the app's own Vulkan driver too: it is unpacked into the app's folder, ready to be picked)
         Thread {
             environmentSetup.refreshTools()
+            // the engine an earlier build kept in the environment's folders comes into the
+            // assistant's own folder (one-time, a copy)
+            agentEngine.migrateLegacy()
+            // the rootfs carries a version: a newer one is unpacked again so the new payload
+            // reaches the phones that are already installed — but not while a port runs
+            var preparing = false
+            environmentSetup.refreshRootfsIfStale({ port.running }) {
+                // the first step means the tree really goes and comes again
+                if (!preparing) {
+                    preparing = true
+                    envCheck.preparing = true
+                }
+            }
+            if (preparing) {
+                envCheck.preparing = false
+                envCheck.refresh()
+            }
+            // the assistant's own facts (the engine that is installed, the models that are
+            // configured) — read again now that the migration had its turn
+            agentSetup.refresh()
         }.start()
         lifecycleScope.launch {
             drivers.ensureShipped()

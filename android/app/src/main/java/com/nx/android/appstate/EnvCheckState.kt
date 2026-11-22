@@ -63,6 +63,12 @@ class EnvCheckState @Inject constructor(
     var known by mutableStateOf(false); private set
 
     /**
+     * The environment is being unpacked again (the app brought a newer rootfs). The old tree keeps
+     * working until the new one is whole, but the chip says what is going on.
+     */
+    var preparing by mutableStateOf(false)
+
+    /**
      * The machine's firmware has been imported.
      *
      * It is optional (only a game that reads the console's system data needs it), so a missing one only
@@ -88,7 +94,7 @@ class EnvCheckState @Inject constructor(
      */
     val chip: EnvCheck.Chip
         get() = if (!known) EnvCheck.Chip.CHECKING
-        else EnvCheck.chip(envReady, keysOk, if (phantomKnown) phantom else null, firmwareImported, profilesCount > 0)
+        else EnvCheck.chip(envReady, keysOk, if (phantomKnown) phantom else null, firmwareImported, profilesCount > 0, preparing)
 
     /** The doctor is running */
     var running by mutableStateOf(false); private set

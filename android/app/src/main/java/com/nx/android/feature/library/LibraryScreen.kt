@@ -61,7 +61,7 @@ import java.io.File
 fun LibraryScreen(lib: LibraryState, port: PortState, actions: AppActions,
                   onGoBuilds: () -> Unit, onRequest: (PickerRequest) -> Unit, uiState: LibraryUiState? = null,
                   viewModel: LibraryViewModel? = null, navActive: Boolean = false,
-                  onOpenAgent: () -> Unit = {}) {
+                  onOpenAgent: () -> Unit = {}, agentVisible: Boolean = true) {
 
     // a port ends: the cards' statuses are re-read
     LaunchedEffect(port.phase) { viewModel?.refresh() ?: lib.rescan() }
@@ -173,6 +173,7 @@ fun LibraryScreen(lib: LibraryState, port: PortState, actions: AppActions,
         navActive = navActive,
         padConnected = padConnected,
         onOpenAgent = onOpenAgent,
+        agentVisible = agentVisible,
     )
 
     // 配置面板不在这里画：它要盖住顶栏，所以由页面的根（MainScreen）在最上层画（见 ui/App.kt）
@@ -182,10 +183,11 @@ fun LibraryScreen(lib: LibraryState, port: PortState, actions: AppActions,
 fun LibraryRoute(viewModel: LibraryViewModel, port: PortState,
                  actions: AppActions,
                  onGoBuilds: () -> Unit, onRequest: (PickerRequest) -> Unit,
-                 navActive: Boolean = false, onOpenAgent: () -> Unit = {}) {
+                 navActive: Boolean = false, onOpenAgent: () -> Unit = {},
+                 agentVisible: Boolean = true) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     LibraryScreen(viewModel.library, port, actions, onGoBuilds, onRequest, uiState, viewModel,
-        navActive = navActive, onOpenAgent = onOpenAgent)
+        navActive = navActive, onOpenAgent = onOpenAgent, agentVisible = agentVisible)
 }
 
 /** 页面上的动作：选一个游戏、构建、运行、看正在跑的构建、开配置 */
@@ -214,6 +216,7 @@ internal fun LibraryContent(
     navActive: Boolean = false,
     padConnected: Boolean = false,
     onOpenAgent: () -> Unit = {},
+    agentVisible: Boolean = true,
 ) {
     val sel = entries.getOrNull(heroIndex)
     // 提示条上确认键那一项写的文案：与左下角主按钮完全一样（同一个 mainActionOf）
@@ -289,7 +292,9 @@ internal fun LibraryContent(
                     )
                 )
             }
-            AgentEntry(onClick = onOpenAgent)
+            if (agentVisible) {
+                AgentEntry(onClick = onOpenAgent)
+            }
         }
     }
     }

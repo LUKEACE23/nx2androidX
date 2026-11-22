@@ -1,6 +1,7 @@
 package com.nx.android.agent.env
 
 import android.content.Context
+import com.nx.android.agent.runtime.AgentEngineStore
 import com.nx.android.agent.runtime.AgentSettingsStore
 import com.nx.android.domain.environment.GuestProcessLauncher
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -26,15 +27,17 @@ class PiRunner @Inject constructor(
     private val guest: GuestProcessLauncher,
     private val proxy: GuestProxy,
     private val settings: AgentSettingsStore,
+    private val engine: AgentEngineStore,
 ) {
 
     /** One headless pi turn; the answer's text, or a failure the caller shows verbatim. */
     suspend fun run(prompt: String): Result<String> = withContext(Dispatchers.IO) {
         val base = guest.guestEnv()
+        engine.migrateLegacy()
         val nx2a = File(requireNotNull(base["NX2A_HOME"]) { "NX2A_HOME is not set in the guest env" })
-        val binary = File(nx2a, "agent/pi/pi")
+        val binary = engine.binary
         if (!binary.isFile) {
-            return@withContext Result.failure(IllegalStateException("pi 没有安装（files/nx2a/agent/pi/pi 不存在）"))
+            return@withContext Result.failure(IllegalStateException("pi 没有安装（files/agent/runtime/pi 不存在）"))
         }
         val config = settings.config
         if (!config.configured) {
@@ -42,27 +45,13 @@ class PiRunner @Inject constructor(
         }
 
         val proxyPort = proxy.ensure()
-        if (config.providerId == "glm") {
-            val piHome = File(guest.guestEnv()["HOME"] ?: error("HOME not set"), ".pi/agent")
+        // the providers pi does not know by itself (glm through bigmodel.cn, doubao, an endpoint
+        // of the player's own) are declared in the engine's models.json — the same file the chat
+        // writes, so the two entry points cannot drift apart
+        PiCatalog.modelsJson(config)?.let { json ->
+            val piHome = File(engine.home, ".pi/agent")
             piHome.mkdirs()
-            File(piHome, "models.json").writeText(
-                """
-                {
-                  "providers": {
-                    "zhipu": {
-                      "baseUrl": "${'$'}{config.baseUrl.trimEnd('/')}",
-                      "api": "openai-completions",
-                      "apiKey": "${'$'}ZHIPU_API_KEY",
-                      "models": [
-                        { "id": "glm-4.6", "contextWindow": 204800 },
-                        { "id": "glm-4.5", "contextWindow": 131072 },
-                        { "id": "glm-4.5-air", "contextWindow": 131072 }
-                      ]
-                    }
-                  }
-                }
-                """.trimIndent(),
-            )
+            File(piHome, "models.json").writeText(json)
         }
         val pb = ProcessBuilder(listOf(binary.absolutePath, "-p", "--model", PiCatalog.fullModelId(config), prompt))
             .directory(nx2a)
@@ -71,12 +60,9 @@ class PiRunner @Inject constructor(
         // (0 cpu, no sockets, no session — verified once on device the hard way)
         pb.redirectInput(ProcessBuilder.Redirect.from(File("/dev/null")))
         pb.environment().putAll(base)
-        // the supplement libs the guest's own userland needs (ls/grep/cp pull selinux/pcre2/cap/...)
-        // that the slim rootfs does not carry; prepended so they win
-        val agentLib = File(nx2a, "agent/lib")
-        if (agentLib.isDirectory) {
-            pb.environment()["LD_LIBRARY_PATH"] = agentLib.absolutePath + ":" + (base["LD_LIBRARY_PATH"] ?: "")
-        }
+        // the engine's home is the assistant's own folder: its models.json and its sessions stay
+        // there, and the environment's reset does not touch them
+        pb.environment()["HOME"] = engine.home.absolutePath
         pb.environment()["http_proxy"] = "http://127.0.0.1:$proxyPort"
         pb.environment()["https_proxy"] = pb.environment()["http_proxy"]
         pb.environment()["TERM"] = "dumb"

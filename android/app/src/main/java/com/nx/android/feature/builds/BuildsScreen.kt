@@ -94,7 +94,8 @@ private fun sourceMatchesTarget(target: File, candidate: File): Boolean {
 @Composable
 fun BuildsRoute(viewModel: BuildsViewModel, keys: String, envReady: Boolean,
                 actions: AppActions, onRequest: (PickerRequest) -> Unit, onLog: (String) -> Unit,
-                onOpenProfiles: () -> Unit, onOpenAgent: () -> Unit = {}) {
+                onOpenProfiles: () -> Unit, onOpenAgent: () -> Unit = {},
+                agentVisible: Boolean = true) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val locale = LocalAppLocale.current
     LaunchedEffect(uiState.running) { if (uiState.running) viewModel.buildStarted() }
@@ -111,14 +112,15 @@ fun BuildsRoute(viewModel: BuildsViewModel, keys: String, envReady: Boolean,
         }
     }
     BuildsScreen(viewModel.library, viewModel, uiState, keys, envReady, actions, onRequest, onLog,
-        onImportProfiles = onOpenProfiles, onOpenAgent = onOpenAgent)
+        onImportProfiles = onOpenProfiles, onOpenAgent = onOpenAgent, agentVisible = agentVisible)
 }
 
 @Composable
 private fun BuildsScreen(lib: LibraryState, viewModel: BuildsViewModel, uiState: BuildsUiState,
                          keys: String, envReady: Boolean, actions: AppActions,
                          onRequest: (PickerRequest) -> Unit, onLog: (String) -> Unit,
-                         onImportProfiles: () -> Unit, onOpenAgent: () -> Unit) {
+                         onImportProfiles: () -> Unit, onOpenAgent: () -> Unit,
+                         agentVisible: Boolean = true) {
     val locale = LocalAppLocale.current
     val running = uiState.running
     val target = uiState.target?.let(::File) ?: uiState.gameFile.takeIf { running }?.let { File(it) }
@@ -183,7 +185,9 @@ private fun BuildsScreen(lib: LibraryState, viewModel: BuildsViewModel, uiState:
     }
     // 助手的入口：贴在页面的右下角，不拖。它在滚动列外面，滚到哪儿都在那儿
     Box(Modifier.align(Alignment.BottomEnd).padding(24.dp)) {
-        AgentEntry(onClick = onOpenAgent)
+        if (agentVisible) {
+            AgentEntry(onClick = onOpenAgent)
+        }
     }
     }
 }

@@ -1,31 +1,38 @@
 package com.nx.android.agent.runtime
 
-import android.content.Context
 import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentSettings
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * The assistant's model settings: the default profile of the many the player configured.
+ *
+ * The profiles themselves live in [AgentModelStore]; this is the face the engine sees.
+ */
 @Singleton
-class AgentSettingsStore @Inject constructor(@ApplicationContext ctx: Context) : AgentSettings {
-
-    private val prefs = ctx.getSharedPreferences("agent_prefs", Context.MODE_PRIVATE)
+class AgentSettingsStore @Inject constructor(
+    private val models: AgentModelStore,
+) : AgentSettings {
 
     override val config: AgentModelConfig
-        get() = AgentModelConfig(
-            providerId = prefs.getString("providerId", "") ?: "",
-            baseUrl = prefs.getString("baseUrl", "") ?: "",
-            apiKey = prefs.getString("apiKey", "") ?: "",
-            modelName = prefs.getString("modelName", "") ?: "",
-        )
+        get() = models.active()?.toConfig() ?: AgentModelConfig("", "", "", "")
 
+    /**
+     * Writes a config: it lands in the profile that is the default one, or in a new profile when
+     * there is none yet.
+     */
     override fun update(config: AgentModelConfig) {
-        prefs.edit()
-            .putString("providerId", config.providerId)
-            .putString("baseUrl", config.baseUrl)
-            .putString("modelName", config.modelName)
-            .putString("apiKey", config.apiKey)
-            .apply()
+        val current = models.active()
+        models.save(
+            AgentModelProfile(
+                id = current?.id ?: "p-${System.currentTimeMillis()}",
+                providerId = config.providerId,
+                label = current?.label.orEmpty(),
+                baseUrl = config.baseUrl,
+                modelName = config.modelName,
+                apiKey = config.apiKey,
+            ),
+        )
     }
 }

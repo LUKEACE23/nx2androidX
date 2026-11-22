@@ -10,6 +10,7 @@ import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentRole
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
+import com.nx.android.agent.runtime.AgentEngineStore
 import com.nx.android.agent.runtime.AgentSessionStore
 import com.nx.android.agent.runtime.AgentSettingsStore
 import com.nx.android.agent.runtime.AgentWorkspace
@@ -45,6 +46,7 @@ class PiAgentChat @Inject constructor(
     private val tools: AgentTools,
     private val workspace: AgentWorkspace,
     private val sessionStore: AgentSessionStore,
+    private val engine: AgentEngineStore,
 ) : AgentChat {
 
     private companion object {
@@ -287,34 +289,19 @@ class PiAgentChat @Inject constructor(
         kill()
 
         val base = guest.guestEnv()
+        engine.migrateLegacy()
         val nx2a = File(requireNotNull(base["NX2A_HOME"]) { "NX2A_HOME is not set in the guest env" })
-        val binary = File(nx2a, "agent/pi/pi")
-        check(binary.isFile) { "pi 没有安装（files/nx2a/agent/pi/pi 不存在）" }
+        val binary = engine.binary
+        check(binary.isFile) { "pi 没有安装（files/agent/runtime/pi 不存在）" }
 
         val port = proxy.ensure()
 
-        // glm routes through bigmodel.cn, not pi's built-in zai (coding-plan): models.json adds it
-        if (config.providerId == "glm") {
-            val piHome = File(base["HOME"] ?: error("HOME not set"), ".pi/agent")
+        // the providers pi does not know by itself (glm through bigmodel.cn, doubao, an endpoint
+        // of the player's own) are declared in the engine's models.json
+        PiCatalog.modelsJson(config)?.let { json ->
+            val piHome = File(engine.home, ".pi/agent")
             piHome.mkdirs()
-            File(piHome, "models.json").writeText(
-                """
-                {
-                  "providers": {
-                    "zhipu": {
-                      "baseUrl": "${'$'}{config.baseUrl.trimEnd('/')}",
-                      "api": "openai-completions",
-                      "apiKey": "${'$'}ZHIPU_API_KEY",
-                      "models": [
-                        { "id": "glm-4.6", "contextWindow": 204800 },
-                        { "id": "glm-4.5", "contextWindow": 131072 },
-                        { "id": "glm-4.5-air", "contextWindow": 131072 }
-                      ]
-                    }
-                  }
-                }
-                """.trimIndent(),
-            )
+            File(piHome, "models.json").writeText(json)
         }
 
         val pb = ProcessBuilder(
@@ -326,12 +313,9 @@ class PiAgentChat @Inject constructor(
         // stdout is the protocol, stderr is diagnostics; blending them would corrupt the stream
         pb.redirectErrorStream(false)
         pb.environment().putAll(base)
-        // the supplement libs the guest's own userland needs (ls/grep/cp pull selinux/pcre2/cap/...)
-        // that the slim rootfs does not carry; prepended so they win
-        val agentLib = File(nx2a, "agent/lib")
-        if (agentLib.isDirectory) {
-            pb.environment()["LD_LIBRARY_PATH"] = agentLib.absolutePath + ":" + (base["LD_LIBRARY_PATH"] ?: "")
-        }
+        // the engine's home is the assistant's own folder: its models.json, its sessions and its
+        // state stay there, and the environment's reset does not touch them
+        pb.environment()["HOME"] = engine.home.absolutePath
         pb.environment()["http_proxy"] = "http://127.0.0.1:$port"
         pb.environment()["https_proxy"] = pb.environment()["http_proxy"] ?: ""
         pb.environment()["TERM"] = "dumb"
@@ -403,14 +387,24 @@ internal object PiCatalog {
 
     fun contextWindowFor(fullModelId: String): Long = CONTEXT_WINDOWS[fullModelId] ?: 0L
 
+    /** The providers pi knows by itself (its own catalog names them). */
+    private val BUILT_IN = setOf("minimax", "deepseek", "kimi")
+
+    /** The name the provider carries in the models.json and in the model id. */
+    fun providerKey(providerId: String): String = when (providerId) {
+        "glm" -> "zhipu"
+        else -> providerId
+    }
+
     fun fullModelId(config: AgentModelConfig): String =
         if (config.modelName.contains('/')) config.modelName
         else when (config.providerId) {
             "minimax" -> "minimax-cn/${config.modelName}"
-            "glm" -> "zai/${config.modelName}"
+            "glm" -> "zhipu/${config.modelName}"
             "deepseek" -> "deepseek/${config.modelName}"
             "kimi" -> "moonshot/${config.modelName}"
-            else -> config.modelName
+            else -> if (config.providerId in BUILT_IN) config.modelName
+            else "${providerKey(config.providerId)}/${config.modelName}"
         }
 
     fun keyEnv(providerId: String, key: String): Pair<String, String> = when (providerId) {
@@ -418,6 +412,53 @@ internal object PiCatalog {
         "glm" -> "ZHIPU_API_KEY" to key
         "deepseek" -> "DEEPSEEK_API_KEY" to key
         "kimi" -> "MOONSHOT_API_KEY" to key
+        "doubao" -> "ARK_API_KEY" to key
         else -> "OPENAI_API_KEY" to key
+    }
+
+    /**
+     * The models.json a provider of ours needs: pi knows some providers by itself, the others
+     * (glm through bigmodel.cn, doubao, an endpoint of the player's own) are declared here — the
+     * endpoint, the key's env var and the model.
+     *
+     * Null when pi knows the provider by itself.
+     */
+    fun modelsJson(config: AgentModelConfig): String? = when (config.providerId) {
+        "minimax", "deepseek", "kimi" -> null
+        "glm" -> """
+            {
+              "providers": {
+                "zhipu": {
+                  "baseUrl": "${config.baseUrl.trimEnd('/')}",
+                  "api": "openai-completions",
+                  "apiKey": "${'$'}ZHIPU_API_KEY",
+                  "models": [
+                    { "id": "glm-4.6", "contextWindow": 204800 },
+                    { "id": "glm-4.5", "contextWindow": 131072 },
+                    { "id": "glm-4.5-air", "contextWindow": 131072 }
+                  ]
+                }
+              }
+            }
+        """.trimIndent()
+        else -> {
+            val key = providerKey(config.providerId)
+            val (envName, _) = keyEnv(config.providerId, config.apiKey)
+            val window = contextWindowFor("$key/${config.modelName}")
+            val model = if (window > 0) """{ "id": "${config.modelName}", "contextWindow": $window }"""
+            else """{ "id": "${config.modelName}" }"""
+            """
+                {
+                  "providers": {
+                    "$key": {
+                      "baseUrl": "${config.baseUrl.trimEnd('/')}",
+                      "api": "openai-completions",
+                      "apiKey": "${'$'}${envName}",
+                      "models": [ $model ]
+                    }
+                  }
+                }
+            """.trimIndent()
+        }
     }
 }

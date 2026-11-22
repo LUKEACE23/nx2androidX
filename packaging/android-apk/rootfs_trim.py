@@ -74,6 +74,17 @@ ALWAYS = ['usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1', 'usr/lib/aarch64-li
           'usr/lib/aarch64-linux-gnu/libpthread.so.0', 'usr/lib/aarch64-linux-gnu/librt.so.1',
           'usr/lib/aarch64-linux-gnu/libgcc_s.so.1', 'usr/lib/aarch64-linux-gnu/libstdc++.so.6']
 
+# The libraries the agent's engine needs. The engine does not live in this tree (it comes as its own package,
+# on the phone), so the closure cannot be computed for it: the libraries it links against, and the ones it opens
+# at run time, are named here and kept with the libraries they need in turn.
+#
+# The engine is a Bun-built binary: it asks the C library for the small parts, and it opens GLib and libsecret
+# when it touches the desktop's keyring. Without them the agent's own commands die with a loader error.
+ENGINE_LIBS = """
+libglib-2.0.so.0 libgobject-2.0.so.0 libgio-2.0.so.0 libgmodule-2.0.so.0 libsecret-1.so.0
+libutil.so.1 librt.so.1
+"""
+
 
 class Elf:
     """What an ELF file asks for: the libraries it needs, the interpreter it wants and where it looks for them"""
@@ -195,6 +206,7 @@ class Rootfs:
         self.keep = set()      # the paths that stay
         self.missing = []      # the libraries that were asked for and not found
         self.libraries = set()  # the libraries of the closure
+        self.engine_libraries = []  # the libraries the agent's engine needs, by name
         self._ext_elfs = {}
 
     # ---- the closure -------------------------------------------------------------------------------
@@ -300,6 +312,21 @@ class Rootfs:
         queue = list(ROOTS) + list(self.ext)
         for r in ROOTS:
             self.keep.add(r)
+        # The engine's own libraries: named, because the engine itself is not in this tree
+        self.engine_libraries = []
+        for name in ENGINE_LIBS.split():
+            found = self._resolve(name, 'usr/bin/bash', LIB_DIRS)
+            if found is None:
+                self.missing.append(('(the engine needs it)', name))
+                continue
+            in_rootfs, lib = found
+            self.libraries.add(lib)
+            self.engine_libraries.append(lib)
+            if not in_rootfs:
+                continue
+            if lib not in self.keep:
+                self.keep.add(lib)
+                queue.append(lib)
         # The programs the list names are started too (the porter's scripts call them, and an agent's shell does):
         # they are roots as well, so the libraries they need stay in the tree.
         for path in self._program_paths():
@@ -505,6 +532,7 @@ def main():
     if a.report:
         report = {'kept': sorted(r.keep),
                   'libraries': sorted(r.libraries),
+                  'engine_libraries': sorted(r.engine_libraries),
                   'missing': [{'program': p, 'library': n} for p, n in r.missing],
                   'unpacked_before': before, 'unpacked_after': after, 'tarball': packed}
         Path(a.report).write_text(json.dumps(report, indent=2) + '\n')

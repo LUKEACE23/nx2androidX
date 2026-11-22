@@ -20,4 +20,14 @@ class AppPaths @Inject constructor(
     val ports = File(files, "ports")
     val work = File(files, "work")
     val runtimes = File(files, "runtimes")   // the games' runtimes, one folder per title ID (the launch loads it in place)
+
+    /**
+     * The assistant's own folder. It is deliberately not under [nxHome] or [home]: the environment's
+     * reset throws those two away, and the engine, its own home, the models and the conversations
+     * must survive it.
+     */
+    val agent = File(files, "agent")
+    val agentRuntime = File(agent, "runtime")   // the engine binary and the manifest of the installed package
+    val agentWorkspace = File(agent, "workspace") // the rendered conversations, AGENTS.md, the memory
+    val agentModels = File(agent, "models.json") // the model profiles (the keys are encrypted)
 }

@@ -157,7 +157,7 @@ private data class RemovalRequest(val kind: Removal, val plan: GameCleanup.Plan,
 fun GameDetailRoute(lib: LibraryState, port: PortState,
                     e: GameEntry, installedDrivers: List<Driver>, actions: AppActions, onGoBuilds: () -> Unit,
                     onRequest: (PickerRequest) -> Unit, onClose: () -> Unit, navActive: Boolean = false,
-                    onOpenAgent: () -> Unit = {}) {
+                    onOpenAgent: () -> Unit = {}, agentVisible: Boolean = true) {
     val viewModel: GameDetailViewModel = hiltViewModel(key = "game-detail-${e.key}")
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(e.titleId, e.pack?.pack) { viewModel.open(e.titleId, e.pack?.pack) }
@@ -166,7 +166,7 @@ fun GameDetailRoute(lib: LibraryState, port: PortState,
     }
     GameDetailScreen(lib, port, e, installedDrivers, viewModel.saveRepository, viewModel.saveIo,
         uiState, viewModel::selectLanguage, viewModel::selectDriver, actions, onGoBuilds, onRequest, onClose,
-        navActive = navActive, onOpenAgent = onOpenAgent)
+        navActive = navActive, onOpenAgent = onOpenAgent, agentVisible = agentVisible)
 }
 
 @Composable
@@ -176,7 +176,8 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                         onSelectLanguage: (String?) -> Unit, onSelectDriver: (String?) -> Unit,
                         actions: AppActions, onGoBuilds: () -> Unit,
                         onRequest: (PickerRequest) -> Unit, onClose: () -> Unit,
-                        navActive: Boolean = false, onOpenAgent: () -> Unit = {}) {
+                        navActive: Boolean = false, onOpenAgent: () -> Unit = {},
+                        agentVisible: Boolean = true) {
     val locale = LocalAppLocale.current
     val status = lib.statusOf(e)
     // Title ID：游戏的身份（还没构建过的还没有）
@@ -617,7 +618,9 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
         }
         // 助手的入口：贴在面板自己的右下角，不拖（面板盖住了页面的那一角，入口得由面板带）
         Box(Modifier.align(Alignment.BottomEnd).padding(24.dp)) {
-            AgentEntry(onClick = onOpenAgent)
+            if (agentVisible) {
+                AgentEntry(onClick = onOpenAgent)
+            }
         }
         }
     }

@@ -106,6 +106,7 @@ import com.nx.android.feature.environment.EnvironmentCheckViewModel
 import com.nx.android.feature.environment.GameProfilesDialog
 import com.nx.android.feature.filepicker.FilePickerScreen
 import com.nx.android.feature.filepicker.PickerMode
+import com.nx.android.domain.UpdatePhase
 import com.nx.android.feature.filepicker.PickerRequest
 import com.nx.android.agent.ui.AgentPanel
 import com.nx.android.feature.faq.FaqScreen
@@ -116,6 +117,9 @@ import com.nx.android.feature.library.LibraryViewModel
 import com.nx.android.feature.logs.LogOverlay
 import com.nx.android.feature.onboarding.OnboardingScreen
 import com.nx.android.feature.onboarding.OnboardingViewModel
+import com.nx.android.agent.runtime.AgentSetup
+import com.nx.android.agent.ui.AgentIntroDialog
+import com.nx.android.agent.ui.AgentSettingsViewModel
 import com.nx.android.agent.ui.AgentViewModel
 import com.nx.android.agent.ui.AgentSettingsSection
 import com.nx.android.feature.settings.SettingsScreen
@@ -211,6 +215,7 @@ fun AppRoot(
     startTab: Int,
     launchBuildId: String,
     padController: PadCenterController,
+    agentSetup: AgentSetup,
     padCenterOpen: Boolean,
     onPadCenter: (Boolean) -> Unit,
     // the assistant's full chat page: the portrait room (the activity turns the screen portrait for it);
@@ -261,6 +266,7 @@ fun AppRoot(
                         startTab,
                         launchBuildId,
                         padController = padController,
+                        agentSetup = agentSetup,
                         padCenterOpen = padCenterOpen,
                         onPadCenter = onPadCenter,
                         agentFullOpen = agentFullOpen,
@@ -274,62 +280,62 @@ fun AppRoot(
                         onCrashHandled = onCrashHandled,
                     )
                 }
-                val volumes = remember(ctx, locale.mode) { StorageVolumes.list(ctx, locale) }
-                pickerReq?.let { req ->
-                    Box(Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.45f))) {
-                        if (!actions.storageOk()) {
-                            // 内置文件管理器读不了没有全文件访问的存储：给授权入口
-                            Column(
-                                Modifier
-                                    .fillMaxSize()
-                                    .padding(24.dp),
-                                verticalArrangement = Arrangement.spacedBy(
-                                    12.dp,
-                                    Alignment.CenterVertically
-                                ),
+            val volumes = remember(ctx, locale.mode) { StorageVolumes.list(ctx, locale) }
+            pickerReq?.let { req ->
+                Box(Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.45f))) {
+                    if (!actions.storageOk()) {
+                        // 内置文件管理器读不了没有全文件访问的存储：给授权入口
+                        Column(
+                            Modifier
+                                .fillMaxSize()
+                                .padding(24.dp),
+                            verticalArrangement = Arrangement.spacedBy(
+                                12.dp,
+                                Alignment.CenterVertically
+                            ),
+                        ) {
+                            Spacer(Modifier.weight(1f))
+                            Text(
+                                stringResource(R.string.app_storage_permission_needed),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                stringResource(R.string.app_storage_permission_picker),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Spacer(Modifier.weight(1f))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Spacer(Modifier.weight(1f))
-                                Text(
-                                    stringResource(R.string.app_storage_permission_needed),
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    stringResource(R.string.app_storage_permission_picker),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
-                                Spacer(Modifier.weight(1f))
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Spacer(Modifier.weight(1f))
-                                    QuietButton(
-                                        stringResource(R.string.common_cancel),
-                                        onClick = { pickerReq = null })
-                                    CapsuleButton(
-                                        stringResource(R.string.app_grant_permission),
-                                        onClick = {
-                                            pickerReq = null
-                                            actions.onAskStorage()
-                                        })
-                                }
+                                QuietButton(
+                                    stringResource(R.string.common_cancel),
+                                    onClick = { pickerReq = null })
+                                CapsuleButton(
+                                    stringResource(R.string.app_grant_permission),
+                                    onClick = {
+                                        pickerReq = null
+                                        actions.onAskStorage()
+                                    })
                             }
-                        } else {
-                            FilePickerScreen(
-                                req = req,
-                                volumes = volumes,
-                                onPicked = { f ->
-                                    pickerReq = null
-                                    req.onPicked(f)
-                                },
-                                onCancel = { pickerReq = null },
-                            )
                         }
+                    } else {
+                        FilePickerScreen(
+                            req = req,
+                            volumes = volumes,
+                            onPicked = { f ->
+                                pickerReq = null
+                                req.onPicked(f)
+                            },
+                            onCancel = { pickerReq = null },
+                        )
                     }
                 }
+            }
                 // 驱动页：盖住整屏，在页面之外
                 if (driversOpen) {
                     DriverRoute(onClose = { driversOpen = false })
@@ -465,6 +471,7 @@ fun MainScreen(
     environmentSetup: EnvironmentSetup, actions: AppActions, startTab: Int,
     launchBuildId: String,
     padController: PadCenterController,
+    agentSetup: AgentSetup,
     padCenterOpen: Boolean,
     onPadCenter: (Boolean) -> Unit,
     agentFullOpen: Boolean = false,
@@ -530,7 +537,10 @@ fun MainScreen(
     val environmentCheckViewModel: EnvironmentCheckViewModel = hiltViewModel()
     val environmentCheckUiState by environmentCheckViewModel.uiState.collectAsStateWithLifecycle()
     val agentViewModel: AgentViewModel = hiltViewModel()
+    val agentSettingsViewModel: AgentSettingsViewModel = hiltViewModel()
     val installedDrivers by drivers.drivers.collectAsStateWithLifecycle()
+    // 助手准备好了才有入口：开关、引擎与模型都齐了才是
+    val agentReady = agentSetup.ready
 
     // 选中游戏的背景铺满整块屏幕：顶栏透明画在图上，三个 tab 共用这层背景
     // agent 抽屉的磨砂：页面这两层被抽屉捕获做背景模糊（hazeSource → hazeBlur）
@@ -552,6 +562,19 @@ fun MainScreen(
             )
             // 有新版本时的弹框：冷启动查到了新版本才出现
             UpdatePopup(updateViewModel)
+            // 助手的引导框：排在更新框之后（两个框不叠在一起），助手还没配好时每个版本问一次
+            val updateState by updateViewModel.uiState.collectAsStateWithLifecycle()
+            val updateShowing = updateState.phase == UpdatePhase.AVAILABLE && !updateState.later
+            if (!updateShowing && agentSetup.shouldIntroduce && prefs.bool(PrefsStore.OB_COMPLETED)) {
+                AgentIntroDialog(
+                    onOpenSettings = {
+                        agentSetup.markIntroduced()
+                        settingsSection = SettingsSection.AGENT
+                        settingsOpen = true
+                    },
+                    onDismiss = { agentSetup.markIntroduced() },
+                )
+            }
             Box(Modifier.weight(1f)) {
                 when (Tab.entries[tab]) {
                     Tab.LIBRARY -> LibraryRoute(
@@ -561,6 +584,7 @@ fun MainScreen(
                         }, onRequest = onRequest,
                         // 助手的入口由页面自己画（右下角，不拖）：这一层只报意图
                         onOpenAgent = { agentPanelOpen = true },
+                        agentVisible = agentReady,
                         navActive = navHost == NavHost.LIBRARY
                     )
 
@@ -574,6 +598,7 @@ fun MainScreen(
                         // 档案的弹框盖整屏，所以画在这一层：页面只报意图
                         onOpenProfiles = { profilesOpen = true },
                         onOpenAgent = { agentPanelOpen = true },
+                        agentVisible = agentReady,
                     )
                 }
             }
@@ -600,6 +625,7 @@ fun MainScreen(
                     }, onRequest = onRequest,
                     // 面板盖住页面的右下角，所以入口由面板自己带
                     onOpenAgent = { agentPanelOpen = true },
+                    agentVisible = agentReady,
                     onClose = { lib.selected = null },
                     navActive = navHost == NavHost.PANEL
                 )
@@ -637,7 +663,7 @@ fun MainScreen(
         if (settingsOpen) {
             SettingsScreen(
                 onboarding, installedDrivers, drivers, updateViewModel,
-                storageViewModel, agentViewModel, actions,
+                storageViewModel, agentSettingsViewModel, actions,
                 onRequest, onDrivers,
                 section = settingsSection, onSelectSection = { settingsSection = it },
                         onClose = { settingsOpen = false },

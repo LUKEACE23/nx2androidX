@@ -10,10 +10,11 @@ import com.nx.android.agent.AgentEvent
 import com.nx.android.agent.AgentFailure
 import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentModelConfig
-import com.nx.android.agent.AgentPresets
 import com.nx.android.agent.AgentRole
 import com.nx.android.agent.env.PiAgentChat
 import com.nx.android.agent.env.PiRunner
+import com.nx.android.agent.runtime.AgentModelProfile
+import com.nx.android.agent.runtime.AgentModelStore
 import com.nx.android.agent.runtime.AgentSettingsStore
 import com.nx.android.agent.runtime.AgentSessionStore
 import com.nx.android.agent.runtime.AgentSessionMeta
@@ -50,6 +51,10 @@ data class AgentUiState(
     /** The session's context occupancy and its model's window (the tool column's usage row). */
     val usageTokens: Long = 0L,
     val usageWindow: Long = 0L,
+
+    /** The models the player configured: the chip's menu lists them. */
+    val profiles: List<AgentModelProfile> = emptyList(),
+    val activeProfileId: String = "",
 )
 
 /**
@@ -66,12 +71,15 @@ class AgentViewModel @Inject constructor(
     private val settings: AgentSettingsStore,
     private val sessionStore: AgentSessionStore,
     private val piRunner: PiRunner,
+    private val models: AgentModelStore,
 ) : ViewModel() {
 
     private var messages by mutableStateOf(piChat.messages)
     private var running by mutableStateOf(false)
     private var failure by mutableStateOf<AgentFailure?>(null)
     private var config by mutableStateOf(settings.config)
+    private var profiles by mutableStateOf(models.list())
+    private var activeProfileId by mutableStateOf(models.activeId())
     private var sessions by mutableStateOf(sessionStore.list())
     private var activeSessionId by mutableStateOf(sessionStore.activeId())
     private var usageTokens by mutableStateOf(0L)
@@ -96,7 +104,7 @@ class AgentViewModel @Inject constructor(
     private var turn: Job? = null
 
     val uiState: StateFlow<AgentUiState> = snapshotFlow {
-        AgentUiState(messages, running, failure, config, config.configured, piRunning, piResult, draft, sessions, activeSessionId, usageTokens, usageWindow)
+        AgentUiState(messages, running, failure, config, config.configured, piRunning, piResult, draft, sessions, activeSessionId, usageTokens, usageWindow, profiles, activeProfileId)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AgentUiState())
 
     private fun syncFromChat() {
@@ -106,17 +114,21 @@ class AgentViewModel @Inject constructor(
         activeSessionId = sessionStore.activeId()
     }
 
-    /** The model chip's menu: a preset brings its endpoint and first model; the player's key stays. */
-    fun selectModel(providerId: String) {
+    /**
+     * The model chip's menu: the profile the player picks answers from now on. The key stays with
+     * the profile — the chip never shows it.
+     */
+    fun selectProfile(id: String) {
         if (running) return
-        val preset = AgentPresets.byId(providerId)
-        config = AgentModelConfig(
-            preset.id,
-            preset.baseUrl,
-            preset.defaultModel.ifBlank { config.modelName },
-            config.apiKey,
-        )
-        settings.update(config)
+        models.setActive(id)
+        refreshModels()
+    }
+
+    /** Reads the models again: the settings page may have changed them while the panel was closed. */
+    fun refreshModels() {
+        profiles = models.list()
+        activeProfileId = models.activeId()
+        config = settings.config
     }
 
     /** Another conversation answers from here on: history reloads, the process restarts next turn. */

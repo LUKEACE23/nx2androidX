@@ -38,6 +38,12 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
          * files and never removed them) do the wipe once, when they install an app with this rule.
          */
         private const val STAMP_GEN = "wipe1:"
+
+        /** The rootfs's own version marker: the assets carry it, the unpacked tree remembers it. */
+        private const val ROOTFS_STAMP_FILE = ".nx2a-rootfs-version"
+
+        /** The asset that carries the rootfs's version marker (empty when the payload has none). */
+        private const val ROOTFS_STAMP_ASSET = "rootfs-version"
     }
 
     val files = paths.files
@@ -150,10 +156,9 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
         }
         if (!python.exists()) {
             step("the Linux environment")
-            ctx.assets.open("rootfs.pkg").use { raw ->
-                GZIPInputStream(raw).use { gz -> Tar.unpack(gz, rootfs) }
-            }
+            unpackRootfs()
             rootfsFinished()
+            storeRootfsStamp()
         }
         if (!File(files, ".nx2a-tool").exists()) {
             step("the tool")
@@ -186,6 +191,83 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
         marker.writeText("1")
     }
 
+    // ---- the rootfs's own version ----------------------------------------------------------------------------------
+
+    /**
+     * The version the assets' rootfs carries (empty when the payload says nothing).
+     */
+    private fun rootfsStamp(): String = try {
+        ctx.assets.open(ROOTFS_STAMP_ASSET).use { it.readBytes().toString(Charsets.UTF_8).trim() }
+    } catch (e: Exception) {
+        ""
+    }
+
+    /** The version the tree on this phone was unpacked with. */
+    private fun storedRootfsStamp(): String {
+        val mark = File(files, ROOTFS_STAMP_FILE)
+        return if (mark.isFile) mark.readText().trim() else ""
+    }
+
+    /** The tree remembers the version it was unpacked with. */
+    private fun storeRootfsStamp() {
+        val stamp = rootfsStamp()
+        if (stamp.isEmpty()) return
+        runCatching { File(files, ROOTFS_STAMP_FILE).writeText(stamp) }
+    }
+
+    /**
+     * The rootfs is unpacked into a fresh folder and swapped in: the old tree keeps working until
+     * the new one is whole. A failure leaves the old tree alone — the environment never goes missing.
+     */
+    private fun unpackRootfs() {
+        val stage = File(files, "rootfs.new")
+        stage.deleteRecursively()
+        try {
+            ctx.assets.open("rootfs.pkg").use { raw ->
+                GZIPInputStream(raw).use { gz -> Tar.unpack(gz, stage) }
+            }
+        } catch (e: Exception) {
+            stage.deleteRecursively()
+            throw e
+        }
+        RootfsTree.swap(stage, rootfs, File(files, "rootfs.old"))
+    }
+
+    /**
+     * The app brought a newer rootfs: unpack it again, so the new payload reaches the phones that
+     * are already installed. The interpreter paths are patched again with the new tree — the guest
+     * programs in it point at the loader of this phone.
+     *
+     * @param busy whether something that must not be interrupted is running (a port): the tree is
+     *   left alone until it is done
+     * @return whether the tree was unpacked again
+     */
+    override fun refreshRootfsIfStale(busy: () -> Boolean, onStep: (String) -> Unit): Boolean {
+        val want = rootfsStamp()
+        if (!RootfsTree.stale(want, storedRootfsStamp())) return false
+        // 还没解包过的机器：第一次解包归引导流程管，别在这里跟它抢同一个目录
+        if (!marker.exists()) return false
+        if (busy()) {
+            Log.i(TAG, "the rootfs is newer but something is running: it waits for the next start")
+            return false
+        }
+        Log.i(TAG, "the rootfs is newer: it goes and comes again")
+        try {
+            onStep("the Linux environment")
+            unpackRootfs()
+            onStep("the interpreter paths")
+            patchInterpreters()
+            onStep("the check")
+            check()
+            storeRootfsStamp()
+            return true
+        } catch (e: Exception) {
+            // the old tree is still there: the environment works, it is just the old one
+            Log.e(TAG, "the rootfs could not be unpacked again: ${e.message}")
+            return false
+        }
+    }
+
     /** The mark that says the environment is unpacked (so an update does not do it again) */
     private val marker: File get() = File(files, ".nx2a-unpacked")
 
@@ -194,6 +276,7 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
         marker.delete()
         File(files, ".nx2a-tool").delete()
         File(files, ".nx2a-toolchain").delete()
+        File(files, ROOTFS_STAMP_FILE).delete()
         // the whole environment goes: what was unpacked with the wrong permissions stays wrong
         rootfs.deleteRecursively()
         tool.deleteRecursively()
@@ -385,6 +468,36 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
             Log.i(TAG, "python3.13 after patching: ${python.length()} bytes")
         }
         restoreModes()
+    }
+
+    /**
+     * A program that is started in the guest needs its interpreter path pointed at this phone's
+     * loader — the way the payload's own binaries carry it. The engine binary is one of them: it
+     * comes from a package, and the package ships it as it was built.
+     *
+     * @return whether the program was patched
+     */
+    override fun patchInterpreter(file: File): Boolean {
+        val script = File(tool, "tools/patch_interp.py")
+        if (!script.exists() || !file.isFile) return false
+        val log = File(nxHome, "patch-engine.log")
+        return try {
+            val pb = ProcessBuilder(
+                loader.absolutePath, python.absolutePath,
+                script.absolutePath, file.absolutePath, interpPath,
+            )
+            pb.directory(tool)
+            pb.redirectErrorStream(true)
+            pb.redirectOutput(log)
+            pb.environment().putAll(guestEnv())
+            val p = pb.start()
+            val code = p.waitFor()
+            Log.i(TAG, "patch ${file.name}: exit $code")
+            code == 0
+        } catch (e: Exception) {
+            Log.e(TAG, "patch ${file.name}: ${e.message}")
+            false
+        }
     }
 
     /**

@@ -107,6 +107,8 @@ fun AgentScreen(
     val last = state.messages.lastOrNull()
     // every (re)open lands at the true bottom — after the first layout, not before it exists
     LaunchedEffect(Unit) {
+        // the models are read again: the settings page may have changed them while this was closed
+        viewModel.refreshModels()
         if (state.messages.isEmpty()) return@LaunchedEffect
         snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > 0 }
         listState.scrollToBottom()

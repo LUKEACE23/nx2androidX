@@ -1,177 +1,166 @@
 package com.nx.android.agent.ui
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nx.android.R
-import com.nx.android.agent.AgentPresets
-import com.nx.android.core.ui.components.CapsuleButton
-import com.nx.android.core.ui.components.Hint
-import com.nx.android.core.ui.components.Section
+import com.nx.android.agent.runtime.AgentModelProfile
+import com.nx.android.core.ui.components.InfoRow
 import com.nx.android.core.ui.theme.NxPalette
+import com.nx.android.feature.filepicker.PickerMode
+import com.nx.android.feature.filepicker.PickerRequest
 
 /**
- * The assistant's settings section: the BYOK form (ADR-003) — the player's own key, one OpenAI-compatible
- * endpoint of their choice. Lives here because it is global configuration; the assistant's surfaces (the
- * panel, the full page) only send the player here when no key is set yet.
+ * The assistant's settings: the engine and the models.
+ *
+ * Two things, no cards and no explanations: the engine (one row — the dialog it opens holds the two
+ * ways to get one) and the models (one row each). The rest of the settings page is made of rows like
+ * these, so this section is made of rows like these too.
  */
 @Composable
-fun AgentSettingsSection(viewModel: AgentViewModel) {
+fun AgentSettingsSection(viewModel: AgentSettingsViewModel, onRequest: (PickerRequest) -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var engineDialog by remember { mutableStateOf(false) }
+    var adding by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<AgentModelProfile?>(null) }
+    var deleting by remember { mutableStateOf<AgentModelProfile?>(null) }
+    val pickTitle = stringResource(R.string.agent_engine_pick)
 
-    // the form follows the saved choice: after a save it re-reads what the data layer kept
-    var providerId by remember(state.config) { mutableStateOf(state.config.providerId.ifEmpty { AgentPresets.ALL.first().id }) }
-    var baseUrl by remember(state.config) { mutableStateOf(state.config.baseUrl) }
-    var modelName by remember(state.config) { mutableStateOf(state.config.modelName) }
-    var apiKey by remember(state.config) { mutableStateOf(state.config.apiKey) }
-    var keyVisible by remember { mutableStateOf(false) }
-    val preset = AgentPresets.byId(providerId)
-    val complete = baseUrl.isNotBlank() && apiKey.isNotBlank() && modelName.isNotBlank()
+    // the engine: one row. The dialog it opens does the work (download, import)
+    InfoRow(
+        title = stringResource(R.string.agent_engine_label),
+        value = when {
+            !state.engineInstalled -> stringResource(R.string.agent_engine_missing)
+            state.engineVersion.isBlank() -> stringResource(R.string.agent_engine_ready)
+            else -> state.engineVersion
+        },
+        onClick = { engineDialog = true },
+    )
 
-    Section(stringResource(R.string.agent_setup_title)) {
-        Hint(stringResource(R.string.agent_setup_intro), size = 13.sp)
-
-        Text(
-            stringResource(R.string.agent_setup_provider),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (p in AgentPresets.ALL) {
-                ProviderRow(p.id, p.id == providerId, onSelect = {
-                    providerId = p.id
-                    if (p.id != "custom") {
-                        // a named preset brings its own endpoint and first model along
-                        baseUrl = p.baseUrl
-                        modelName = p.defaultModel
-                    }
-                })
-            }
-        }
-
-        OutlinedTextField(
-            baseUrl,
-            { baseUrl = it },
-            Modifier.fillMaxWidth(),
-            singleLine = true,
-            label = { Text(stringResource(R.string.agent_setup_base_url)) },
-        )
-        OutlinedTextField(
-            modelName,
-            { modelName = it },
-            Modifier.fillMaxWidth(),
-            singleLine = true,
-            label = { Text(stringResource(R.string.agent_setup_model)) },
-        )
-        OutlinedTextField(
-            apiKey,
-            { apiKey = it },
-            Modifier.fillMaxWidth(),
-            singleLine = true,
-            label = { Text(stringResource(R.string.agent_setup_api_key)) },
-            visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            trailingIcon = {
-                IconButton(onClick = { keyVisible = !keyVisible }) {
+    // the models: one row each. The row picks the model; the pencil edits it.
+    state.profiles.forEach { profile ->
+        val active = profile.id == state.activeProfileId
+        InfoRow(
+            title = profile.label.ifBlank { profile.modelName },
+            value = profile.modelName.takeIf { it != profile.label }.orEmpty(),
+            leading = {
+                Icon(
+                    Icons.Filled.Check,
+                    null,
+                    Modifier.size(16.dp),
+                    tint = if (active) NxPalette.Brand else Color.Transparent,
+                )
+            },
+            trailing = {
+                IconButton(onClick = { editing = profile }) {
                     Icon(
-                        if (keyVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                        stringResource(R.string.agent_setup_key_toggle),
-                        Modifier.size(18.dp),
+                        Icons.Filled.Edit,
+                        stringResource(R.string.agent_models_edit),
+                        Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             },
-        )
-        // the provider's own words for where the key comes from
-        Hint(stringResource(providerHintRes(preset.id)), size = 11.sp)
-
-        CapsuleButton(
-            stringResource(R.string.agent_setup_save),
-            { viewModel.updateConfig(providerId, baseUrl.trim(), apiKey.trim(), modelName.trim()) },
-            Modifier.fillMaxWidth(),
-            enabled = complete,
+            onClick = { viewModel.setActiveModel(profile.id) },
         )
     }
+    InfoRow(
+        title = stringResource(R.string.agent_models_add),
+        value = "+",
+        onClick = { adding = true },
+    )
 
-    // the env agent (ADR-009): pi in the glibc environment, the strong tier — gated on a saved key
-    if (state.configured) {
-        Section(stringResource(R.string.agent_env_title)) {
-            Hint(stringResource(R.string.agent_env_hint), size = 12.sp)
-            CapsuleButton(
-                stringResource(if (state.piRunning) R.string.agent_env_running else R.string.agent_env_run),
-                { viewModel.runPiTest() },
-                Modifier.fillMaxWidth(),
-                enabled = !state.piRunning,
-            )
-            state.piResult?.let { result ->
-                Text(
-                    result,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth(),
+    if (engineDialog) {
+        AgentEngineDialog(
+            state = state,
+            onDownload = { viewModel.downloadLatest() },
+            onImport = {
+                // 弹框是它自己的窗口：它会盖在文件选择器上面。所以先把弹框关掉，选完再开回来。
+                engineDialog = false
+                onRequest(
+                    PickerRequest(
+                        mode = PickerMode.FILE,
+                        extensions = setOf("zip"),
+                        initial = null,
+                        title = pickTitle,
+                        onPicked = { file ->
+                            viewModel.importPackage(file)
+                            engineDialog = true
+                        },
+                    ),
                 )
-            }
-        }
-    }
-}
-
-/** One provider option: a row that takes the choice, the picked one says so in the brand's color. */
-@Composable
-private fun ProviderRow(providerId: String, selected: Boolean, onSelect: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(if (selected) NxPalette.Brand.copy(alpha = 0.14f) else NxPalette.Surface, shape)
-            .border(
-                1.dp,
-                if (selected) NxPalette.Brand else MaterialTheme.colorScheme.outlineVariant,
-                shape,
-            )
-            .clickable(onClick = onSelect)
-            .padding(horizontal = 12.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(
-            stringResource(providerLabelRes(providerId)),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) NxPalette.Brand else MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.weight(1f),
+            },
+            onDismiss = {
+                // 取消随时可用：正在做的动作被叫停，弹框关掉
+                viewModel.cancelActive()
+                engineDialog = false
+            },
         )
-        if (selected) {
-            Icon(Icons.Filled.Check, null, Modifier.size(16.dp), tint = NxPalette.Brand)
-        }
+    }
+
+    if (adding) {
+        AgentModelDialog(
+            existing = null,
+            error = state.modelError,
+            onDismiss = { adding = false },
+            onSave = {
+                // 存不上就留在框里：玩家看得见哪里出了错，不用重新填一遍
+                if (viewModel.saveModel(it)) adding = false
+            },
+        )
+    }
+    editing?.let { profile ->
+        AgentModelDialog(
+            existing = profile,
+            error = state.modelError,
+            onDismiss = { editing = null },
+            onSave = {
+                if (viewModel.saveModel(it)) editing = null
+            },
+            onDelete = {
+                deleting = profile
+                editing = null
+            },
+        )
+    }
+
+    // the delete asks once: a key that goes with the model cannot be read back
+    deleting?.let { profile ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text(stringResource(R.string.agent_models_delete), fontWeight = FontWeight.Bold) },
+            text = {
+                Text(stringResource(R.string.agent_models_delete_confirm, profile.label.ifBlank { profile.modelName }))
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.removeModel(profile.id)
+                    deleting = null
+                }) { Text(stringResource(R.string.common_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.agent_model_cancel)) }
+            },
+        )
     }
 }
 

@@ -45,6 +45,7 @@ import com.nx.android.appstate.OnboardingState
 import com.nx.android.feature.storage.StorageViewModel
 import com.nx.android.feature.storage.StorageSection
 import com.nx.android.agent.ui.AgentSettingsSection
+import com.nx.android.agent.ui.AgentSettingsViewModel
 import com.nx.android.agent.ui.AgentViewModel
 import com.nx.android.feature.updates.UpdateViewModel
 import com.nx.android.data.AppLocale
@@ -109,7 +110,7 @@ enum class SettingsSection(@StringRes val title: Int) {
 
 @Composable
 fun SettingsScreen(ob: OnboardingState, drivers: List<Driver>, driverRepository: DriverRepository, update: UpdateViewModel,
-                   storageViewModel: StorageViewModel, agentViewModel: AgentViewModel,
+                   storageViewModel: StorageViewModel, agentViewModel: AgentSettingsViewModel,
                    actions: AppActions, onRequest: (PickerRequest) -> Unit,
                    onDrivers: () -> Unit,
                    section: SettingsSection, onSelectSection: (SettingsSection) -> Unit,
@@ -158,7 +159,7 @@ fun SettingsScreen(ob: OnboardingState, drivers: List<Driver>, driverRepository:
                         SettingsSection.STORAGE -> StorageSection(storageViewModel)
                         SettingsSection.DRIVERS -> DriversSection(drivers, driverRepository, actions, onRequest, onDrivers)
                         SettingsSection.DISPLAY -> DisplaySection(actions, onRequest)
-                        SettingsSection.AGENT -> AgentSettingsSection(agentViewModel)
+                        SettingsSection.AGENT -> AgentSettingsSection(agentViewModel, onRequest)
                         SettingsSection.ABOUT -> AboutSection(ob, update, actions)
                     }
                 }

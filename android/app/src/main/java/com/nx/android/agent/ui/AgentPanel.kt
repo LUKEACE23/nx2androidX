@@ -121,6 +121,8 @@ fun AgentPanel(
     // first layout, so wait for the list to actually exist before scrolling (totalItemsCount == 0
     // made scrollToBottom return early and the drawer kept the old position)
     LaunchedEffect(Unit) {
+        // the models are read again: the settings page may have changed them while this was closed
+        viewModel.refreshModels()
         if (state.messages.isEmpty()) return@LaunchedEffect
         snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > 0 }
         listState.scrollToBottom()
@@ -248,7 +250,7 @@ fun AgentPanel(
                             color = AgentPalette.Ink,
                         )
                     }
-                    // the model chip: what answers now; the menu lists every preset
+                    // the model chip: what answers now; the menu lists the models the player configured
                     var modelMenu by remember { mutableStateOf(false) }
                     GlassChip(
                         modifier = Modifier.fillMaxWidth().height(32.dp),
@@ -262,7 +264,9 @@ fun AgentPanel(
                                 .background(if (state.configured) AgentPalette.Ready else AgentPalette.Idle),
                         )
                         Text(
-                            state.config.modelName.ifBlank { stringResource(R.string.agent_model_unset) },
+                            state.profiles.firstOrNull { it.id == state.activeProfileId }?.modelName
+                                .orEmpty()
+                                .ifBlank { stringResource(R.string.agent_model_unset) },
                             style = MaterialTheme.typography.labelMedium,
                             color = AgentPalette.Ink,
                             maxLines = 1,
@@ -282,18 +286,31 @@ fun AgentPanel(
                         // a Popup has no parent width: fillMaxWidth here once stretched to the screen
                         modifier = Modifier.width(224.dp),
                     ) {
-                        AgentPresets.ALL.forEach { preset ->
+                        if (state.profiles.isEmpty()) {
                             DropdownMenuItem(
                                 text = {
                                     Text(
-                                        preset.label + (if (preset.defaultModel.isNotBlank()) " · ${preset.defaultModel}" else ""),
+                                        stringResource(R.string.agent_model_unset),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = AgentPalette.Ink2,
+                                    )
+                                },
+                                onClick = { modelMenu = false },
+                            )
+                        }
+                        state.profiles.forEach { profile ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        profile.label.ifBlank { profile.modelName } +
+                                            (if (profile.modelName.isNotBlank()) " · ${profile.modelName}" else ""),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = AgentPalette.Ink,
                                     )
                                 },
                                 onClick = {
                                     modelMenu = false
-                                    viewModel.selectModel(preset.id)
+                                    viewModel.selectProfile(profile.id)
                                 },
                             )
                         }

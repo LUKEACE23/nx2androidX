@@ -271,6 +271,18 @@ def finalize_metadata(out):
                         stamp.update(chunk)
     (out / 'build-id').write_text(stamp.hexdigest() + '\n')
 
+    # the rootfs's own version: the app unpacks the tree again when the asset carries a newer one
+    # (the payload is fixed once and for all, so the tree alone would never come back to the phones
+    # that are already installed)
+    rootfs = out / 'rootfs.pkg'
+    if rootfs.exists():
+        h = hashlib.sha256()
+        with rootfs.open('rb') as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b''):
+                h.update(chunk)
+        (out / 'rootfs-version').write_text(h.hexdigest() + '\n')
+        print('>> the rootfs version stamp')
+
 
 def main():
     ap = argparse.ArgumentParser()
