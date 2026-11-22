@@ -67,7 +67,10 @@ class AgentSessionStore @Inject constructor(private val workspace: AgentWorkspac
         dir.mkdirs()
         val id = activeId() ?: newId()
         val array = JSONArray()
-        for (m in messages) array.put(JSONObject().put("id", m.id).put("role", m.role.name).put("text", m.text))
+        for (m in messages) array.put(
+            JSONObject().put("id", m.id).put("role", m.role.name).put("text", m.text)
+                .put("tokens", m.tokens)
+        )
         file(id).writeText(array.toString(2))
         activeFile.writeText(id)
         writeMeta(id, context, window, piFile)
@@ -115,7 +118,10 @@ class AgentSessionStore @Inject constructor(private val workspace: AgentWorkspac
             } else {
                 AgentRole.ASSISTANT
             }
-            AgentMessage(o.optLong("id", i.toLong()), role, o.optString("text"))
+            AgentMessage(
+                o.optLong("id", i.toLong()), role, o.optString("text"),
+                tokens = o.optLong("tokens", 0L),   // 老会话没有这个字段：0（不显示）
+            )
         }
     }
 

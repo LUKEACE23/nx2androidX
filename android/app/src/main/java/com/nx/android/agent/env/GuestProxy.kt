@@ -23,6 +23,17 @@ import kotlinx.coroutines.launch
  * resolve the name with the app's own network stack and pipe the bytes. TLS stays end-to-end —
  * this thread only ever moves ciphertext and holds no keys (not the ADR-003 proxy pool: no
  * model traffic is decrypted or re-signed here, and the app never sees the player's prompts).
+ *
+ * Every host is let through: the agent needs to read the upstream's issue tracker, fetch a file
+ * from GitHub, look up a library's docs. Two things stay as they were — the guest still resolves
+ * nothing itself (the name is resolved here, with the app's own stack, so the traffic follows the
+ * phone's routes and whatever VPN the player has on), and the listener is still bound to the
+ * loopback only.
+ *
+ * What that costs: this is now an open relay on 127.0.0.1, so any other app on the phone could
+ * borrow it to reach the network through this app, and content the agent reads on the web can
+ * talk it into sending something out. The player asked for the open network and owns the keys;
+ * the trade-off is recorded rather than hidden.
  */
 @Singleton
 class GuestProxy @Inject constructor() {
@@ -67,15 +78,17 @@ class GuestProxy @Inject constructor() {
         try {
             client.soTimeout = 15_000
             val head = readHead(client.getInputStream()) ?: return
-            val target = CONNECT_LINE.find(head)?.groupValues?.get(1) ?: return
-            val host = target.substringBeforeLast(':')
-            val port = target.substringAfterLast(':').toIntOrNull() ?: 443
-            // the relay serves the model providers only: on a shared loopback an open relay
-            // would serve the whole phone
-            if (ALLOWED_HOSTS.none { host.endsWith(it) }) {
-                writeLine(client.getOutputStream(), "HTTP/1.1 403 Forbidden\r\n\r\n")
+            val target = CONNECT_LINE.find(head)?.groupValues?.get(1)
+            if (target == null) {
+                // 这里只走 https（CONNECT）：明文的 http 请求不会代理，回一句明确的
+                // 405 好过直接断线——助手能把这句读成人话
+                writeLine(client.getOutputStream(), "HTTP/1.1 405 Method Not Allowed\r\n\r\n")
                 return
             }
+            val host = target.substringBeforeLast(':')
+            val port = target.substringAfterLast(':').toIntOrNull() ?: 443
+            // 每个域名都放行：助手要能看上游的 issue、从 GitHub 取文件、查库的文档。
+            // 名字照旧是在这边解析的（guest 自己解析不了），TLS 照旧端到端。
             val up = Socket()
             upstream = up
             up.connect(InetSocketAddress(host, port), 15_000)
@@ -125,15 +138,5 @@ class GuestProxy @Inject constructor() {
 
     private companion object {
         val CONNECT_LINE = Regex("CONNECT (\\S+) HTTP/1\\.[01]")
-
-        /** The hosts the relay is allowed to open: the BYOK providers' endpoints. */
-        val ALLOWED_HOSTS = listOf(
-            ".minimax.chat", ".minimaxi.com",
-            ".bigmodel.cn", ".zhipu.ai",
-            ".deepseek.com",
-            ".moonshot.cn", ".moonshot.ai",
-            ".volces.com",
-            ".openai.com", ".anthropic.com",
-        )
     }
 }

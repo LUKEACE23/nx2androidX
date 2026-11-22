@@ -1,9 +1,23 @@
 package com.nx.android.agent.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -47,6 +62,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +75,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -80,7 +98,10 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.HazeBlurStyle
 import dev.chrisbanes.haze.blur.HazeColorEffect
 import dev.chrisbanes.haze.blur.hazeBlur
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
@@ -95,6 +116,73 @@ private val DrawerGlass = HazeBlurStyle {
     fallbackColorEffect(HazeColorEffect.tint(AgentPalette.Ground))
 }
 
+/** The drawer's width: the sheet is this wide, and it slides out of the right edge. */
+private val DrawerWidth = 700.dp
+
+/**
+ * The drawer's host: the sheet itself stays in the tree and slides out of the screen when it
+ * closes. Nothing is torn down — the scroll position, the laid-out markdown and the half-typed
+ * words are all still there when it comes back.
+ *
+ * The scrim belongs to the host, not to the sheet: it dims the page behind and swallows the tap
+ * that closes the drawer. It is only in the tree while the drawer is (or is on its way) open, so
+ * a closed drawer never eats the page's touches.
+ */
+@Composable
+fun AgentDrawerHost(
+    open: Boolean,
+    conversation: AgentConversationState,
+    chips: List<Int>,
+    haze: HazeState?,
+    onCollapse: () -> Unit,
+    onExpand: () -> Unit,
+    onOpenSettings: () -> Unit = {},
+) {
+    // 0 = 抽屉在原位，1 = 抽屉整个滑到屏幕右边之外
+    val slide = remember { Animatable(1f) }
+    var scrimUp by remember { mutableStateOf(false) }
+    LaunchedEffect(open) {
+        if (open) {
+            scrimUp = true
+            slide.animateTo(0f, tween(260, easing = FastOutSlowInEasing))
+        } else {
+            slide.animateTo(1f, tween(200, easing = FastOutSlowInEasing))
+            scrimUp = false
+        }
+    }
+    val widthPx = with(LocalDensity.current) { DrawerWidth.toPx() }
+    Box(Modifier.fillMaxSize()) {
+        if (scrimUp) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = 1f - slide.value }
+                    .background(
+                        Brush.horizontalGradient(
+                            0f to Color.Transparent,
+                            0.34f to Color(0x75141416),
+                            1f to Color(0xF5141416),
+                        ),
+                    )
+                    .clickable { onCollapse() }
+            )
+        }
+        // the sheet: it sits on the right edge and slides out of the screen when it closes
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+            AgentPanel(
+                conversation = conversation,
+                chips = chips,
+                haze = haze,
+                open = open,
+                onCollapse = onCollapse,
+                onExpand = onExpand,
+                onOpenSettings = onOpenSettings,
+                modifier = Modifier.offset { IntOffset((slide.value * widthPx).roundToInt(), 0) },
+            )
+        }
+    }
+}
+
 /**
  * The assistant's side drawer, phone-landscape (ADR-009, the mobile draft) — the app's own glass
  * language: two columns (conversation 460dp, tools 240dp) over a frosted ground, the dimmed
@@ -104,60 +192,80 @@ private val DrawerGlass = HazeBlurStyle {
  */
 @Composable
 fun AgentPanel(
-    viewModel: AgentViewModel,
+    conversation: AgentConversationState,
     chips: List<Int>,
-    haze: HazeState,
+    haze: HazeState?,
+    open: Boolean,
     onCollapse: () -> Unit,
     onExpand: () -> Unit,
     onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val state by conversation.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     var toolsOverlay by remember { mutableStateOf<AgentMessage?>(null) }
+    val context = LocalContext.current
+    val copiedWord = stringResource(R.string.agent_copied)
+    val copyLabel = stringResource(R.string.agent_title)
+    val clipboard = remember(context) {
+        context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+    }
 
     val last = state.messages.lastOrNull()
-    // every (re)open lands at the conversation's true bottom — but the effect runs before the
-    // first layout, so wait for the list to actually exist before scrolling (totalItemsCount == 0
-    // made scrollToBottom return early and the drawer kept the old position)
-    LaunchedEffect(Unit) {
+    // the first open lands at the conversation's true bottom; every open after it keeps the place
+    // the player left (the drawer is never rebuilt, so there is nothing to restore)
+    var opened by remember { mutableStateOf(false) }
+    var followBottom by remember { mutableStateOf(false) }
+    LaunchedEffect(open) {
+        if (!open) return@LaunchedEffect
         // the models are read again: the settings page may have changed them while this was closed
-        viewModel.refreshModels()
+        conversation.refreshModels()
+        if (opened) return@LaunchedEffect
+        opened = true
         if (state.messages.isEmpty()) return@LaunchedEffect
-        snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > 0 }
-        listState.scrollToBottom()
+        followBottom = true
     }
+    // 跟着底部走：markdown 是一条条排出来的，跳过去那一刻高度还不是最终值
+    // markdown 提前在后台解析好：条目进屏时高度一次就对，滚动不再等解析
+    val mdStates by conversation.markdownCache.ready.collectAsStateWithLifecycle()
+    LaunchedEffect(state.messages, state.streamingId) {
+        state.messages.forEach { m ->
+            if (m.role == AgentRole.ASSISTANT && m.id != state.streamingId) {
+                conversation.markdownCache.ensure(m.id, m.text)
+            }
+        }
+    }
+    // 落底要等最后那条排好版：没排好就跳过去，高度还会再变一次（就停在半截了）
+    val lastReady = state.messages.lastOrNull()?.let {
+        it.role != AgentRole.ASSISTANT || mdStates[it.id] != null
+    } ?: true
+    FollowBottom(listState, follow = followBottom && lastReady, onStop = { followBottom = false })
     // while it streams: stick to the bottom, but only while the player hasn't scrolled up to read
+    val pinned = rememberPinnedToBottom(listState)
     LaunchedEffect(state.messages.size, last?.text?.length, last?.tools?.size, state.running) {
         if (state.messages.isEmpty()) return@LaunchedEffect
-        val info = listState.layoutInfo
-        val lastVisible = info.visibleItemsInfo.lastOrNull()
-        val atEnd = lastVisible == null ||
-            (lastVisible.index >= info.totalItemsCount - 1 &&
-                lastVisible.offset + lastVisible.size - info.viewportEndOffset < 400)
-        if (atEnd) listState.scrollToBottom()
+        if (!pinned.value) return@LaunchedEffect   // 玩家自己上去了：不跟他抢
+        listState.scrollToBottom()
     }
 
-    Box(
-        modifier
-            .fillMaxSize()
-            .background(
-                Brush.horizontalGradient(
-                    0f to Color.Transparent,
-                    0.34f to Color(0x75141416),
-                    1f to Color(0xF5141416),
-                ),
-            )
-            .clickable { onCollapse() },
-        contentAlignment = Alignment.CenterEnd,
-    ) {
-        // the light sheet: everything inside resolves ink-on-white, whatever the app's dark theme says
-        MaterialTheme(colorScheme = AgentLightScheme, typography = AgentTypography) {
+    // 复制：把这条回答的原始 Markdown 放上剪贴板（围栏与缩进都在）
+    val onCopy: (AgentMessage) -> Unit = { message ->
+        clipboard?.setPrimaryClip(ClipData.newPlainText(copyLabel, copyPayloadOf(message)))
+        Toast.makeText(context, copiedWord, Toast.LENGTH_SHORT).show()
+    }
+
+    // the light sheet: everything inside resolves ink-on-white, whatever the app's dark theme says
+    MaterialTheme(colorScheme = AgentLightScheme, typography = AgentTypography) {
         Row(
-            Modifier
+            modifier
                 .fillMaxHeight()
-                .width(700.dp)
-                .hazeBlur(input = HazeInput.Sources(haze), style = DrawerGlass)
+                .width(DrawerWidth)
+                .then(
+                    // the frosted sheet where there is something to frost (the page behind);
+                    // a solid ground where there is not (the game's surface)
+                    if (haze != null) Modifier.hazeBlur(input = HazeInput.Sources(haze), style = DrawerGlass)
+                    else Modifier.background(AgentPalette.Ground)
+                )
                 .statusBarsPadding()
                 .imePadding()
                 // consume taps: the drawer is not the scrim (a tap in the flow used to close it)
@@ -170,11 +278,11 @@ fun AgentPanel(
             Column(
                 Modifier.weight(1f).fillMaxHeight(),
             ) {
-                state.error?.let { reason -> ErrorStrip(reason) { viewModel.dismissError() } }
+                state.error?.let { reason -> ErrorStrip(reason) { conversation.dismissError() } }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(start = 14.dp, end = 12.dp, top = 12.dp, bottom = 6.dp),
+                    contentPadding = PaddingValues(start = 14.dp, end = 12.dp, top = 12.dp, bottom = 18.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     if (state.messages.isEmpty()) {
@@ -195,7 +303,13 @@ fun AgentPanel(
                         }
                     }
                     items(state.messages, key = { it.id }) { message ->
-                        MessageRow(message, onToolsClick = { toolsOverlay = it })
+                        MessageRow(
+                            message,
+                            streaming = message.id == state.streamingId,
+                            markdownState = mdStates[message.id],
+                            onToolsClick = { toolsOverlay = it },
+                            onCopy = onCopy,
+                        )
                     }
                 }
                 if (state.running) {
@@ -204,17 +318,28 @@ fun AgentPanel(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        // 那个点一直在呼吸：助手还在环境里忙着
+                        val pulse by rememberInfiniteTransition(label = "agent-pulse").animateFloat(
+                            initialValue = 0.35f,
+                            targetValue = 1f,
+                            animationSpec = infiniteRepeatable(
+                                tween(700, easing = FastOutSlowInEasing),
+                                RepeatMode.Reverse,
+                            ),
+                            label = "alpha",
+                        )
                         Box(
                             Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(AgentPalette.Working),
+                                .background(AgentPalette.Working.copy(alpha = pulse)),
                         )
                         Text(
                             stringResource(R.string.agent_state_working),
                             style = MaterialTheme.typography.labelSmall,
                             color = AgentPalette.Ink2,
                         )
+                        WorkingDots(AgentPalette.Working)
                     }
                 }
             }
@@ -310,7 +435,7 @@ fun AgentPanel(
                                 },
                                 onClick = {
                                     modelMenu = false
-                                    viewModel.selectProfile(profile.id)
+                                    conversation.selectProfile(profile.id)
                                 },
                             )
                         }
@@ -337,29 +462,34 @@ fun AgentPanel(
                             },
                         )
                     }
-                    // quick asks: they follow the page context and stay while the agent works
-                    Column(
-                        Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Text(
-                            stringResource(R.string.agent_label_quick_ops),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = AgentPalette.Ink2,
-                            modifier = Modifier.padding(bottom = 4.dp),
-                        )
-                        chips.forEach { res ->
-                            val words = stringResource(res)
-                            QuickCard(words) { viewModel.send(words) }
+                    // quick asks: they follow the page context and stay while the agent works.
+                    // 只有还没开聊的新会话才给它们——开了聊就不打扰了。
+                    if (state.messages.isEmpty()) {
+                        Column(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(
+                                stringResource(R.string.agent_label_quick_ops),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AgentPalette.Ink2,
+                                modifier = Modifier.padding(bottom = 4.dp),
+                            )
+                            chips.forEach { res ->
+                                val words = stringResource(res)
+                                QuickCard(words) { conversation.send(words) }
+                            }
                         }
+                    } else {
+                        Spacer(Modifier.weight(1f))
                     }
                     // the composer: the input alone, then the session switcher beside the send
                     OutlinedTextField(
                         state.draft,
-                        viewModel::updateDraft,
+                        conversation::updateDraft,
                         Modifier.fillMaxWidth().height(60.dp),
                         maxLines = 2,
                         placeholder = { Text(stringResource(R.string.agent_input_hint), style = MaterialTheme.typography.bodyMedium) },
@@ -443,7 +573,7 @@ fun AgentPanel(
                                         },
                                         onClick = {
                                             sessionMenu = false
-                                            viewModel.switchSession(meta.id)
+                                            conversation.switchSession(meta.id)
                                         },
                                     )
                                 }
@@ -460,7 +590,7 @@ fun AgentPanel(
                                     },
                                     onClick = {
                                         sessionMenu = false
-                                        viewModel.newSession()
+                                        conversation.newSession()
                                     },
                                 )
                             }
@@ -473,7 +603,7 @@ fun AgentPanel(
                                     if (state.running || state.draft.isNotBlank()) AgentPalette.Orange else AgentPalette.Panel,
                                 )
                                 .clickable(enabled = state.running || state.draft.isNotBlank()) {
-                                    if (state.running) viewModel.stop() else viewModel.send(state.draft)
+                                    if (state.running) conversation.stop() else conversation.send(state.draft)
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
@@ -496,10 +626,8 @@ fun AgentPanel(
                 }
             }
         }
-        } // MaterialTheme(agent light)
-    }
+    } // MaterialTheme(agent light)
 }
-
 /** The tool-call overlay: the tool column's whole face — title, close, the records below. */
 @Composable
 private fun ToolOverlay(message: AgentMessage, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
@@ -534,7 +662,7 @@ private fun ToolOverlay(message: AgentMessage, onDismiss: () -> Unit, modifier: 
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            message.tools.forEach { card ->
+            message.tools.reversed().forEach { card ->   // 最后调用的在最上面：正在跑的那个
                 Column(Modifier.fillMaxWidth()) {
                     Text(
                         card.name.uppercase(),
@@ -676,10 +804,34 @@ private fun GlassMenu(
     }
 }
 
+/**
+ * 三个循环的点：助手还在环境里忙的时候，它一路走——像有人在敲键盘。
+ */
+@Composable
+private fun WorkingDots(color: Color) {
+    val phase by rememberInfiniteTransition(label = "agent-dots").animateFloat(
+        initialValue = 0f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing)),
+        label = "phase",
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+        repeat(3) { i ->
+            // 走得最远的那颗最亮
+            val near = 1f - kotlin.math.abs(phase - (i + 1)).coerceIn(0f, 2f)
+            Box(
+                Modifier
+                    .size(4.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.25f + 0.75f * near)),
+            )
+        }
+    }
+}
+
 /** A quick ask: a glass card, the words coming from the page context. */
 @Composable
-private fun QuickCard(label: String, onClick: () -> Unit) {
-    Text(
+private fun QuickCard(label: String, onClick: () -> Unit) {    Text(
         label,
         style = MaterialTheme.typography.bodyMedium,
         color = AgentPalette.Quick,
@@ -704,15 +856,77 @@ internal fun usagePct(context: Long, window: Long): String =
     if (window > 0 && context > 0) "(${(context * 100 / window).coerceAtMost(999)}%)" else ""
 
 /**
- * The true bottom: snap to the last item's start, then push through whatever of it spills below
- * the viewport — [scrollToItem] alone leaves a long last message opened at its top.
+ * The true bottom: snap to the last item, then keep going until the list cannot scroll any more.
+ *
+ * The last item's own height is not the end of the content — the bottom padding (the留白 below the
+ * last message) is, and that is where the copy button lives. Stopping at the item's edge cuts it
+ * off, so we scroll the rest of the way.
  */
 internal suspend fun LazyListState.scrollToBottom() {
     val n = layoutInfo.totalItemsCount
     if (n == 0) return
     scrollToItem(n - 1)
-    val item = layoutInfo.visibleItemsInfo.lastOrNull() ?: return
-    val viewport = layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset
-    val spill = item.size - viewport
-    if (spill > 0) scrollToItem(n - 1, scrollOffset = spill)
+    // 滚到不能再滚为止：scrollBy 自己会夹在合法范围内
+    repeat(4) {
+        if (!canScrollForward) return@repeat
+        scrollBy(100_000f)
+    }
+}
+
+/**
+ * 贴底的开关：正文一长就把玩家按回底部——但玩家自己往上拖了就不跟了，拖回底部才恢复。
+ *
+ * 判据是"一次滚动停下来时玩家停在哪儿"：贴着底就继续跟，拖上去了就放他走。
+ */
+@Composable
+internal fun rememberPinnedToBottom(listState: LazyListState): MutableState<Boolean> {
+    val pinned = remember { mutableStateOf(true) }
+    LaunchedEffect(listState) {
+        var scrolling = false
+        snapshotFlow { listState.isScrollInProgress }.collect { now ->
+            if (scrolling && !now) pinned.value = !listState.canScrollForward
+            scrolling = now
+        }
+    }
+    return pinned
+}
+
+/**
+ * 跟着底部走：markdown 是一条条排版出来的，跳过去那一刻最后一项的高度还不是最终值——
+ * 一次滚动落在消息中间。布局每变一次就再按一次底部，等它稳了（或者玩家自己上手了）就收手。
+ */
+@Composable
+internal fun FollowBottom(
+    listState: LazyListState,
+    follow: Boolean,
+    onStop: () -> Unit,
+) {
+    LaunchedEffect(listState, follow) {
+        if (!follow) return@LaunchedEffect
+        // 玩家一拖就收手：阅读的位置还给玩家
+        val player = launch {
+            listState.interactionSource.interactions
+                .filterIsInstance<DragInteraction.Start>()
+                .collect { onStop() }
+        }
+        try {
+            var last = -1
+            var stable = 0
+            var rounds = 0
+            // 最多跟三秒：排版再慢也不至于更久
+            while (rounds < 25 && stable < 1) {
+                rounds++
+                listState.scrollToBottom()
+                delay(120)
+                val size = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.size ?: -1
+                // 只有"到底了"且高度不再变，才算落定：内容还在下面长着就继续跟
+                val atEnd = !listState.canScrollForward
+                stable = if (size == last && atEnd) stable + 1 else 0
+                last = size
+            }
+        } finally {
+            player.cancel()
+            onStop()
+        }
+    }
 }

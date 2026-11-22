@@ -170,6 +170,9 @@ class PiAgentChat @Inject constructor(
         val answer = StringBuilder()
         var settled = false
         var turnContext = 0L
+        // 这一轮生成的 token：每条消息结束时报一次（带工具的轮次有不止一条）
+        var turnOutput = 0L
+        var turnEndOutput = 0L
         try {
             withContext(Dispatchers.IO) {
                 val proc = checkNotNull(process) { "the pi process went away" }
@@ -249,12 +252,15 @@ class PiAgentChat @Inject constructor(
                             turnContext = seen
                             send(AgentEvent.UsageUpdated(sessionTokens + turnContext, sessionWindow))
                         }
+                        // 这一条消息生成了多少：这一轮的回答要报自己的消耗
+                        turnOutput += usage.optLong("output")
                     }
 
                     "turn_end" -> obj.optJSONObject("message")?.optJSONObject("usage")?.let { usage ->
                         val seen = usage.optLong("input") + usage.optLong("cacheRead") +
                             usage.optLong("output")
                         if (seen > turnContext) turnContext = seen
+                        turnEndOutput = usage.optLong("output")
                     }
 
                     "agent_settled" -> settled = true
@@ -276,9 +282,11 @@ class PiAgentChat @Inject constructor(
 
         sessionTokens = maxOf(sessionTokens, turnContext)
         val text = answer.toString().trim()
-        list.add(AgentMessage(nextId++, AgentRole.ASSISTANT, text))
+        // 这一轮自己花了多少生成量：消息级累加，引擎没报消息级 usage 时退回整轮那一条
+        val tokens = if (turnOutput > 0) turnOutput else turnEndOutput
+        list.add(AgentMessage(nextId++, AgentRole.ASSISTANT, text, tokens = tokens))
         sessionStore.save(list)
-        send(AgentEvent.TurnDone(text))
+        send(AgentEvent.TurnDone(text, tokens))
     }
 
     /** The long-lived rpc process; a config change respawns it on the next turn. */

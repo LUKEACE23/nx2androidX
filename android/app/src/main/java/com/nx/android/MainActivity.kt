@@ -41,6 +41,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.nx.android.R
 import com.nx.android.agent.runtime.AgentEngineStore
 import com.nx.android.agent.runtime.AgentSetup
+import com.nx.android.agent.ui.AgentConversationState
 import com.nx.android.appstate.LibraryState
 import com.nx.android.appstate.EnvBuildState
 import com.nx.android.appstate.EnvCheckState
@@ -128,6 +129,8 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var update: UpdateState
     @Inject lateinit var agentEngine: AgentEngineStore
     @Inject lateinit var agentSetup: AgentSetup
+    /** 助手的会话：整个 App 一份——首页的抽屉、竖屏的聊天页与游戏里的抽屉看的都是它 */
+    @Inject lateinit var agentConversation: AgentConversationState
 
     /** 界面语言：toast 与分享面板的标题从这里取词 */
     /** Which tab the screen opens on (the notification's tap says the builds page) */
@@ -184,7 +187,7 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             AppRoot(prefs, locale, port, library, onboarding, drivers, environmentSetup, actions,
-                launchTab, launchBuildId, padController, agentSetup,
+                launchTab, launchBuildId, padController, agentSetup, agentConversation,
                 padCenterOpen = padCenterOpen, onPadCenter = { padCenterOpen = it },
                 agentFullOpen = agentFullOpen, onAgentFull = { agentFullOpen = it },
                 crash = crash, onCrashHandled = { crash = null })

@@ -1,5 +1,9 @@
 package com.nx.android.agent.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
@@ -34,9 +38,11 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -47,7 +53,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import com.mikepenz.markdown.m3.Markdown
+import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
+import com.mikepenz.markdown.model.MarkdownState
 import com.mikepenz.markdown.model.MarkdownTypography
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.flow.first
@@ -56,6 +64,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -87,12 +96,12 @@ import com.nx.android.agent.AgentToolState
  */
 @Composable
 fun AgentScreen(
-    viewModel: AgentViewModel,
+    conversation: AgentConversationState,
     onClose: () -> Unit,
     onOpenSettings: () -> Unit = {},
     navActive: Boolean = false,
 ) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val state by conversation.uiState.collectAsStateWithLifecycle()
     BackHandler { onClose() }
     // the gamepad's back key: the same door as the system's (this page only knows how to close)
     OnNavKey(enabled = navActive) { key ->
@@ -100,27 +109,49 @@ fun AgentScreen(
     }
     // the ⋯ menu's "model settings" opens the settings page at the assistant's section; without a key the
     // page opens there by itself
+    // the draft's sheet: the ⋯ menu's "model settings" opens the settings page at the assistant's
+    // section; without a key the page opens there by itself
     val showSetup = !state.configured
     val listState = rememberLazyListState()
+    val context = LocalContext.current
+    val copiedWord = stringResource(R.string.agent_copied)
+    val copyLabel = stringResource(R.string.agent_title)
+    val clipboard = remember(context) {
+        context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+    }
+    // 复制：把这条回答的原始 Markdown 放上剪贴板（围栏与缩进都在）
+    val onCopy: (AgentMessage) -> Unit = { message ->
+        clipboard?.setPrimaryClip(ClipData.newPlainText(copyLabel, copyPayloadOf(message)))
+        Toast.makeText(context, copiedWord, Toast.LENGTH_SHORT).show()
+    }
 
     // new content arrives at the bottom: follow it (not while the player is scrolling up to read)
     val last = state.messages.lastOrNull()
-    // every (re)open lands at the true bottom — after the first layout, not before it exists
+    // every (re)open lands at the true bottom — but the markdown is laid out after the jump, so
+    // the landing follows the layout until it settles
+    var followBottom by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         // the models are read again: the settings page may have changed them while this was closed
-        viewModel.refreshModels()
+        conversation.refreshModels()
         if (state.messages.isEmpty()) return@LaunchedEffect
-        snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > 0 }
-        listState.scrollToBottom()
+        followBottom = true
     }
+    FollowBottom(listState, follow = followBottom, onStop = { followBottom = false })
+    // 正文一长就把玩家按回底部——但玩家自己往上拖了就不跟了
+    val pinned = rememberPinnedToBottom(listState)
     LaunchedEffect(state.messages.size, last?.text?.length, last?.tools?.size) {
         if (state.messages.isEmpty()) return@LaunchedEffect
-        val info = listState.layoutInfo
-        val lastVisible = info.visibleItemsInfo.lastOrNull()
-        val atEnd = lastVisible == null ||
-            (lastVisible.index >= info.totalItemsCount - 1 &&
-                lastVisible.offset + lastVisible.size - info.viewportEndOffset < 400)
-        if (atEnd) listState.scrollToBottom()
+        if (!pinned.value) return@LaunchedEffect
+        listState.scrollToBottom()
+    }
+    // markdown 提前在后台解析好：条目进屏时高度一次就对，滚动不再等解析
+    val mdStates by conversation.markdownCache.ready.collectAsStateWithLifecycle()
+    LaunchedEffect(state.messages, state.streamingId) {
+        state.messages.forEach { m ->
+            if (m.role == AgentRole.ASSISTANT && m.id != state.streamingId) {
+                conversation.markdownCache.ensure(m.id, m.text)
+            }
+        }
     }
 
     // the light sheet: everything inside resolves ink-on-white, whatever the app's dark theme says
@@ -133,11 +164,11 @@ fun AgentScreen(
             AgentTopBar(
                 state.config,
                 onBack = onClose,
-                onNewSession = { viewModel.newSession() },
+                onNewSession = { conversation.newSession() },
                 onOpenSetup = onOpenSettings,
             )
             state.error?.let { reason ->
-                ErrorStrip(reason) { viewModel.dismissError() }
+                ErrorStrip(reason) { conversation.dismissError() }
             }
             if (showSetup) {
                 Column(
@@ -158,7 +189,7 @@ fun AgentScreen(
                     state = listState,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 18.dp),
                 ) {
                     if (state.messages.isEmpty()) {
                         item {
@@ -171,15 +202,20 @@ fun AgentScreen(
                         }
                     }
                     items(state.messages, key = { it.id }) { message ->
-                        MessageRow(message)
+                        MessageRow(
+                            message,
+                            streaming = message.id == state.streamingId,
+                            markdownState = mdStates[message.id],
+                            onCopy = onCopy,
+                        )
                     }
                 }
                 AgentInputBar(
                     text = state.draft,
-                    onTextChange = { viewModel.updateDraft(it) },
+                    onTextChange = { conversation.updateDraft(it) },
                     running = state.running,
-                    onSend = { viewModel.send(it) },
-                    onStop = { viewModel.stop() },
+                    onSend = { conversation.send(it) },
+                    onStop = { conversation.stop() },
                 )
             }
         }
@@ -317,9 +353,19 @@ private fun failureText(reason: AgentFailure): Int = when (reason) {
 
 /** One rendered message: the player's bubble, or the assistant's block. */
 @Composable
-internal fun MessageRow(message: AgentMessage, onToolsClick: ((AgentMessage) -> Unit)? = null) {
-    if (message.role == AgentRole.USER) UserBubbleText(message.text) else AssistantBlock(message, onToolsClick)
+internal fun MessageRow(
+    message: AgentMessage,
+    streaming: Boolean = false,
+    markdownState: MarkdownState? = null,
+    onToolsClick: ((AgentMessage) -> Unit)? = null,
+    onCopy: ((AgentMessage) -> Unit)? = null,
+) {
+    if (message.role == AgentRole.USER) UserBubbleText(message.text)
+    else AssistantBlock(message, streaming, markdownState, onToolsClick, onCopy)
 }
+
+/** What the copy button puts on the clipboard: the answer's own markdown, fences and all. */
+internal fun copyPayloadOf(message: AgentMessage): String = message.text
 
 /** The player's bubble: the soft navy wash with the hairline, 13sp — the size the answers match. */
 @Composable
@@ -340,13 +386,56 @@ private fun UserBubbleText(text: String) {
 
 /** The assistant's answer: the running tool shows live, the finished ones fold, then the words. */
 @Composable
-private fun AssistantBlock(message: AgentMessage, onToolsClick: ((AgentMessage) -> Unit)? = null) {
+private fun AssistantBlock(
+    message: AgentMessage,
+    streaming: Boolean = false,
+    markdownState: MarkdownState? = null,
+    onToolsClick: ((AgentMessage) -> Unit)? = null,
+    onCopy: ((AgentMessage) -> Unit)? = null,
+) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (message.tools.isNotEmpty()) {
             ToolSummary(message.tools, message.id, onToolsClick?.let { cb -> { cb(message) } })
         }
         if (message.text.isNotEmpty()) {
-            Markdown(message.text, typography = agentMarkdownTypography())
+            if (streaming) {
+                // 正在生成：先按纯文本显示——这一轮结束后才排版成 Markdown（省掉逐字重排）
+                Text(
+                    message.text,
+                    style = MaterialTheme.typography.bodyMedium.copy(color = AgentPalette.Ink),
+                )
+            } else if (markdownState != null) {
+                // 已经解析好的：高度一次就对（不然解析完高度再变一次，滚动就跳）
+                Markdown(
+                    markdownState = markdownState,
+                    colors = markdownColor(),
+                    typography = agentMarkdownTypography(),
+                )
+            } else {
+                Markdown(message.text, typography = agentMarkdownTypography())
+            }
+        }
+        // 页脚：左边是复制，旁边是这一条回答自己花了多少生成量
+        if (message.text.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                if (onCopy != null) {
+                    IconButton(onClick = { onCopy(message) }, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            Icons.Outlined.ContentCopy,
+                            stringResource(R.string.agent_copy),
+                            Modifier.size(15.dp),
+                            tint = AgentPalette.Ink2,
+                        )
+                    }
+                }
+                if (message.tokens > 0) {
+                    Text(
+                        stringResource(R.string.agent_tokens_count, formatTokens(message.tokens)),
+                        style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                        color = AgentPalette.Ink2,
+                    )
+                }
+            }
         }
     }
 }
@@ -394,22 +483,24 @@ private fun ToolSummary(
             val tallies = tools.groupingBy { it.name }.eachCount()
                 .entries.sortedByDescending { it.value }
                 .joinToString(" · ") { "${it.key}×${it.value}" }
+            val live = tools.any { it.state == AgentToolState.RUNNING }
             Text(
                 stringResource(R.string.agent_tools_summary, tools.size) +
                     if (tallies.isNotBlank()) " · $tallies" else "",
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    color = AgentPalette.Ink2,
+                    // 还在跑的时候那行字深一点：它在动，但不再重复一句「正在干活」
+                    color = if (live) AgentPalette.Ink else AgentPalette.Ink2,
                 ),
                 modifier = Modifier.weight(1f),
             )
-            val live = tools.any { it.state == AgentToolState.RUNNING }
+            // 右边永远只是「查看详情」：这行点了就是明细，跑不跑由抽屉下面那条动画说
             Text(
-                stringResource(if (live) R.string.agent_state_working else R.string.agent_state_ready),
+                stringResource(R.string.agent_state_ready),
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontFamily = FontFamily.Monospace,
                     letterSpacing = 0.4.sp,
-                    color = if (live) AgentPalette.Ink else AgentPalette.Ink2,
+                    color = AgentPalette.Ink2,
                 ),
             )
         }

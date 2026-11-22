@@ -41,6 +41,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -90,6 +91,9 @@ import com.nx.android.game.hud.HudField
 import com.nx.android.game.hud.HudOverlay
 import com.nx.android.game.input.PadEditor
 import com.nx.android.game.input.PadView
+import com.nx.android.agent.ui.AgentConversationState
+import com.nx.android.agent.ui.AgentDrawerHost
+import com.nx.android.agent.ui.AgentEdgeBadge
 import com.nx.android.game.overlay.GameDrawer
 import com.nx.android.game.overlay.TextPrompt
 import com.nx.android.input.GamepadScan
@@ -169,12 +173,18 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     @Inject lateinit var compiler: RuntimeCompiler
     @Inject lateinit var runtimeStorage: RuntimeStorage
+    /** 助手的会话：整个 App 一份——首页的抽屉与这里的抽屉看的都是它 */
+    @Inject lateinit var agentConversation: AgentConversationState
 
     /** 界面语言：toast 与抽屉里的词从这里取 */
     private val locale: AppLocale get() = (application as NxApp).locale
 
     private var paused by mutableStateOf(false)
     private var drawerOpen by mutableStateOf(false)
+    /** 助手的侧抽屉开着吗（游戏里从右边缘那枚徽标进来） */
+    private var agentDrawerOpen by mutableStateOf(false)
+    /** 抽屉第一次打开之后就一直留在组合里；之前不组合它（游戏启动时不必付这份开销） */
+    private var agentEverOpened by mutableStateOf(false)
     private var fgSettings: FrameGenSettings? = null
     private var rateSettings: RateSettings? = null
     private var motionSettings: MotionSettings? = null
@@ -759,9 +769,22 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     /** 抽屉打开：这时宿主该知道自己的 build 编号了（金手指页要拿它去库里挑文件） */
     private fun openDrawer() {
+        // 两个抽屉不叠在一起：助手抽屉让位（游戏继续跑）
+        if (agentDrawerOpen) closeAgentDrawer()
         AppLog.line("cheats: the drawer opened")
         drawerOpen = true
         refreshCheatStatus()
+    }
+
+    /** 助手的抽屉打开：游戏照常跑着——助手要看着它抓帧、翻日志，停了就什么都看不到 */
+    private fun openAgentDrawer() {
+        agentDrawerOpen = true
+        drawerOpen = false        // 设置抽屉让位：两个抽屉不叠在一起
+    }
+
+    /** 助手抽屉收起：游戏本来就在跑，这里只是把抽屉收走 */
+    private fun closeAgentDrawer() {
+        agentDrawerOpen = false
     }
 
     /** 金手指页的状态：文件在不在、出处是什么（进游戏时读一遍，之后下载完再读） */
@@ -928,6 +951,14 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                 packPath = packPath,
                 modifier = Modifier.align(Alignment.TopCenter).displayCutoutPadding().padding(top = 8.dp),
             )
+            // 助手的徽标：右边缘垂直居中的一条小把手，点它就滑出助手抽屉。
+            // 它排在设置抽屉之前——设置抽屉开着的时候，那块遮罩把它盖住。
+            if (!agentDrawerOpen) {
+                AgentEdgeBadge(
+                    onClick = { openAgentDrawer() },
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                )
+            }
             GameDrawer(
                 paused = paused,
                 open = drawerOpen,
@@ -987,6 +1018,24 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                     endProcess()
                 },
             )
+            // 助手的侧抽屉：从右边滑出来的那张（与首页同一套），开着的时候游戏照常跑着
+            // 第一次打开之前不组合它：徽标点开之后它才进组合，然后就一直留着
+            LaunchedEffect(agentDrawerOpen) { if (agentDrawerOpen) agentEverOpened = true }
+            if (agentEverOpened) {
+                AgentDrawerHost(
+                    open = agentDrawerOpen,
+                    conversation = agentConversation,
+                    chips = listOf(
+                        R.string.agent_chip_game_crash,
+                        R.string.agent_chip_game_fps,
+                        R.string.agent_chip_game_build,
+                    ),
+                    haze = null,   // 游戏画面是 SurfaceView，磨砂糊不到它：走玻璃的兜底底色
+                    onCollapse = { closeAgentDrawer() },
+                    onExpand = {},
+                    onOpenSettings = {},
+                )
+            }
             // 布局编辑器：App 自己的面板，画在游戏画面上（游戏先等着）
             if (editorOpen) {
                 PadEditor(
@@ -1048,6 +1097,21 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             return forwardsKeyToGame(e.keyCode)
         }
         if (!forwardsKeyToGame(e.keyCode)) return false   // 音量键：系统的事，游戏与宿主都不沾
+        // 助手抽屉开着的时候，键是输入框的事：中文输入法的删除键走的是按键事件这条路，
+        // 被这里转走就删不掉了（英文输入法走 deleteSurroundingText，所以它没事）。
+        // 键也不进游戏——玩家在打字，不是在玩。
+        if (agentDrawerOpen) {
+            if (e.keyCode == KeyEvent.KEYCODE_BACK && e.action == KeyEvent.ACTION_DOWN) {
+                closeAgentDrawer()
+            }
+            return super.dispatchKeyEvent(e)   // 交给焦点所在的输入框
+        }
+        // 游戏的文本输入框开着的时候，编辑键（删除、光标）也归输入框——
+        // 中文输入法的删除键走按键事件这条路，转给宿主就删不掉了。
+        // Back 照旧给宿主：那个提示框是它提的，它自己管。
+        if (textReq != null && e.keyCode != KeyEvent.KEYCODE_BACK) {
+            return super.dispatchKeyEvent(e)
+        }
         if (e.keyCode == KeyEvent.KEYCODE_BACK) {
             if (e.action == KeyEvent.ACTION_DOWN) {
                 val hostPanel = !drawerOpen && hostPanelUp()   // 抽屉在前面时，Back 归抽屉

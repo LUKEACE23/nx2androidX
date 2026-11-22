@@ -19,13 +19,15 @@ data class AgentMessage(
     val role: AgentRole,
     val text: String,
     val tools: List<AgentToolCard> = emptyList(),
+    /** 这一条回答自己生成的 token 数（0 = 引擎没报） */
+    val tokens: Long = 0L,
 )
 
 sealed interface AgentEvent {
     data class TextDelta(val text: String) : AgentEvent
     data class ToolStarted(val card: AgentToolCard) : AgentEvent
     data class ToolFinished(val id: String, val state: AgentToolState, val resultSummary: String) : AgentEvent
-    data class TurnDone(val assistantText: String) : AgentEvent
+    data class TurnDone(val assistantText: String, val tokens: Long = 0L) : AgentEvent
     data class Failed(val reason: AgentFailure) : AgentEvent
 
     /** The running context occupancy (tokens in the model's window) and the window itself. */

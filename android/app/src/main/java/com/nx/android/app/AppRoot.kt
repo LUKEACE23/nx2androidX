@@ -111,7 +111,8 @@ import com.nx.android.feature.filepicker.FilePickerScreen
 import com.nx.android.feature.filepicker.PickerMode
 import com.nx.android.domain.UpdatePhase
 import com.nx.android.feature.filepicker.PickerRequest
-import com.nx.android.agent.ui.AgentPanel
+import com.nx.android.agent.ui.AgentDrawerHost
+import com.nx.android.agent.ui.AgentConversationState
 import com.nx.android.feature.faq.FaqScreen
 import com.nx.android.feature.gamedetail.GameDetailRoute
 import com.nx.android.feature.library.HeroBackground
@@ -123,7 +124,6 @@ import com.nx.android.feature.onboarding.OnboardingViewModel
 import com.nx.android.agent.runtime.AgentSetup
 import com.nx.android.agent.ui.AgentIntroDialog
 import com.nx.android.agent.ui.AgentSettingsViewModel
-import com.nx.android.agent.ui.AgentViewModel
 import com.nx.android.agent.ui.AgentSettingsSection
 import com.nx.android.feature.settings.SettingsScreen
 import com.nx.android.feature.settings.SettingsSection
@@ -219,6 +219,7 @@ fun AppRoot(
     launchBuildId: String,
     padController: PadCenterController,
     agentSetup: AgentSetup,
+    agentState: AgentConversationState,
     padCenterOpen: Boolean,
     onPadCenter: (Boolean) -> Unit,
     // the assistant's full chat page: the portrait room (the activity turns the screen portrait for it);
@@ -272,6 +273,7 @@ fun AppRoot(
                         launchBuildId,
                         padController = padController,
                         agentSetup = agentSetup,
+                        agentState = agentState,
                         padCenterOpen = padCenterOpen,
                         onPadCenter = onPadCenter,
                         agentFullOpen = agentFullOpen,
@@ -486,6 +488,7 @@ fun MainScreen(
     launchBuildId: String,
     padController: PadCenterController,
     agentSetup: AgentSetup,
+    agentState: AgentConversationState,
     padCenterOpen: Boolean,
     onPadCenter: (Boolean) -> Unit,
     agentFullOpen: Boolean = false,
@@ -511,6 +514,9 @@ fun MainScreen(
     // 助手的侧面板：从悬浮球进来（悬浮球自己也是这层画的），盖在页面内容的右缘。
     // 面板是横屏原生的：它不转竖屏，只有面板里的「展开详聊」才进竖屏的全屏页
     var agentPanelOpen by remember { mutableStateOf(false) }
+    // 抽屉第一次打开之后就一直留在组合里（滚动位置与排版缓存都在），冷启动时先不组合它——
+    // 组合里没有位置可保（第一次打开本来就没有），省下的却是真金白银的启动开销
+    var agentEverOpened by rememberSaveable { mutableStateOf(false) }
     // 档案的处理弹窗：在线更新还是本地导入。构建页的「去导入」叫醒它。
     // 它盖住整屏，所以画在这一层（页面里画的遮罩只盖得到顶栏下面那一条缝）
     var profilesOpen by remember { mutableStateOf(false) }
@@ -550,7 +556,6 @@ fun MainScreen(
     val updateViewModel: UpdateViewModel = hiltViewModel()
     val environmentCheckViewModel: EnvironmentCheckViewModel = hiltViewModel()
     val environmentCheckUiState by environmentCheckViewModel.uiState.collectAsStateWithLifecycle()
-    val agentViewModel: AgentViewModel = hiltViewModel()
     val agentSettingsViewModel: AgentSettingsViewModel = hiltViewModel()
     val installedDrivers by drivers.drivers.collectAsStateWithLifecycle()
     // 助手准备好了才有入口：开关、引擎与模型都齐了才是
@@ -696,7 +701,7 @@ fun MainScreen(
         // panel with the floating ball, drawn further down
         if (agentFullOpen) {
             AgentScreen(
-                viewModel = hiltViewModel(),
+                conversation = agentState,
                 onClose = { onAgentFull(false) },
                 onOpenSettings = {
                     onAgentFull(false)
@@ -715,9 +720,15 @@ fun MainScreen(
             Tab.BUILDS -> listOf(R.string.agent_chip_build_fail, R.string.agent_chip_build_log, R.string.agent_chip_build_why)
             else -> listOf(R.string.agent_chip_save_backup, R.string.agent_chip_env)
         }
-        if (!agentFullOpen && agentPanelOpen) {
-            AgentPanel(
-                viewModel = hiltViewModel(),
+        // The drawer stays in the tree and slides out of the screen when it closes: the scroll
+        // position, the laid-out markdown and the half-typed words are still there when it comes back.
+        // Before the first open there is nothing to keep, so it is not composed at all — the cold
+        // start does not pay for a 700dp sheet nobody has opened yet.
+        LaunchedEffect(agentPanelOpen) { if (agentPanelOpen) agentEverOpened = true }
+        if (agentEverOpened) {
+            AgentDrawerHost(
+                open = agentPanelOpen && !agentFullOpen,
+                conversation = agentState,
                 chips = agentChips,
                 haze = agentHaze,
                 onCollapse = { agentPanelOpen = false },

@@ -737,7 +737,7 @@
     <string name="agent_env_run">Run test</string>
         <string name="agent_action_new_session">New chat</string>
         <string name="agent_model_unset">No model set</string>
-        <string name="agent_state_ready">Local environment ready</string>
+        <string name="agent_state_ready">Details</string>
         <string name="agent_state_working">Working in the environment</string>
         <string name="agent_label_session">Session</string>
         <string name="agent_label_usage">Usage</string>
@@ -772,6 +772,12 @@
     <string name="agent_chip_build_why">Explain it</string>
     <string name="agent_chip_save_backup">Back up saves</string>
     <string name="agent_chip_env">Environment</string>
+    <string name="agent_chip_game_crash">Why it crashed</string>
+    <string name="agent_chip_game_fps">Low fps</string>
+    <string name="agent_chip_game_build">How to run it</string>
+    <string name="agent_copy">Copy the answer</string>
+        <string name="agent_tokens_count">%1$s tokens</string>
+    <string name="agent_copied">Copied</string>
     <string name="agent_panel_collapse">Collapse the assistant</string>
     <string name="agent_panel_expand">Open the full chat</string>
 </resources>

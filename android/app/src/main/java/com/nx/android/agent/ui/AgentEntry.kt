@@ -3,8 +3,11 @@ package com.nx.android.agent.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Icon
@@ -55,6 +58,34 @@ fun AgentEntry(onClick: () -> Unit, modifier: Modifier = Modifier) {
             contentDescription = stringResource(R.string.agent_entry),
             modifier = Modifier.size(24.dp),
             tint = Color(0xFF141416),
+        )
+    }
+}
+
+/**
+ * The assistant's edge badge: a slim tab hugging the right edge of the game screen. Tap it and
+ * the drawer slides out of that edge.
+ *
+ * It is a badge, not a ball: the game screen belongs to the game, so the way in stays out of the
+ * way — a thin strip against the edge, smaller than the home page's floating button, and out of
+ * sight while the drawer is open.
+ */
+@Composable
+fun AgentEdgeBadge(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .width(26.dp)
+            .height(58.dp)
+            .clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
+            .background(Color(0xD91A1C20))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Filled.SmartToy,
+            stringResource(R.string.agent_entry),
+            modifier = Modifier.size(18.dp),
+            tint = Color(0xFFD8DADE),
         )
     }
 }

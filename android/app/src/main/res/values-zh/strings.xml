@@ -736,7 +736,7 @@
     <string name="agent_env_run">运行测试</string>
         <string name="agent_action_new_session">新会话</string>
         <string name="agent_model_unset">未配置模型</string>
-        <string name="agent_state_ready">本地环境就绪</string>
+        <string name="agent_state_ready">查看详情</string>
         <string name="agent_state_working">正在环境里干活</string>
         <string name="agent_label_session">会话</string>
         <string name="agent_label_usage">本次用量</string>
@@ -771,6 +771,12 @@
     <string name="agent_chip_build_why">解释下</string>
     <string name="agent_chip_save_backup">备份存档</string>
     <string name="agent_chip_env">检查环境</string>
+    <string name="agent_chip_game_crash">刚才为啥闪退</string>
+    <string name="agent_chip_game_fps">帧数有点低</string>
+    <string name="agent_chip_game_build">这个包怎么跑</string>
+    <string name="agent_copy">复制这条回答</string>
+        <string name="agent_tokens_count">%1$s tokens</string>
+    <string name="agent_copied">已复制</string>
     <string name="agent_panel_collapse">收起助手</string>
     <string name="agent_panel_expand">打开完整对话</string>
 </resources>
