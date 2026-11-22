@@ -71,6 +71,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nx.android.R
 import com.nx.android.appstate.LibraryState
+import com.nx.android.appstate.EnvBuildState
 import com.nx.android.appstate.OnboardingState
 import com.nx.android.appstate.PlayerState
 import com.nx.android.appstate.PortState
@@ -100,6 +101,8 @@ import com.nx.android.agent.ui.AgentScreen
 import com.nx.android.feature.builds.BuildsRoute
 import com.nx.android.feature.builds.BuildsViewModel
 import com.nx.android.feature.drivers.DriverRoute
+import com.nx.android.feature.environment.EnvBuildDialog
+import com.nx.android.feature.environment.EnvBuildViewModel
 import com.nx.android.feature.environment.EnvChecklistDialog
 import com.nx.android.feature.environment.EnvChip
 import com.nx.android.feature.environment.EnvironmentCheckViewModel
@@ -237,6 +240,7 @@ fun AppRoot(
             val onboardingViewModel: OnboardingViewModel = hiltViewModel()
             val onboardingUiState by onboardingViewModel.uiState.collectAsStateWithLifecycle()
             val environmentCheckViewModel: EnvironmentCheckViewModel = hiltViewModel()
+            val envBuildViewModel: EnvBuildViewModel = hiltViewModel()
             // 开源声明：引导走完的那一刻弹一次，老用户（早已完成引导）升级后第一次启动也弹；记在 prefs 里，只此一次
             LaunchedEffect(onboardingUiState.active) {
                 if (!onboardingUiState.active
@@ -260,6 +264,7 @@ fun AppRoot(
                         port,
                         library,
                         onboarding,
+                        envBuildViewModel.build,
                         drivers,
                         environmentSetup,
                         actions,
@@ -339,6 +344,15 @@ fun AppRoot(
                 // 驱动页：盖住整屏，在页面之外
                 if (driversOpen) {
                     DriverRoute(onClose = { driversOpen = false })
+                }
+                // 环境的重建：跳不过去的弹框，盖住所有页面（环境没好之前没什么可用的）
+                val envBuild = envBuildViewModel.build
+                if (envBuild.running || envBuild.error.isNotEmpty()) {
+                    EnvBuildDialog(
+                        progress = envBuild.progress,
+                        error = envBuild.error,
+                        onRetry = { envBuild.retry() },
+                    )
                 }
                 // 环境检查清单：顶栏胶囊点开的，盖住整屏
                 if (envCheckOpen) {
@@ -467,7 +481,7 @@ private fun OpenSourceNoticeDialog(onClose: () -> Unit, onRepo: () -> Unit) {
 @Composable
 fun MainScreen(
     prefs: PrefsStore, locale: AppLocale, port: PortState, library: LibraryState,
-    onboarding: OnboardingState, drivers: DriverRepository,
+    onboarding: OnboardingState, envBuild: EnvBuildState, drivers: DriverRepository,
     environmentSetup: EnvironmentSetup, actions: AppActions, startTab: Int,
     launchBuildId: String,
     padController: PadCenterController,
@@ -662,7 +676,7 @@ fun MainScreen(
         // 设置页：盖住整屏（顶栏也在下面），关掉才回到底下的页面
         if (settingsOpen) {
             SettingsScreen(
-                onboarding, installedDrivers, drivers, updateViewModel,
+                onboarding, envBuild, installedDrivers, drivers, updateViewModel,
                 storageViewModel, agentSettingsViewModel, actions,
                 onRequest, onDrivers,
                 section = settingsSection, onSelectSection = { settingsSection = it },

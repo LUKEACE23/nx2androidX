@@ -10,9 +10,10 @@ plugins {
     id("com.google.dagger.hilt.android")
 }
 
-// The payload (rootfs, toolchain, the tool's tree) is built by packaging/android-apk/build_assets.py and staged
-// outside the source tree: it is a few hundred megabytes and not committed.
-val assetsDir = rootProject.layout.projectDirectory.dir("../packaging/android-apk/.cache/assets")
+// The payload (the environment in one archive, the driver) is built by packaging/android-apk/build_assets.py and
+// staged outside the source tree: it is a few hundred megabytes and not committed. The working tree the build
+// stages the tool's tree in is .cache/assets; what goes into the APK is .cache/apk-assets.
+val assetsDir = rootProject.layout.projectDirectory.dir("../packaging/android-apk/.cache/apk-assets")
 
 // The Vulkan driver loader (libadrenotools.so), built by packaging/android-apk/build_adrenotools.py and staged
 // outside the source tree as well. It is the app's own native library: the host dlopens it by name, and the
@@ -85,7 +86,7 @@ android {
     sourceSets {
         getByName("main") {
             java.srcDir(revisionSources.get().asFile)
-            // The payload (rootfs, toolchain, the tool's tree): built by packaging/android-apk/build_assets.py.
+            // The payload (the environment in one archive, the driver): built by packaging/android-apk/build_assets.py.
             // -PnoPayload leaves it out: a quick build of the app itself, for a phone that already has the
             // environment unpacked (the unpacked tree is in the app's own folder, so it survives the update).
             if (!project.hasProperty("noPayload") && assetsDir.asFile.exists()) {
@@ -99,10 +100,10 @@ android {
         }
     }
 
-    // The payload is big: no compression of the assets that are already compressed (the rootfs tarball), and
-    // the whole thing is a single big blob the app unpacks on the first start.
+    // The payload is big: no compression of the assets that are already compressed (the environment's archive),
+    // and the whole thing is a single big blob the app unpacks on the first start.
     androidResources {
-        noCompress += listOf("gz", "so", "zip")
+        noCompress += listOf("gz", "so", "zip", "pkg")
     }
     packaging {
         jniLibs.useLegacyPackaging = true

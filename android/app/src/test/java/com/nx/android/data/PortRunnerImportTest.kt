@@ -69,11 +69,9 @@ class PortRunnerImportTest {
     private class NullEnvironment : EnvironmentSetup {
         override val ready = true
         override val lastCheck = ""
-        override fun unpack(onStep: (String) -> Unit) {}
-        override fun reset() {}
-        override fun refreshTools() {}
+        override fun needsRebuild() = false
+        override fun rebuild(onProgress: (Int) -> Unit) {}
         override fun patchInterpreters() {}
-        override fun refreshRootfsIfStale(busy: () -> Boolean, onStep: (String) -> Unit) = false
         override fun patchInterpreter(file: File) = false
     }
 }

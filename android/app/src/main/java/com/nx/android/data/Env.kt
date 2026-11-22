@@ -1,6 +1,7 @@
 package com.nx.android.data
 
 import android.content.Context
+import android.os.StatFs
 import android.util.Log
 import com.nx.android.domain.PlayerApiRevision
 import java.io.File
@@ -8,6 +9,7 @@ import java.io.IOException
 import java.util.zip.GZIPInputStream
 import com.nx.android.core.storage.AppPaths
 import com.nx.android.domain.environment.EnvironmentSetup
+import com.nx.android.domain.environment.EnvPayload
 import com.nx.android.domain.environment.GuestProcessLauncher
 import dagger.Binds
 import dagger.Module
@@ -21,10 +23,10 @@ import org.json.JSONObject
 /**
  * The environment the porter runs in.
  *
- * The app is a shell: it unpacks the rootfs (from the nixport payload), the build tools, the .NET runtime and the tool's
- * own tree into its files folder, and runs the porter inside it. The guest programs are Linux binaries: Android has
- * no /lib and the guest is not a chroot, so they are started through the rootfs's dynamic loader, and the programs
- * the porter starts itself (the compiler, the .NET runtime) get their interpreter path rewritten to the app's own rootfs.
+ * The app is a shell: it unpacks the environment (the rootfs and the tool's tree, in one archive) into its files
+ * folder, and runs the porter inside it. The guest programs are Linux binaries: Android has no /lib and the guest
+ * is not a chroot, so they are started through the rootfs's dynamic loader, and the programs the porter starts
+ * itself (the compiler, the .NET runtime) get their interpreter path rewritten to the app's own rootfs.
  */
 @Singleton
 class Env @Inject constructor(@ApplicationContext private val ctx: Context, private val paths: AppPaths) : EnvironmentSetup, GuestProcessLauncher {
@@ -32,18 +34,20 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
     companion object {
         const val TAG = "Nx2aEnv"
 
-        /**
-         * The generation of the build's stamp: it changes when the rule "the tree goes and comes again"
-         * changes, so the phones that were updated with the older rule (which only wrote over the old
-         * files and never removed them) do the wipe once, when they install an app with this rule.
-         */
-        private const val STAMP_GEN = "wipe1:"
+        /** The environment in one archive: the rootfs and the tool's tree (the compiler, the .NET runtime) */
+        private const val PAYLOAD_ASSET = "payload.pkg"
 
-        /** The rootfs's own version marker: the assets carry it, the unpacked tree remembers it. */
-        private const val ROOTFS_STAMP_FILE = ".nx2a-rootfs-version"
+        /** The archive's stamp: the app compares it with the one the environment was built with */
+        private const val PAYLOAD_STAMP_ASSET = "payload-stamp"
 
-        /** The asset that carries the rootfs's version marker (empty when the payload has none). */
-        private const val ROOTFS_STAMP_ASSET = "rootfs-version"
+        /** Where the environment remembers the stamp it was built with */
+        private const val PAYLOAD_STAMP_FILE = ".nx2a-payload"
+
+        /** The app's assets' manifest: it says how much space the environment needs */
+        private const val MANIFEST_ASSET = "manifest.json"
+
+        /** The room the environment needs on top of its own size (the archive's own copy is not counted) */
+        private const val SPACE_MARGIN = 64L * 1024 * 1024
     }
 
     val files = paths.files
@@ -67,8 +71,14 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
     override val ready: Boolean
         get() = python.exists() && File(tool, "porter").isDirectory && File(tool, "toolchain/clang/bin/clang").exists()
 
-    /** The .NET runtime (the extractor and the shader translator are C# and run on it): where the porter looks for it */
-    val dotnet: File get() = File(nxHome, "toolchains/dotnet/dotnet")
+    /**
+     * The .NET runtime (the extractor and the shader translator are C# and run on it): where the porter looks
+     * for it. It travels in the environment's archive, beside the compiler in the toolchain folder.
+     */
+    val dotnet: File get() = File(tool, "toolchain/dotnet/dotnet")
+
+    /** The folder the runtime lives in: the porter's first choice is DOTNET_ROOT */
+    private val dotnetHome: File get() = dotnet.parentFile ?: File(tool, "toolchain/dotnet")
 
     /** The environment every guest program gets */
     override fun guestEnv(): MutableMap<String, String> {
@@ -83,6 +93,12 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
             "NX2A_HOME" to nxHome.absolutePath,
             "NX2A_NDK" to "${tool}/toolchain/ndk",
             "NX2A_REPO" to tool.absolutePath,
+            // the build tools' own folder: the pipeline needs its libraries (the toolchain's libshaderc, which glslc
+            // needs). The layout here is the app's business, so the app says where it is.
+            "NX2A_TOOLCHAIN" to "${tool}/toolchain",
+            // the .NET runtime: the porter looks for it here first (DOTNET_ROOT), the tools it runs are the ones
+            // in the tree next to it
+            "DOTNET_ROOT" to dotnetHome.absolutePath,
             // nx_extract is built on the computer and shipped: the phone has no SDK to restore packages with
             // (no network), and its globalization mode makes the SDK itself crash
             "NX2A_NX_EXTRACT" to "${tool}/tools/nx_extract",
@@ -107,8 +123,7 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
     /** Starts a guest program: Python through the loader, the tool itself as it is */
     @Synchronized
     override fun guest(args: List<String>, extra: Map<String, String>): Process {
-        refreshTools()
-        check(!buildIdChanged()) { "Runtime tools are not ready. Prepare the environment and retry." }
+        check(ready) { "The environment is not ready. Prepare it and retry." }
         return startGuest(args, tool, extra)
     }
 
@@ -123,166 +138,110 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
         return pb.start()
     }
 
-    // ---- the first start: the environment out of the assets -----------------------------------------------
+    // ---- the environment: one archive, one stamp ----------------------------------------------------------------
 
     /**
-     * Unpacks the environment. The rootfs and the .NET runtime are tarballs in the assets; the rest is a folder tree.
-     *
-     * @param onStep what is being unpacked, for the screen
+     * The stamp the app's archive carries (empty when the app carries no environment at all).
      */
-    override fun unpack(onStep: (String) -> Unit) {
-        var rootfsDone = false
-        try {
-            unpackNow(onStep) { rootfsDone = true }
-        } catch (e: Exception) {
-            // a half unpacked rootfs is worse than none: it goes, so that the next try starts clean. What came
-            // out whole stays.
-            if (!rootfsDone) rootfs.deleteRecursively()
-            throw e
-        }
-    }
-
-    private fun unpackNow(onStep: (String) -> Unit, rootfsFinished: () -> Unit) {
-        fun step(s: String) { Log.i(TAG, "step: $s"); onStep(s) }
-        // The environment is already there (the app was updated, not reinstalled): only the check.
-        if (ready && dotnet.exists() && marker.exists()) {
-            // the environment is already there: only the tool's own scripts and the interpreter paths are new
-            copyAssets("tool/tools", File(tool, "tools"))
-            step("the interpreter paths")
-            patchInterpreters()
-            step("the check")
-            check()
-            return
-        }
-        if (!python.exists()) {
-            step("the Linux environment")
-            unpackRootfs()
-            rootfsFinished()
-            storeRootfsStamp()
-        }
-        if (!File(files, ".nx2a-tool").exists()) {
-            step("the tool")
-            copyAssets("tool", tool)
-            File(files, ".nx2a-tool").writeText("1")
-        }
-        if (!File(files, ".nx2a-toolchain").exists()) {
-            step("the build tools")
-            copyAssets("toolchain", File(tool, "toolchain"))
-            File(files, ".nx2a-toolchain").writeText("1")
-        }
-        if (!dotnet.exists()) {
-            step("the .NET runtime")
-            try {
-                // the runtime's own folder: the porter looks for toolchains/dotnet/dotnet
-                ctx.assets.open("dotnet.pkg").use { raw ->
-                    GZIPInputStream(raw).use { gz -> Tar.unpack(gz, File(nxHome, "toolchains/dotnet")) }
-                }
-            } catch (e: IOException) {
-                // not shipped with the app: the Setup screen downloads it
-            }
-        }
-        // the tool's own scripts are small and change with the app: they are always the ones that are here
-        copyAssets("tool/tools", File(tool, "tools"))
-        fixGlobalization()
-        step("the interpreter paths")
-        patchInterpreters()
-        step("the check")
-        check()
-        marker.writeText("1")
-    }
-
-    // ---- the rootfs's own version ----------------------------------------------------------------------------------
-
-    /**
-     * The version the assets' rootfs carries (empty when the payload says nothing).
-     */
-    private fun rootfsStamp(): String = try {
-        ctx.assets.open(ROOTFS_STAMP_ASSET).use { it.readBytes().toString(Charsets.UTF_8).trim() }
+    private fun payloadStamp(): String = try {
+        ctx.assets.open(PAYLOAD_STAMP_ASSET).use { it.readBytes().toString(Charsets.UTF_8).trim() }
     } catch (e: Exception) {
         ""
     }
 
-    /** The version the tree on this phone was unpacked with. */
-    private fun storedRootfsStamp(): String {
-        val mark = File(files, ROOTFS_STAMP_FILE)
+    /** The stamp the environment on this phone was built with. */
+    private fun storedPayloadStamp(): String {
+        val mark = File(files, PAYLOAD_STAMP_FILE)
         return if (mark.isFile) mark.readText().trim() else ""
     }
 
-    /** The tree remembers the version it was unpacked with. */
-    private fun storeRootfsStamp() {
-        val stamp = rootfsStamp()
-        if (stamp.isEmpty()) return
-        runCatching { File(files, ROOTFS_STAMP_FILE).writeText(stamp) }
+    /** The environment remembers the stamp it was built with. */
+    private fun storePayloadStamp(stamp: String) {
+        runCatching { File(files, PAYLOAD_STAMP_FILE).writeText(stamp) }
     }
 
     /**
-     * The rootfs is unpacked into a fresh folder and swapped in: the old tree keeps working until
-     * the new one is whole. A failure leaves the old tree alone — the environment never goes missing.
-     */
-    private fun unpackRootfs() {
-        val stage = File(files, "rootfs.new")
-        stage.deleteRecursively()
-        try {
-            ctx.assets.open("rootfs.pkg").use { raw ->
-                GZIPInputStream(raw).use { gz -> Tar.unpack(gz, stage) }
-            }
-        } catch (e: Exception) {
-            stage.deleteRecursively()
-            throw e
-        }
-        RootfsTree.swap(stage, rootfs, File(files, "rootfs.old"))
-    }
-
-    /**
-     * The app brought a newer rootfs: unpack it again, so the new payload reaches the phones that
-     * are already installed. The interpreter paths are patched again with the new tree — the guest
-     * programs in it point at the loader of this phone.
+     * Whether the environment has to be built again: the app brought another one.
      *
-     * @param busy whether something that must not be interrupted is running (a port): the tree is
-     *   left alone until it is done
-     * @return whether the tree was unpacked again
+     * A phone that has no environment yet is not a rebuild: the first install is the guided setup's business.
      */
-    override fun refreshRootfsIfStale(busy: () -> Boolean, onStep: (String) -> Unit): Boolean {
-        val want = rootfsStamp()
-        if (!RootfsTree.stale(want, storedRootfsStamp())) return false
-        // 还没解包过的机器：第一次解包归引导流程管，别在这里跟它抢同一个目录
-        if (!marker.exists()) return false
-        if (busy()) {
-            Log.i(TAG, "the rootfs is newer but something is running: it waits for the next start")
-            return false
-        }
-        Log.i(TAG, "the rootfs is newer: it goes and comes again")
-        try {
-            onStep("the Linux environment")
-            unpackRootfs()
-            onStep("the interpreter paths")
-            patchInterpreters()
-            onStep("the check")
-            check()
-            storeRootfsStamp()
-            return true
-        } catch (e: Exception) {
-            // the old tree is still there: the environment works, it is just the old one
-            Log.e(TAG, "the rootfs could not be unpacked again: ${e.message}")
-            return false
-        }
+    override fun needsRebuild(): Boolean {
+        return EnvPayload.stale(
+            payloadStamp(), storedPayloadStamp(),
+            rootfs.isDirectory || tool.isDirectory
+        )
     }
 
-    /** The mark that says the environment is unpacked (so an update does not do it again) */
-    private val marker: File get() = File(files, ".nx2a-unpacked")
-
-    /** Throws the environment away: the next unpack does everything again */
-    override fun reset() {
-        marker.delete()
-        File(files, ".nx2a-tool").delete()
-        File(files, ".nx2a-toolchain").delete()
-        File(files, ROOTFS_STAMP_FILE).delete()
-        // the whole environment goes: what was unpacked with the wrong permissions stays wrong
+    /**
+     * Builds the environment again, with the archive the app carries.
+     *
+     * The old tree goes first and the stamp is written last: a build that was cut short (the process died) is
+     * done again at the next start, because the stamp was not written. Only the environment is written: the
+     * porter's own folder (the game profiles the player imported, the build products, the NuGet cache) and the
+     * player's other things (the data packs, the assistant's folder, the history) are never touched.
+     *
+     * @param onProgress how much of it is done (0-100)
+     */
+    override fun rebuild(onProgress: (Int) -> Unit) {
+        val want = payloadStamp()
+        if (want.isEmpty()) return
+        checkSpace()
+        Log.i(TAG, "the environment is built again: $want")
+        // The tree has to GO, not just be written over: the port compiles every source it finds (build.py globs
+        // dm/android/*.c), so a file the new archive no longer has - a renamed one - would be compiled next to
+        // its replacement, and the link would die on duplicate symbols.
         rootfs.deleteRecursively()
         tool.deleteRecursively()
-        nxHome.deleteRecursively()
-        home.deleteRecursively()
-        tmp.deleteRecursively()
+        val bytes = payloadBytes()
+        val total = if (bytes > 0) bytes else 1L
+        ctx.assets.open(PAYLOAD_ASSET).use { raw ->
+            GZIPInputStream(raw).use { gz ->
+                Tar.unpack(gz, mapOf("rootfs" to rootfs, "tool" to tool)) { written ->
+                    onProgress(((written * 100) / total).toInt().coerceIn(0, 99))
+                }
+            }
+        }
+        onProgress(99)
+        fixGlobalization()
+        patchInterpreters()
+        check()
+        storePayloadStamp(want)
+        // the markers of the old way (one stamp per part of the environment) go: they say nothing anymore
+        for (old in listOf(".nx2a-build", ".nx2a-rootfs-version", ".nx2a-tool", ".nx2a-toolchain", ".nx2a-unpacked")) {
+            File(files, old).delete()
+        }
+        onProgress(100)
+        Log.i(TAG, "the environment is built")
+    }
+
+    /** How much space the environment needs on the phone: the archive's own size, unpacked. */
+    private fun payloadBytes(): Long = try {
+        ctx.assets.open(MANIFEST_ASSET).use { raw ->
+            val text = raw.readBytes().toString(Charsets.UTF_8)
+            JSONObject(text).optLong("payload_bytes", 0L)
+        }
+    } catch (e: Exception) {
+        0L
+    }
+
+    /**
+     * The space the environment needs: it is checked before the old tree goes, so the player is told what is
+     * missing instead of getting a half-built environment.
+     */
+    private fun checkSpace() {
+        val bytes = payloadBytes()
+        if (bytes <= 0) return
+        val free = try {
+            StatFs(files.absolutePath).availableBytes
+        } catch (e: Exception) {
+            return
+        }
+        if (free < bytes + SPACE_MARGIN) {
+            throw IOException(
+                "Not enough space: the environment needs ${bytes / 1024 / 1024} MB, " +
+                    "${free / 1024 / 1024} MB are free"
+            )
+        }
     }
 
     /**
@@ -308,134 +267,6 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
         private set
 
     /**
-     * Copies a folder out of the assets. The APK's assets carry no permissions, so the modes come from the file
-     * the build wrote (modes.json): the guest's programs have to be executable, or the porter cannot start them.
-     */
-    private fun copyAssets(path: String, dest: File) {
-        val names = ctx.assets.list(path) ?: return
-        if (names.isEmpty()) {   // an empty folder in the assets is not listed
-            dest.mkdirs(); return
-        }
-        dest.mkdirs()
-        for (name in names) {
-            val child = "$path/$name"
-            val target = File(dest, name)
-            val sub = ctx.assets.list(child)
-            if (sub != null && sub.isNotEmpty()) copyAssets(child, target)
-            else {
-                ctx.assets.open(child).use { src -> target.outputStream().use { src.copyTo(it) } }
-                Tar.applyMode(target, modes[child] ?: 420L)
-            }
-        }
-    }
-
-    /** The permissions of the files in the assets (path -> mode), as the build wrote them */
-    private val modes: Map<String, Long> by lazy {
-        try {
-            ctx.assets.open("modes.json").use { raw ->
-                val text = raw.readBytes().toString(Charsets.UTF_8)
-                val json = JSONObject(text)
-                val out = HashMap<String, Long>()
-                val keys = json.keys()
-                while (keys.hasNext()) {
-                    val k = keys.next()
-                    out[k] = json.getLong(k)
-                }
-                out
-            }
-        } catch (e: Exception) {
-            emptyMap()
-        }
-    }
-
-    /**
-     * The tools that are small and change with the app: the prebuilt C# tools (the extractor, the shader
-     * translator), the porter's own scripts and the shared scripts they use. A changed payload is fully
-     * deployed and checked before any build can start: a phone that has an older prebuilt translator would try
-     * to build one itself, and wait for a network that is not there.
-     */
-    @Synchronized
-    override fun refreshTools() {
-        if (!python.exists()) return // The initial environment setup supplies the rootfs.
-        // Without the payload there are no modes to write, and the assets hold no tree to copy either:
-        // a copy now would strip the execute bit off the tools (the assets have no permissions). A build
-        // without the payload leaves the tree alone.
-        if (modes.isEmpty()) {
-            Log.i(TAG, "the app carries no payload: the tree is left alone")
-            return
-        }
-        try {
-            // The build's stamp: when it changes, the tree goes and comes again.
-            //
-            // The tree has to GO, not just be written over: the port compiles every source it finds
-            // (build.py globs dm/android/*.c), so a file the new payload no longer has - a renamed one -
-            // would be compiled next to its replacement, and the link would die on duplicate symbols.
-            // The stamp is written after the copy, so a copy cut short (the process died) is done again.
-            if (buildIdChanged()) {
-                Log.i(TAG, "the assets are newer than the tree: it goes and comes again")
-                wipeTree()
-                copyAssets("tool", tool)
-                File(tool, "toolchain").deleteRecursively()
-                copyAssets("toolchain", File(tool, "toolchain"))
-            } else {
-                return
-            }
-            fixGlobalization()
-            patchInterpreters()
-            check()
-            storeBuildId()
-            Log.i(TAG, "the tools were refreshed")
-        } catch (e: Exception) {
-            Log.e(TAG, "the tools were not refreshed: ${e.message}")
-        }
-    }
-
-    /**
-     * Remove old sources before deployment. The compiler tree is replaced separately.
-     */
-    private fun wipeTree() {
-        for (child in tool.listFiles() ?: emptyArray()) {
-            if (child.name == "toolchain") continue
-            child.deleteRecursively()
-        }
-    }
-
-    /**
-     * The build's stamp in the assets, against the one the tree was unpacked with.
-     *
-     * The stamp carries a generation of its own: when the rule changes (the tree goes and comes again
-     * instead of only being written over), the generation changes too - so the phones that were updated
-     * with the older rule (which left the files the new payload no longer has) do the wipe once, when
-     * they install an app with this rule.
-     */
-    private fun buildIdChanged(): Boolean {
-        val want = stampInAssets()
-        if (want.isEmpty()) return false      // the assets carry no stamp: nothing to compare
-        return want != storedBuildId()
-    }
-
-    /** The stamp the assets carry, with the generation in front of it */
-    private fun stampInAssets(): String = try {
-        val raw = ctx.assets.open("build-id").use { it.readBytes().toString(Charsets.UTF_8).trim() }
-        if (raw.isEmpty()) "" else "$STAMP_GEN$raw"
-    } catch (e: Exception) {
-        ""
-    }
-
-    /** The stamp the tree was unpacked with */
-    private fun storedBuildId(): String {
-        val mark = File(files, ".nx2a-build")
-        return if (mark.exists()) mark.readText().trim() else ""
-    }
-
-    /** The stamp is written after the copy: a copy that was cut short is done again on the next start */
-    private fun storeBuildId() {
-        val want = stampInAssets()
-        if (want.isEmpty()) return
-        File(files, ".nx2a-build").writeText(want)
-    }
-
-    /**
      * Rewrites the interpreter of the programs that are started directly (the compiler, the .NET runtime): Android
      * has no /lib, and the rootfs the payload carries was built for another app's path.
      */
@@ -444,7 +275,7 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
         val script = File(tool, "tools/patch_interp.py")
         if (!script.exists()) throw IOException("The interpreter patch tool is missing")
         val targets = listOf(File(tool, "toolchain"), File(rootfs, "usr/bin"), File(rootfs, "usr/sbin"),
-                              File(nxHome, "toolchains"), File(tool, "tools/nx_extract"))
+                              File(tool, "tools/nx_extract"))
             .filter { it.exists() }
         nxHome.mkdirs()
         for (t in targets) {
@@ -467,7 +298,6 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
             }
             Log.i(TAG, "python3.13 after patching: ${python.length()} bytes")
         }
-        restoreModes()
     }
 
     /**
@@ -501,16 +331,12 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
     }
 
     /**
-     * The permissions of the tool's tree, as the build wrote them: the patch's write may have taken the execute
-     * bit away, and a program that cannot be started cannot be patched either.
-     */
-    /**
      * The .NET runtime on the phone stops itself without ICU (the rootfs has none): the runtime config has to
      * declare the invariant mode, and the files below the folder have to be told.
      */
     private fun fixGlobalization() {
         val script = File(tool, "tools/fix_globalization.py")
-        val sdk = File(nxHome, "toolchains/dotnet")
+        val sdk = File(tool, "toolchain/dotnet")
         if (!script.exists() || !sdk.isDirectory) return
         try {
             val p = startGuest(listOf(script.absolutePath, sdk.absolutePath))
@@ -520,19 +346,6 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
         } catch (e: Exception) {
             Log.e(TAG, "globalization: ${e.message}")
         }
-    }
-
-    private fun restoreModes() {
-        var n = 0
-        for ((path, mode) in modes) {
-            val f = if (path.startsWith("tool/")) File(tool, path.removePrefix("tool/")) else File(tool, path)
-            if (!f.exists()) continue
-            val now = try { f.canExecute() } catch (e: Exception) { false }
-            if (now && (mode and 64L == 0L)) continue
-            Tar.applyMode(f, mode)
-            n++
-        }
-        Log.i(TAG, "permissions restored for $n file(s)")
     }
 }
 

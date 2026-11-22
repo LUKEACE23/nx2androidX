@@ -183,8 +183,8 @@ def rebuild(pack, *, no_lsfg=False, jobs=None, allow_profile_drift=False, emit=p
             if no_lsfg: args.append('--no-lsfg')
             if not use_prebuilt: args.append('--adrenotools')
             env = dict(os.environ, DM_GAME=title_id, DM_GAMES_DIR=str(profile_root), DM_GAMES_FIRST='1')
-            tc_lib = DM.parent.parent / 'toolchain' / 'lib'
-            if tc_lib.is_dir(): env['LD_LIBRARY_PATH'] = str(tc_lib) + os.pathsep + env.get('LD_LIBRARY_PATH', '')
+            tc_lib = toolchain.toolchain_lib_dirs()
+            if tc_lib: env['LD_LIBRARY_PATH'] = str(tc_lib[0]) + os.pathsep + env.get('LD_LIBRARY_PATH', '')
             emit('Building the player runtime')
             with subprocess.Popen(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors='replace') as process:
                 for line in process.stdout: emit(line.rstrip())

@@ -6,20 +6,21 @@ import java.io.File
 interface EnvironmentSetup {
     val ready: Boolean
     val lastCheck: String
-    fun unpack(onStep: (String) -> Unit)
-    fun reset()
-    fun refreshTools()
-    fun patchInterpreters()
 
     /**
-     * The rootfs carries a version: when the app brings a newer one, the tree is unpacked again so
-     * the new payload reaches the phones that are already installed.
-     *
-     * @param busy whether something that must not be interrupted is running (a port): the tree is
-     *   left alone until it is done
-     * @return whether the tree was unpacked again
+     * Whether the environment has to be built again: the app brought another one (an update) and the phone's
+     * was built with the old one.
      */
-    fun refreshRootfsIfStale(busy: () -> Boolean, onStep: (String) -> Unit): Boolean
+    fun needsRebuild(): Boolean
+
+    /**
+     * Builds the environment again, with the archive the app carries.
+     *
+     * @param onProgress how much of it is done (0-100)
+     */
+    fun rebuild(onProgress: (Int) -> Unit)
+
+    fun patchInterpreters()
 
     /**
      * A program that is started in the guest needs its interpreter path pointed at this phone's

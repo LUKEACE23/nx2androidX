@@ -5,17 +5,19 @@ The app unpacks this on its first start. The rootfs comes from the nixport paylo
 the patched glibc, Python and the rest of the runtime), the toolchain from Google's NDK and an ARM64 LLVM, and the
 tool's own tree from this repository.
 
-    python3 build_assets.py --out <dir> [--payload <file>] [--toolchain <dir>] [--wheels <dir>]
+    python3 build_assets.py --out <dir> --apk-out <dir> [--payload <file>] [--toolchain <dir>] [--wheels <dir>]
 
-The result is what the Gradle build takes as the app's assets:
+--out is the working tree: the tool's tree is staged there, and the scripts that build the C# tools and the
+driver's hooks add their own files to it afterwards (--finalize packs it again). --apk-out is what the Gradle
+build takes as the app's assets:
 
-    <out>/rootfs.pkg      the rootfs (the payload's tarball, gzipped)
-    <out>/tool/            the tool: porter/, nxnative/ and the Python modules
-    <out>/toolchain/       the NDK, the ARM64 compiler, glslc
-    <out>/drivers/         the Vulkan driver the app ships (Mesa's Turnip), unpacked by the app itself
-    <out>/manifest.json    what is in there and what it is for
+    <apk>/payload.tar.gz   the environment in one archive: rootfs/ and tool/ (the tool's tree, the compiler, the
+                           .NET runtime). The permissions travel with the files: the APK's assets carry none.
+    <apk>/payload-stamp    the archive's SHA-256: the app compares it with the one the environment was built with
+    <apk>/drivers/         the Vulkan driver the app ships (Mesa's Turnip), unpacked by the app itself
+    <apk>/manifest.json    what is in there and what it is for
 """
-import argparse, hashlib, importlib.util, json, os, re, shutil, subprocess, sys, tarfile, urllib.request
+import argparse, gzip, hashlib, importlib.util, json, os, re, shutil, subprocess, sys, tarfile, urllib.request
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent.parent
@@ -244,62 +246,108 @@ def dotnet_runtime(cache):
     return item
 
 
-def finalize_metadata(out):
-    # The APK's assets have no permissions, so the modes of the tool's tree travel in a file of their own: the
-    # guest's programs have to be executable, or the porter cannot start them.
-    modes = {}
-    for tree in ('tool', 'toolchain'):
-        root = out / tree
-        if not root.exists(): continue
-        for p in root.rglob('*'):
-            if p.is_file():
-                modes[f'{tree}/{p.relative_to(root)}'] = p.stat().st_mode & 0o777
-    (out / 'modes.json').write_text(json.dumps(modes))
-    print(f'>> the modes of {len(modes)} file(s)')
+def add_tree(out: tarfile.TarFile, source: Path, prefix: str) -> int:
+    """Adds a folder to the archive, under [prefix]. The bytes it holds are returned."""
+    if not source.exists(): return 0
+    size = 0
+    for path in sorted(source.rglob('*')):
+        rel = path.relative_to(source).as_posix()
+        member = out.gettarinfo(str(path), arcname=f'{prefix}/{rel}')
+        if member.isreg():
+            with path.open('rb') as f:
+                out.addfile(member, f)
+            size += member.size
+        else:
+            out.addfile(member)
+    return size
 
-    # the build's stamp: the app compares it with the one the tree was unpacked with, and copies the tree again
-    # when it changed (the tree is big: the games' profiles alone are a third of it)
-    stamp = hashlib.sha256()
-    for tree in ('tool', 'toolchain'):
-        root = out / tree
-        if not root.exists(): continue
-        for p in sorted(root.rglob('*')):
-            if p.is_file():
-                stamp.update(f'{tree}/{p.relative_to(root)}:{p.stat().st_size}\n'.encode())
-                with p.open('rb') as source:
-                    for chunk in iter(lambda: source.read(1024 * 1024), b''):
-                        stamp.update(chunk)
-    (out / 'build-id').write_text(stamp.hexdigest() + '\n')
 
-    # the rootfs's own version: the app unpacks the tree again when the asset carries a newer one
-    # (the payload is fixed once and for all, so the tree alone would never come back to the phones
-    # that are already installed)
-    rootfs = out / 'rootfs.pkg'
-    if rootfs.exists():
-        h = hashlib.sha256()
-        with rootfs.open('rb') as source:
-            for chunk in iter(lambda: source.read(1024 * 1024), b''):
-                h.update(chunk)
-        (out / 'rootfs-version').write_text(h.hexdigest() + '\n')
-        print('>> the rootfs version stamp')
+def add_tarball(out: tarfile.TarFile, source: Path, prefix: str) -> int:
+    """Adds the members of a tarball to the archive, under [prefix].
+
+    The members are copied one by one: the tarball's own folder is not written to the disk again (the rootfs is
+    close to a gigabyte). A hard link's target is renamed with it, or the app would not find the file it points
+    at."""
+    if not source.exists(): return 0
+    size = 0
+    with tarfile.open(source, 'r:gz') as src:
+        for member in src:
+            name = member.name
+            if name in ('.', './'): continue
+            if name.startswith('./'): name = name[2:]
+            member.name = f'{prefix}/{name}'
+            if member.islnk():
+                link = member.linkname
+                if link.startswith('./'): link = link[2:]
+                member.linkname = f'{prefix}/{link}'
+            if member.isreg():
+                data = src.extractfile(member)
+                if data is None: continue
+                out.addfile(member, data)
+                size += member.size
+            else:
+                out.addfile(member)
+    return size
+
+
+def payload_archive(assets: Path, apk: Path) -> int:
+    """Packs the environment into one archive and stamps it. The bytes it holds unpacked are returned.
+
+    The archive's first path segment says where a file goes (rootfs/ or tool/), so the app puts the two trees
+    where they belong in one pass. The permissions travel with the files: the APK's assets carry none, a tar does."""
+    apk.mkdir(parents=True, exist_ok=True)
+    # The name is not .gz on purpose: the build's asset pipeline takes a .gz asset for a compressed one, takes it
+    # apart and stores it again. The .pkg name leaves the archive alone (the app reads the gzip stream itself).
+    archive = apk / 'payload.pkg'
+    size = 0
+    with tarfile.open(archive, 'w:gz', compresslevel=6) as out:
+        size += add_tarball(out, assets / 'rootfs.pkg', 'rootfs')
+        size += add_tree(out, assets / 'tool', 'tool')
+        # the toolchain: the compiler and the .NET runtime, the one folder the porter's own tools live in
+        size += add_tree(out, assets / 'toolchain', 'tool/toolchain')
+        size += add_tarball(out, assets / 'dotnet.pkg', 'tool/toolchain/dotnet')
+    digest = hashlib.sha256()
+    with archive.open('rb') as f:
+        for chunk in iter(lambda: f.read(1 << 20), b''):
+            digest.update(chunk)
+    (apk / 'payload-stamp').write_text(digest.hexdigest() + '\n')
+    print(f'>> the environment in one archive: {archive.stat().st_size / 2**20:.0f} MB '
+          f'({size / 2**20:.0f} MB unpacked), stamp {digest.hexdigest()[:16]}')
+    return size
+
+
+def payload_manifest(apk: Path, size: int, modules) -> None:
+    """What is in the app's assets: the archive, its size (the app checks the space before it unpacks it) and
+    the driver's folder."""
+    manifest = {'schema': 'nx2a.phone-assets.v2',
+                'payload': 'payload.pkg',
+                'payload_bytes': size,
+                'modules': modules,
+                'drivers': 'drivers'}
+    (apk / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--out', required=True)
-    ap.add_argument('--finalize', action='store_true', help='refresh content stamps after all runtime tools have been staged')
+    ap.add_argument('--out', required=True, help="the working tree: the tool's tree is staged there")
+    ap.add_argument('--apk-out', required=True, help="what the Gradle build takes as the app's assets")
+    ap.add_argument('--finalize', action='store_true', help='pack the environment again after the runtime tools have been staged')
     ap.add_argument('--payload', default='')
     ap.add_argument('--toolchain', default='')
     ap.add_argument('--cache', default='')
     ap.add_argument('--no-wheels', action='store_true')
-    ap.add_argument('--no-dotnet', action='store_true', help='do not ship the .NET SDK: the app downloads it on the first run')
     a = ap.parse_args()
-    out = Path(a.out); cache = Path(a.cache or (Path(__file__).resolve().parent / '.cache'))
+    out = Path(a.out); apk = Path(a.apk_out)
+    cache = Path(a.cache or (Path(__file__).resolve().parent / '.cache'))
     if a.finalize:
-        finalize_metadata(out)
+        # the C# tools and the driver's hooks joined the tool's tree: the archive is packed again
+        size = payload_archive(out, apk)
+        payload_manifest(apk, size, MODULES if not a.no_wheels else [])
         return 0
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
+    shutil.rmtree(apk, ignore_errors=True)
+    apk.mkdir(parents=True)
 
     payload = Path(a.payload) if a.payload else cache / 'payload-arm64.tar.gz'
     if not payload.exists(): raise SystemExit(f'{payload} is missing (fetch it from the nixport payload release)')
@@ -341,16 +389,15 @@ def main():
     payload_rootfs(payload, out, out)
 
     # The .NET runtime: the extractor and the shader translator are C# and run on it. They are built on the computer
-    # and shipped with the app (the phone cannot build them), so the phone only needs a runtime. Shipping it makes
-    # the first run work offline; downloading it (the porter's own path) keeps the APK small.
-    dotnet = None
-    if not a.no_dotnet:
-        dotnet = dotnet_runtime(cache)
-        shutil.copy2(dotnet['file'], out / 'dotnet.pkg')
+    # and shipped with the app (the phone cannot build them), so the phone only needs a runtime. It travels in the
+    # archive, next to the tools that run on it.
+    dotnet = dotnet_runtime(cache)
+    shutil.copy2(dotnet['file'], out / 'dotnet.pkg')
 
     # The Vulkan driver the app ships: a player has one without a network. The app unpacks it into its own folder
-    # when it starts (the archive travels; the library does not).
-    driver_archive(cache, out / 'drivers')
+    # when it starts (the archive travels; the library does not). It is not part of the environment: the app puts
+    # it in its own place and the player picks it there.
+    driver_archive(cache, apk / 'drivers')
 
     # The game profiles: the app does not carry them (half a gigabyte of shader tables), the player imports a
     # package into their own folder. The package is cut here, beside the app that does not carry it, and the
@@ -359,21 +406,11 @@ def main():
     # rule, no nagging.
     print('>> the game profiles package')
     profiles_manifest, profiles_zip = cut_profiles(REPO / 'nxnative/dm/games', profiles_out(cache))
-    (out / 'profiles.json').write_text(json.dumps(profiles_manifest, indent=2) + '\n')
+    (apk / 'profiles.json').write_text(json.dumps(profiles_manifest, indent=2) + '\n')
 
-    finalize_metadata(out)
-
-    manifest = {'schema': 'nx2a.phone-assets.v1',
-                'rootfs': 'rootfs.pkg',
-                'tool': 'tool',
-                'toolchain': 'toolchain',
-                'modules': MODULES if not a.no_wheels else [],
-                'dotnet': 'dotnet.pkg' if dotnet else '',
-                'dotnet_sha512': dotnet['hash'] if dotnet else '',
-                'drivers': 'drivers'}
-    (out / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
-    size = sum(f.stat().st_size for f in out.rglob('*') if f.is_file())
-    print(f'>> the payload at {out}: {size / 2**20:.0f} MB')
+    size = payload_archive(out, apk)
+    payload_manifest(apk, size, MODULES if not a.no_wheels else [])
+    print(f'>> the app\'s assets at {apk}')
     return 0
 
 

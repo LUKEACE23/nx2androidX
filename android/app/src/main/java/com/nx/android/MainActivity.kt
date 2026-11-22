@@ -42,6 +42,7 @@ import com.nx.android.R
 import com.nx.android.agent.runtime.AgentEngineStore
 import com.nx.android.agent.runtime.AgentSetup
 import com.nx.android.appstate.LibraryState
+import com.nx.android.appstate.EnvBuildState
 import com.nx.android.appstate.EnvCheckState
 import com.nx.android.appstate.OnboardingState
 import com.nx.android.appstate.PlayerState
@@ -123,6 +124,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var drivers: DriverRepository
     @Inject lateinit var firmwareRepo: FirmwareRepository
     @Inject lateinit var envCheck: EnvCheckState
+    @Inject lateinit var envBuild: EnvBuildState
     @Inject lateinit var update: UpdateState
     @Inject lateinit var agentEngine: AgentEngineStore
     @Inject lateinit var agentSetup: AgentSetup
@@ -197,31 +199,17 @@ class MainActivity : ComponentActivity() {
                     else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             }
         }
-        // the small tools come with the app: an update brings new ones, and the phone has to get them
-        // (the app's own Vulkan driver too: it is unpacked into the app's folder, ready to be picked)
+        // the engine an earlier build kept in the environment's folders comes into the
+        // assistant's own folder (one-time, a copy)
         Thread {
-            environmentSetup.refreshTools()
-            // the engine an earlier build kept in the environment's folders comes into the
-            // assistant's own folder (one-time, a copy)
             agentEngine.migrateLegacy()
-            // the rootfs carries a version: a newer one is unpacked again so the new payload
-            // reaches the phones that are already installed — but not while a port runs
-            var preparing = false
-            environmentSetup.refreshRootfsIfStale({ port.running }) {
-                // the first step means the tree really goes and comes again
-                if (!preparing) {
-                    preparing = true
-                    envCheck.preparing = true
-                }
-            }
-            if (preparing) {
-                envCheck.preparing = false
-                envCheck.refresh()
-            }
             // the assistant's own facts (the engine that is installed, the models that are
             // configured) — read again now that the migration had its turn
             agentSetup.refresh()
         }.start()
+        // The app brought another environment: it is built again, with a progress the player can see.
+        // It happens here, at the app's start, before any port: a port that is running is never interrupted.
+        envBuild.startIfNeeded()
         lifecycleScope.launch {
             drivers.ensureShipped()
             drivers.refresh()

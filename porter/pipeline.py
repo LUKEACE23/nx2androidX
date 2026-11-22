@@ -447,9 +447,9 @@ class Port:
         self.env = dict(os.environ, J=str(o.jobs), PYTHONIOENCODING='utf-8', PYTHONUTF8='1', DOTNET_CLI_TELEMETRY_OPTOUT='1')
         # The build tools' own libraries (the toolchain's libshaderc for glslc): the tools are run with the environment the
         # guest has, whose library path holds the rootfs's libraries only, and the tools' own RPATH may point elsewhere
-        if tc := Path(os.environ.get('NX2A_REPO', '')) / 'toolchain':
-            if (tc / 'lib').is_dir():
-                self.env['LD_LIBRARY_PATH'] = os.pathsep.join([str(tc / 'lib'), self.env.get('LD_LIBRARY_PATH', '')]).rstrip(os.pathsep)
+        for lib in toolchain.toolchain_lib_dirs():
+            self.env['LD_LIBRARY_PATH'] = os.pathsep.join([str(lib), self.env.get('LD_LIBRARY_PATH', '')]).rstrip(os.pathsep)
+            break
 
         try:
             try:
