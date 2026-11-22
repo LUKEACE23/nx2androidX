@@ -420,6 +420,14 @@ private fun AssistantBlock(
                 Markdown(message.text, typography = agentMarkdownTypography())
             }
         }
+        // 这一轮断在 App 没了的时候：标出来（字写了一半的也标）
+        if (message.pending) {
+            Text(
+                stringResource(R.string.agent_interrupted),
+                style = MaterialTheme.typography.labelSmall,
+                color = AgentPalette.Ink2,
+            )
+        }
         // 页脚：左边是复制，旁边是这一条回答自己花了多少生成量
         if (message.text.isNotEmpty()) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

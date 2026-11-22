@@ -21,6 +21,11 @@ data class AgentMessage(
     val tools: List<AgentToolCard> = emptyList(),
     /** 这一条回答自己生成的 token 数（0 = 引擎没报） */
     val tokens: Long = 0L,
+    /**
+     * 这一轮还没收尾：App 在这一轮中途没了，标记留在会话文件里。
+     * 重新打开时它显示「已中断」——玩家看得见这一轮断在哪。
+     */
+    val pending: Boolean = false,
 )
 
 sealed interface AgentEvent {
@@ -49,6 +54,12 @@ interface AgentChat {
     val messages: List<AgentMessage>
     suspend fun send(userText: String, context: AgentPageContext? = null): Flow<AgentEvent>
     fun reset()
+
+    /** 中止当前这一轮：引擎停下手里的活，进程留着给下一轮。 */
+    fun abort()
+
+    /** 切到另一个会话。 */
+    fun switchSession(id: String)
 }
 
 data class AgentPageContext(

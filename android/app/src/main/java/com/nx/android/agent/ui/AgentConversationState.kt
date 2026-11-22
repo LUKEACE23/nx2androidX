@@ -1,5 +1,6 @@
 package com.nx.android.agent.ui
 
+import com.nx.android.agent.AgentChat
 import com.nx.android.agent.AgentConversation
 import com.nx.android.agent.AgentEvent
 import com.nx.android.agent.AgentFailure
@@ -7,7 +8,6 @@ import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentTextBatch
-import com.nx.android.agent.env.PiAgentChat
 import com.nx.android.agent.env.PiRunner
 import com.nx.android.agent.runtime.AgentModelProfile
 import com.nx.android.agent.runtime.AgentModelStore
@@ -72,7 +72,7 @@ data class AgentUiState(
  */
 @Singleton
 class AgentConversationState @Inject constructor(
-    private val piChat: PiAgentChat,
+    private val chat: AgentChat,
     private val settings: AgentSettingsStore,
     private val sessionStore: AgentSessionStore,
     private val piRunner: PiRunner,
@@ -109,7 +109,7 @@ class AgentConversationState @Inject constructor(
         val meta = sessions.firstOrNull { it.id == activeSessionId }
         usageTokens = meta?.contextTokens ?: 0L
         usageWindow = meta?.contextWindow ?: 0L
-        conversation.load(piChat.messages)
+        conversation.load(chat.messages)
         publish()
     }
 
@@ -161,8 +161,8 @@ class AgentConversationState @Inject constructor(
     /** Another conversation answers from here on: history reloads, the process restarts next turn. */
     fun switchSession(id: String) {
         if (conversation.running || id == activeSessionId) return
-        piChat.switchSession(id)
-        conversation.load(piChat.messages)
+        chat.switchSession(id)
+        conversation.load(chat.messages)
         sessions = sessionStore.list()
         activeSessionId = sessionStore.activeId()
         val meta = sessions.firstOrNull { it.id == id }
@@ -175,8 +175,8 @@ class AgentConversationState @Inject constructor(
     /** The menu's new-chat entry: a fresh store entry; the process restarts on the next turn. */
     fun newSession() {
         if (conversation.running) return
-        piChat.newSession()
-        conversation.load(piChat.messages)
+        chat.reset()
+        conversation.load(chat.messages)
         sessions = sessionStore.list()
         activeSessionId = sessionStore.activeId()
         conversation.dismissFailure()
@@ -219,7 +219,7 @@ class AgentConversationState @Inject constructor(
         turn = turnScope.launch {
             val batch = AgentTextBatch()
             try {
-                piChat.send(words, context).collect { event ->
+                chat.send(words, context).collect { event ->
                     when (event) {
                         is AgentEvent.TextDelta -> {
                             // the deltas wait in the buffer: the answer is re-laid ten times a
@@ -254,10 +254,16 @@ class AgentConversationState @Inject constructor(
         }
     }
 
-    /** The square button while a turn runs: the turn's job is cancelled; the streamed part stays. */
+    /**
+     * 停止：这一轮到此为止。
+     *
+     * 界面立刻解锁（不等引擎），引擎那边收到中止命令后停下手里的活——它不跑完这一轮，
+     * 进程也留着给下一轮。已写出来的字留在这一轮的回答里。
+     */
     fun stop() {
         turn?.cancel()
         turn = null
+        chat.abort()
     }
 
     /** The strip's way out (the next turn replaces the words anyway). */

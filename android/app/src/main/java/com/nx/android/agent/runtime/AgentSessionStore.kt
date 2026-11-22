@@ -25,9 +25,12 @@ data class AgentSessionMeta(
  * derived from the first user words — it is what the dropdown shows.
  */
 @Singleton
-class AgentSessionStore @Inject constructor(private val workspace: AgentWorkspace) {
+class AgentSessionStore internal constructor(private val dir: File) {
 
-    private val dir: File get() = File(workspace.root, "sessions")
+    /** 注入用的那个：会话住在助手的专属目录里。 */
+    @Inject
+    constructor(workspace: AgentWorkspace) : this(File(workspace.root, "sessions"))
+
     private val activeFile: File get() = File(dir, "_active")
     private val metaFile: File get() = File(dir, "_meta.json")
     private fun file(id: String): File = File(dir, "$id.json")
@@ -70,6 +73,7 @@ class AgentSessionStore @Inject constructor(private val workspace: AgentWorkspac
         for (m in messages) array.put(
             JSONObject().put("id", m.id).put("role", m.role.name).put("text", m.text)
                 .put("tokens", m.tokens)
+                .put("pending", m.pending)   // 这一轮还没收尾：App 在这一轮中途没了
         )
         file(id).writeText(array.toString(2))
         activeFile.writeText(id)
@@ -121,6 +125,8 @@ class AgentSessionStore @Inject constructor(private val workspace: AgentWorkspac
             AgentMessage(
                 o.optLong("id", i.toLong()), role, o.optString("text"),
                 tokens = o.optLong("tokens", 0L),   // 老会话没有这个字段：0（不显示）
+                // 老会话也没有这个字段：不是中断的那一轮
+                pending = o.optBoolean("pending", false),
             )
         }
     }

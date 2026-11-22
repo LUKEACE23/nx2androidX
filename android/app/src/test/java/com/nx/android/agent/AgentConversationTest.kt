@@ -149,4 +149,24 @@ class AgentConversationTest {
         assertEquals(8L, c.messages.last().id)
         assertNotNull(c.messages.last().id)
     }
+
+    @Test
+    fun `a stopped turn keeps the words and shows no failure`() {
+        val c = AgentConversation()
+        c.say("为啥闪退")
+        c.begin()
+        c.apply(AgentEvent.TextDelta("看日志"))
+        c.end()   // 玩家按了停止
+        assertEquals(2, c.messages.size)
+        assertEquals("看日志", c.messages[1].text)
+        assertNull(c.failure)
+        assertEquals(false, c.running)
+    }
+
+    @Test
+    fun `an interrupted turn keeps its mark`() {
+        val c = AgentConversation()
+        c.load(listOf(AgentMessage(1L, AgentRole.ASSISTANT, "看日志", pending = true)))
+        assertTrue(c.messages.last().pending)
+    }
 }

@@ -685,6 +685,7 @@
     <string name="agent_input_hint">问点什么</string>
     <string name="agent_send">发送</string>
     <string name="agent_stop">停止</string>
+    <string name="agent_interrupted">已中断——这一轮中途 App 没了</string>
     <string name="agent_error_no_key">请先配置模型</string>
     <string name="agent_error_bad_key">key 无效，请到模型设置里检查。</string>
     <string name="agent_error_network">网络不可用</string>

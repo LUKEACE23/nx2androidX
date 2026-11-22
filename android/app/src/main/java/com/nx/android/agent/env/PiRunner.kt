@@ -1,12 +1,14 @@
 package com.nx.android.agent.env
 
 import android.content.Context
+import android.util.Log
 import com.nx.android.agent.runtime.AgentEngineStore
 import com.nx.android.agent.runtime.AgentSettingsStore
 import com.nx.android.agent.runtime.AgentWorkspace
 import com.nx.android.domain.environment.GuestProcessLauncher
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -31,6 +33,10 @@ class PiRunner @Inject constructor(
     private val engine: AgentEngineStore,
     private val workspace: AgentWorkspace,
 ) {
+
+    private companion object {
+        const val TAG = "nx2a-agent-pi"
+    }
 
     /** One headless pi turn; the answer's text, or a failure the caller shows verbatim. */
     suspend fun run(prompt: String): Result<String> = withContext(Dispatchers.IO) {
@@ -75,14 +81,20 @@ class PiRunner @Inject constructor(
             val process = pb.start()
             val out = StringBuilder()
             val reader = Thread {
-                process.inputStream.use { stream ->
-                    val buf = CharArray(4_096)
-                    val r = stream.reader(Charsets.UTF_8)
-                    while (true) {
-                        val n = r.read(buf)
-                        if (n < 0) break
-                        if (out.length < 100_000) out.appendRange(buf, 0, n)
+                // 管道被拆的时候（超时结束进程）读会抛 IO 异常：那是正常收场，不是错误。
+                // 让它逃出去就是 App 进程自杀。
+                try {
+                    process.inputStream.use { stream ->
+                        val buf = CharArray(4_096)
+                        val r = stream.reader(Charsets.UTF_8)
+                        while (true) {
+                            val n = r.read(buf)
+                            if (n < 0) break
+                            if (out.length < 100_000) out.appendRange(buf, 0, n)
+                        }
                     }
+                } catch (e: IOException) {
+                    Log.d(TAG, "pi stdout closed: ${e.message}")
                 }
             }
             reader.start()
