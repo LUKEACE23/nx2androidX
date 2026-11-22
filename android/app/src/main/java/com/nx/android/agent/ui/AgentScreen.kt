@@ -130,10 +130,17 @@ fun AgentScreen(
     // every (re)open lands at the true bottom — but the markdown is laid out after the jump, so
     // the landing follows the layout until it settles
     var followBottom by remember { mutableStateOf(false) }
+    var followed by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         // the models are read again: the settings page may have changed them while this was closed
         conversation.refreshModels()
-        if (state.messages.isEmpty()) return@LaunchedEffect
+    }
+    // 消息到了才跟：万一开页时对话还没载入，别把这一跟的机会烧掉
+    LaunchedEffect(state.messages) {
+        if (!shouldFollowToBottom(open = true, followed = followed, messageCount = state.messages.size)) {
+            return@LaunchedEffect
+        }
+        followed = true
         followBottom = true
     }
     FollowBottom(listState, follow = followBottom, onStop = { followBottom = false })
@@ -146,12 +153,10 @@ fun AgentScreen(
     }
     // markdown 提前在后台解析好：条目进屏时高度一次就对，滚动不再等解析
     val mdStates by conversation.markdownCache.ready.collectAsStateWithLifecycle()
-    LaunchedEffect(state.messages, state.streamingId) {
-        state.messages.forEach { m ->
-            if (m.role == AgentRole.ASSISTANT && m.id != state.streamingId) {
-                conversation.markdownCache.ensure(m.id, m.text)
-            }
-        }
+    // markdown 解析落地会改高度：还贴着底就再按一次底（玩家翻上去了就不动）
+    LaunchedEffect(mdStates) {
+        if (!pinned.value) return@LaunchedEffect
+        listState.scrollToBottom()
     }
 
     // the light sheet: everything inside resolves ink-on-white, whatever the app's dark theme says

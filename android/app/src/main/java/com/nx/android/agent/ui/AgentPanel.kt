@@ -220,31 +220,31 @@ fun AgentPanel(
         if (!open) return@LaunchedEffect
         // the models are read again: the settings page may have changed them while this was closed
         conversation.refreshModels()
-        if (opened) return@LaunchedEffect
+    }
+    // 首开落在真底。这个开关只有一次机会，所以别在消息还没到的时候把它烧掉：
+    // 消息到了（哪怕抽屉这会儿正开着）就补上这一跟。
+    LaunchedEffect(open, state.messages) {
+        if (!shouldFollowToBottom(open, opened, state.messages.size)) return@LaunchedEffect
         opened = true
-        if (state.messages.isEmpty()) return@LaunchedEffect
         followBottom = true
     }
-    // 跟着底部走：markdown 是一条条排出来的，跳过去那一刻高度还不是最终值
     // markdown 提前在后台解析好：条目进屏时高度一次就对，滚动不再等解析
     val mdStates by conversation.markdownCache.ready.collectAsStateWithLifecycle()
-    LaunchedEffect(state.messages, state.streamingId) {
-        state.messages.forEach { m ->
-            if (m.role == AgentRole.ASSISTANT && m.id != state.streamingId) {
-                conversation.markdownCache.ensure(m.id, m.text)
-            }
-        }
-    }
-    // 落底要等最后那条排好版：没排好就跳过去，高度还会再变一次（就停在半截了）
-    val lastReady = state.messages.lastOrNull()?.let {
-        it.role != AgentRole.ASSISTANT || mdStates[it.id] != null
-    } ?: true
-    FollowBottom(listState, follow = followBottom && lastReady, onStop = { followBottom = false })
+    // 跟着底部走：markdown 是一条条排出来的，跳过去那一刻高度还不是最终值，
+    // 所以布局每变一次就再按一次底部，等它稳了（或者玩家自己上手了）就收手。
+    // 这里不再等「最后那条排好版」才开跟：排版慢了就多跟几轮，排版失败了就照常落底——
+    // 那个门槛一旦卡住（解析不出来的回答），首开就永远落不了底。
+    FollowBottom(listState, follow = followBottom, onStop = { followBottom = false })
     // while it streams: stick to the bottom, but only while the player hasn't scrolled up to read
     val pinned = rememberPinnedToBottom(listState)
     LaunchedEffect(state.messages.size, last?.text?.length, last?.tools?.size, state.running) {
         if (state.messages.isEmpty()) return@LaunchedEffect
         if (!pinned.value) return@LaunchedEffect   // 玩家自己上去了：不跟他抢
+        listState.scrollToBottom()
+    }
+    // markdown 解析落地会改高度：还贴着底就再按一次底（玩家翻上去了就不动）
+    LaunchedEffect(mdStates) {
+        if (!pinned.value) return@LaunchedEffect
         listState.scrollToBottom()
     }
 
@@ -890,6 +890,15 @@ internal fun rememberPinnedToBottom(listState: LazyListState): MutableState<Bool
     }
     return pinned
 }
+
+/**
+ * 首开要不要跟到底：抽屉开着、还没跟过、有消息——三个条件都满足才跟。
+ *
+ * 单独拿出来是因为这个判断只有一次机会：早一步把它用掉（消息还没到就标记「跟过了」），
+ * 首开就永远落不了底，而那正是玩家第一次看到这段对话的时刻。
+ */
+internal fun shouldFollowToBottom(open: Boolean, followed: Boolean, messageCount: Int): Boolean =
+    open && !followed && messageCount > 0
 
 /**
  * 跟着底部走：markdown 是一条条排版出来的，跳过去那一刻最后一项的高度还不是最终值——

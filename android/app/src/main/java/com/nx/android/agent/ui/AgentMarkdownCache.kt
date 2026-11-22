@@ -3,6 +3,8 @@ package com.nx.android.agent.ui
 import com.mikepenz.markdown.model.MarkdownState
 import com.mikepenz.markdown.model.State
 import com.mikepenz.markdown.model.parseMarkdown
+import com.nx.android.agent.AgentMessage
+import com.nx.android.agent.AgentRole
 import java.util.LinkedHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,16 +33,33 @@ class AgentMarkdownCache(private val scope: CoroutineScope) {
     private val lock = Any()
     private val parsed = LinkedHashMap<Long, MarkdownState>(0, 0.75f, true)
     private val inFlight = mutableSetOf<Long>()
+    /** 解析不了的那几条（id → 那段文字）：同样的文字再试也是同样的结果，别一次次重试 */
+    private val failed = LinkedHashMap<Long, String>()
     private val _ready = MutableStateFlow<Map<Long, MarkdownState>>(emptyMap())
 
     /** 解析好的那些：条目按 id 取。 */
     val ready: StateFlow<Map<Long, MarkdownState>> = _ready.asStateFlow()
+
+    /**
+     * 这些消息的 AST 备好：助手的消息备上，正在生成的那条等它写完再说。
+     *
+     * 这一步放在状态层（不是面板里）——面板冷启动时根本不组合，预热放在那儿就等于没有：
+     * 首开那刻才开始解析，落底会停在半路。这里从启动就开工，首开时高度已经定了。
+     */
+    fun ensureAll(messages: List<AgentMessage>, streamingId: Long?) {
+        for (m in messages) {
+            if (m.role != AgentRole.ASSISTANT) continue
+            if (m.id == streamingId) continue   // 正在生成的那条：这一轮结束后再排版
+            ensure(m.id, m.text)
+        }
+    }
 
     /** 这条消息的 AST 备好了吗？没备好就在后台备一份。 */
     fun ensure(id: Long, text: String) {
         if (text.isBlank()) return
         synchronized(lock) {
             if (parsed.containsKey(id)) return
+            if (failed[id] == text) return   // 这段文字解析不了：换个文字再来
             if (!inFlight.add(id)) return
         }
         scope.launch(Dispatchers.Default) {
@@ -57,6 +76,13 @@ class AgentMarkdownCache(private val scope: CoroutineScope) {
                     while (parsed.size > KEEP) {
                         val oldest = parsed.keys.firstOrNull() ?: break
                         parsed.remove(oldest)
+                    }
+                } else {
+                    // 解析不了：记下这段文字，别在每次刷新时都重试一遍
+                    failed[id] = text
+                    while (failed.size > KEEP) {
+                        val oldest = failed.keys.firstOrNull() ?: break
+                        failed.remove(oldest)
                     }
                 }
             }

@@ -134,6 +134,10 @@ class AgentConversationState @Inject constructor(
             activeProfileId = activeProfileId,
             streamingId = conversation.streamingId,
         )
+        // markdown 的 AST 在这里备：冷启动就开始解析，首开抽屉时高度已经是最终值。
+        // 放在面板里备是不够的——面板冷启动时根本不组合，那儿备就等于没备：
+        // 首开那刻才开始解析，落底会停在半路（甚至卡住不动）。
+        markdownCache.ensureAll(conversation.messages, conversation.streamingId)
     }
 
     /**
