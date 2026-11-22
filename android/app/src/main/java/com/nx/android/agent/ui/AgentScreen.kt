@@ -50,6 +50,7 @@ import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.MarkdownTypography
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip

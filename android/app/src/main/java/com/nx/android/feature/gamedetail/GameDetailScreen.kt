@@ -83,6 +83,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nx.android.R
+import com.nx.android.agent.ui.AgentEntry
 import com.nx.android.app.GameShortcuts
 import com.nx.android.appstate.LibraryState
 import com.nx.android.appstate.PortState
@@ -155,7 +156,8 @@ private data class RemovalRequest(val kind: Removal, val plan: GameCleanup.Plan,
 @Composable
 fun GameDetailRoute(lib: LibraryState, port: PortState,
                     e: GameEntry, installedDrivers: List<Driver>, actions: AppActions, onGoBuilds: () -> Unit,
-                    onRequest: (PickerRequest) -> Unit, onClose: () -> Unit, navActive: Boolean = false) {
+                    onRequest: (PickerRequest) -> Unit, onClose: () -> Unit, navActive: Boolean = false,
+                    onOpenAgent: () -> Unit = {}) {
     val viewModel: GameDetailViewModel = hiltViewModel(key = "game-detail-${e.key}")
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(e.titleId, e.pack?.pack) { viewModel.open(e.titleId, e.pack?.pack) }
@@ -164,7 +166,7 @@ fun GameDetailRoute(lib: LibraryState, port: PortState,
     }
     GameDetailScreen(lib, port, e, installedDrivers, viewModel.saveRepository, viewModel.saveIo,
         uiState, viewModel::selectLanguage, viewModel::selectDriver, actions, onGoBuilds, onRequest, onClose,
-        navActive = navActive)
+        navActive = navActive, onOpenAgent = onOpenAgent)
 }
 
 @Composable
@@ -174,7 +176,7 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                         onSelectLanguage: (String?) -> Unit, onSelectDriver: (String?) -> Unit,
                         actions: AppActions, onGoBuilds: () -> Unit,
                         onRequest: (PickerRequest) -> Unit, onClose: () -> Unit,
-                        navActive: Boolean = false) {
+                        navActive: Boolean = false, onOpenAgent: () -> Unit = {}) {
     val locale = LocalAppLocale.current
     val status = lib.statusOf(e)
     // Title ID：游戏的身份（还没构建过的还没有）
@@ -423,14 +425,19 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
             .clickable { onClose() },
         contentAlignment = Alignment.CenterEnd,
     ) {
-        Column(
+        Box(
             Modifier
                 .width(460.dp)
                 .fillMaxHeight()
-                .background(NxPalette.Surface)
+                .background(NxPalette.Surface),
+        ) {
+        Column(
+            Modifier
+                .fillMaxSize()
                 .clickable(enabled = false) {}
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
+                // 底部多留一截：右下角那个入口占着的地方，滚到最后一项时不被它压住
+                .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 76.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -607,6 +614,11 @@ private fun GameDetailScreen(lib: LibraryState, port: PortState,
                     }
                 }
             }
+        }
+        // 助手的入口：贴在面板自己的右下角，不拖（面板盖住了页面的那一角，入口得由面板带）
+        Box(Modifier.align(Alignment.BottomEnd).padding(24.dp)) {
+            AgentEntry(onClick = onOpenAgent)
+        }
         }
     }
 

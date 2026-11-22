@@ -744,7 +744,6 @@
     <string name="agent_chip_build_why">Explain it</string>
     <string name="agent_chip_save_backup">Back up saves</string>
     <string name="agent_chip_env">Environment</string>
-    <string name="agent_bubble_desc">Assistant</string>
     <string name="agent_panel_collapse">Collapse the assistant</string>
     <string name="agent_panel_expand">Open the full chat</string>
 </resources>

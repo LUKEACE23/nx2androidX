@@ -107,7 +107,6 @@ import com.nx.android.feature.environment.GameProfilesDialog
 import com.nx.android.feature.filepicker.FilePickerScreen
 import com.nx.android.feature.filepicker.PickerMode
 import com.nx.android.feature.filepicker.PickerRequest
-import com.nx.android.agent.ui.AgentBubble
 import com.nx.android.agent.ui.AgentPanel
 import com.nx.android.feature.faq.FaqScreen
 import com.nx.android.feature.gamedetail.GameDetailRoute
@@ -560,6 +559,8 @@ fun MainScreen(
                         onGoBuilds = {
                             buildsViewModel.setTarget(lib.buildsTarget); tab = Tab.BUILDS.ordinal
                         }, onRequest = onRequest,
+                        // 助手的入口由页面自己画（右下角，不拖）：这一层只报意图
+                        onOpenAgent = { agentPanelOpen = true },
                         navActive = navHost == NavHost.LIBRARY
                     )
 
@@ -572,6 +573,7 @@ fun MainScreen(
                         onLog,
                         // 档案的弹框盖整屏，所以画在这一层：页面只报意图
                         onOpenProfiles = { profilesOpen = true },
+                        onOpenAgent = { agentPanelOpen = true },
                     )
                 }
             }
@@ -596,6 +598,8 @@ fun MainScreen(
                     onGoBuilds = {
                         buildsViewModel.setTarget(lib.buildsTarget); tab = Tab.BUILDS.ordinal
                     }, onRequest = onRequest,
+                    // 面板盖住页面的右下角，所以入口由面板自己带
+                    onOpenAgent = { agentPanelOpen = true },
                     onClose = { lib.selected = null },
                     navActive = navHost == NavHost.PANEL
                 )
@@ -661,38 +665,32 @@ fun MainScreen(
                 },
                 navActive = navHost == NavHost.AGENT,
             )
-        }        // The assistant's side panel and its floating ball: the ball lives on every page (ADR-007); the
-        // panel docks on the right edge over the page's own content and takes taps — the page beneath
-        // keeps its gamepad keys. The rail's quick questions follow the page the player is on (the light
-        // version of the context-aware chips — full PageContext injection comes with the phase-2 work)
+        }        // The assistant's side panel: it docks on the right edge over the page's own content and takes
+        // taps — the page beneath keeps its gamepad keys. The entry that opens it is the page's own button
+        // (bottom right, pinned — the pages draw it, so it never floats over another page's content). The
+        // rail's quick questions follow the page the player is on (the light version of the context-aware
+        // chips — full PageContext injection comes with the phase-2 work)
         val agentChips = when (Tab.entries[tab]) {
             Tab.LIBRARY -> listOf(R.string.agent_chip_crash, R.string.agent_chip_no_build, R.string.agent_chip_playable)
             Tab.BUILDS -> listOf(R.string.agent_chip_build_fail, R.string.agent_chip_build_log, R.string.agent_chip_build_why)
             else -> listOf(R.string.agent_chip_save_backup, R.string.agent_chip_env)
         }
-        if (!agentFullOpen) {
-            if (agentPanelOpen) {
-                AgentPanel(
-                    viewModel = hiltViewModel(),
-                    chips = agentChips,
-                    haze = agentHaze,
-                    onCollapse = { agentPanelOpen = false },
-                    onExpand = {
-                        agentPanelOpen = false
-                        onAgentFull(true)
-                    },
-                    onOpenSettings = {
-                        agentPanelOpen = false
-                        settingsSection = SettingsSection.AGENT
-                        settingsOpen = true
-                    },
-                )
-            } else {
-                AgentBubble(
-                    onClick = { agentPanelOpen = true },
-                    modifier = Modifier.align(Alignment.CenterEnd),
-                )
-            }
+        if (!agentFullOpen && agentPanelOpen) {
+            AgentPanel(
+                viewModel = hiltViewModel(),
+                chips = agentChips,
+                haze = agentHaze,
+                onCollapse = { agentPanelOpen = false },
+                onExpand = {
+                    agentPanelOpen = false
+                    onAgentFull(true)
+                },
+                onOpenSettings = {
+                    agentPanelOpen = false
+                    settingsSection = SettingsSection.AGENT
+                    settingsOpen = true
+                },
+            )
         }
         // 导入的说明框：顶栏那个加号先进这里，框里的按钮再去选文件夹
         if (importPackHelp) {

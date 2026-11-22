@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -49,6 +50,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nx.android.R
+import com.nx.android.agent.ui.AgentEntry
 import com.nx.android.appstate.LibraryState
 import com.nx.android.appstate.PortState
 import com.nx.android.domain.ALIAS_AUTO
@@ -92,7 +94,7 @@ private fun sourceMatchesTarget(target: File, candidate: File): Boolean {
 @Composable
 fun BuildsRoute(viewModel: BuildsViewModel, keys: String, envReady: Boolean,
                 actions: AppActions, onRequest: (PickerRequest) -> Unit, onLog: (String) -> Unit,
-                onOpenProfiles: () -> Unit) {
+                onOpenProfiles: () -> Unit, onOpenAgent: () -> Unit = {}) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val locale = LocalAppLocale.current
     LaunchedEffect(uiState.running) { if (uiState.running) viewModel.buildStarted() }
@@ -109,20 +111,21 @@ fun BuildsRoute(viewModel: BuildsViewModel, keys: String, envReady: Boolean,
         }
     }
     BuildsScreen(viewModel.library, viewModel, uiState, keys, envReady, actions, onRequest, onLog,
-        onImportProfiles = onOpenProfiles)
+        onImportProfiles = onOpenProfiles, onOpenAgent = onOpenAgent)
 }
 
 @Composable
 private fun BuildsScreen(lib: LibraryState, viewModel: BuildsViewModel, uiState: BuildsUiState,
                          keys: String, envReady: Boolean, actions: AppActions,
                          onRequest: (PickerRequest) -> Unit, onLog: (String) -> Unit,
-                         onImportProfiles: () -> Unit) {
+                         onImportProfiles: () -> Unit, onOpenAgent: () -> Unit) {
     val locale = LocalAppLocale.current
     val running = uiState.running
     val target = uiState.target?.let(::File) ?: uiState.gameFile.takeIf { running }?.let { File(it) }
     val selected = uiState.history.firstOrNull { it.id == viewModel.selectedBuildId }
     val current = uiState.history.firstOrNull { it.id == viewModel.port.buildId }
 
+    Box(Modifier.fillMaxSize()) {
     Column(
         Modifier.fillMaxWidth().verticalScroll(rememberPageScroll()).padding(horizontal = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -177,6 +180,11 @@ private fun BuildsScreen(lib: LibraryState, viewModel: BuildsViewModel, uiState:
             }
         }
         Spacer(Modifier.height(12.dp))
+    }
+    // 助手的入口：贴在页面的右下角，不拖。它在滚动列外面，滚到哪儿都在那儿
+    Box(Modifier.align(Alignment.BottomEnd).padding(24.dp)) {
+        AgentEntry(onClick = onOpenAgent)
+    }
     }
 }
 
