@@ -720,6 +720,7 @@
             <string name="agent_usage_total">Total tokens</string>
         <string name="agent_tool_overlay_title">Tool calls</string>
         <string name="agent_tool_overlay_empty">No tool calls in this turn.</string>
+        <string name="agent_close">Close</string>
     <string name="agent_label_quick_ops">Quick actions</string>
     <string name="agent_tools_summary">%1$d tool calls</string>
     <string name="agent_env_running">Running…</string>

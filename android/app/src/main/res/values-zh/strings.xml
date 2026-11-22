@@ -719,6 +719,7 @@
             <string name="agent_usage_total">总 token</string>
         <string name="agent_tool_overlay_title">工具调用明细</string>
         <string name="agent_tool_overlay_empty">这一轮没有工具调用。</string>
+        <string name="agent_close">关闭</string>
     <string name="agent_label_quick_ops">快捷操作</string>
     <string name="agent_tools_summary">%1$d 次工具调用</string>
     <string name="agent_env_running">运行中…</string>

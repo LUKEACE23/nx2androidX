@@ -165,10 +165,14 @@ class PiAgentChat @Inject constructor(
 
                     "message_update" -> {
                         obj.optJSONObject("usage")?.let { usage ->
-                            // context occupancy ≈ what the model saw this call + what it produced
-                            turnContext = usage.optLong("input") + usage.optLong("cacheRead") +
+                            // the latest call saw the whole conversation: its input + produced output
+                            // IS the current context occupancy — monotonic, never a zero snapshot
+                            val seen = usage.optLong("input") + usage.optLong("cacheRead") +
                                 usage.optLong("output")
-                            send(AgentEvent.UsageUpdated(sessionTokens + turnContext, sessionWindow))
+                            if (seen > turnContext) {
+                                turnContext = seen
+                                send(AgentEvent.UsageUpdated(sessionTokens + turnContext, sessionWindow))
+                            }
                         }
                         val ev = obj.optJSONObject("assistantMessageEvent") ?: continue
                         if (ev.optString("type") == "text_delta") {
@@ -220,7 +224,7 @@ class PiAgentChat @Inject constructor(
             return@channelFlow
         }
 
-        sessionTokens += turnContext
+        sessionTokens = maxOf(sessionTokens, turnContext)
         val text = answer.toString().trim()
         list.add(AgentMessage(nextId++, AgentRole.ASSISTANT, text))
         sessionStore.save(list)

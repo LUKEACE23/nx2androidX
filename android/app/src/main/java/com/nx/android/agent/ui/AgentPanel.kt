@@ -189,12 +189,15 @@ fun AgentPanel(
                         .padding(start = 0.dp, end = 20.dp, top = 12.dp, bottom = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    // the head: the title and the session's context occupancy (opencode style)
+                    // the head: the session's title (truncated) and its context occupancy (opencode style)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            stringResource(R.string.agent_title),
+                            state.sessions.firstOrNull { it.id == state.activeSessionId }?.title
+                                ?: stringResource(R.string.agent_action_new_session),
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                             color = AgentPalette.Ink,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
                         )
                         Text(
@@ -274,46 +277,23 @@ fun AgentPanel(
                             },
                         )
                     }
-                    // the flexible middle: quick asks before the player talks, the context ring after
-                    val hasConversation = state.messages.any { it.role == AgentRole.USER }
-                    if (hasConversation) {
-                        Column(
-                            Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(AgentPalette.Panel)
-                                .border(1.dp, AgentPalette.Hairline)
-                                .padding(vertical = 20.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                        ) {
-                            ContextRing(state.usageTokens, state.usageWindow)
-                            Text(
-                                stringResource(R.string.agent_usage_total),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = AgentPalette.Ink2,
-                                modifier = Modifier.padding(top = 10.dp),
-                            )
-                        }
-                    } else {
-                        Column(
-                            Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                                .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            Text(
-                                stringResource(R.string.agent_label_quick_ops),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = AgentPalette.Ink2,
-                                modifier = Modifier.padding(bottom = 4.dp),
-                            )
-                            chips.forEach { res ->
-                                val words = stringResource(res)
-                                QuickCard(words) { viewModel.send(words) }
-                            }
+                    // quick asks: they follow the page context and stay while the agent works
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            stringResource(R.string.agent_label_quick_ops),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AgentPalette.Ink2,
+                            modifier = Modifier.padding(bottom = 4.dp),
+                        )
+                        chips.forEach { res ->
+                            val words = stringResource(res)
+                            QuickCard(words) { viewModel.send(words) }
                         }
                     }
                     // the composer: the input alone, then the session switcher beside the send
@@ -446,17 +426,12 @@ fun AgentPanel(
                         }
                     }
                 }
-                // the tool-call overlay: covers the tool column, closes with the X
+                // the tool-call overlay: covers the tool column edge-to-edge, closes with the X
                 toolsOverlay?.let { msg ->
                     ToolOverlay(
                         message = msg,
                         onDismiss = { toolsOverlay = null },
-                        modifier = Modifier
-                            .matchParentSize()
-                            .padding(top = 12.dp, end = 12.dp, bottom = 14.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color(0xEE1A1A1C))
-                            .border(1.dp, AgentPalette.Hairline),
+                        modifier = Modifier.matchParentSize(),
                     )
                 }
             }
@@ -464,10 +439,10 @@ fun AgentPanel(
     }
 }
 
-/** The tool-call overlay: every call of one conversation turn, in the repair-ticket record style. */
+/** The tool-call overlay: the tool column's whole face — title, close, the records below. */
 @Composable
 private fun ToolOverlay(message: AgentMessage, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier) {
+    Column(modifier.background(AgentPalette.DrawerBg)) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -479,20 +454,16 @@ private fun ToolOverlay(message: AgentMessage, onDismiss: () -> Unit, modifier: 
                 color = AgentPalette.Ink,
                 modifier = Modifier.weight(1f),
             )
-            Box(
+            Icon(
+                Icons.Filled.Close,
+                stringResource(R.string.agent_close),
                 Modifier
-                    .size(26.dp)
+                    .size(24.dp)
                     .clip(CircleShape)
-                    .clickable(onClick = onDismiss),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Filled.Close,
-                    null,
-                    Modifier.size(14.dp),
-                    tint = AgentPalette.Ink2,
-                )
-            }
+                    .clickable(onClick = onDismiss)
+                    .padding(4.dp),
+                tint = AgentPalette.Ink2,
+            )
         }
         HorizontalDivider(color = AgentPalette.Hairline)
         Column(
@@ -565,18 +536,24 @@ private fun GlassChip(
     )
 }
 
-/** The context ring: the session's occupancy of the model's window, opencode-style but round. */
+/** The context ring: the session's occupancy of the model's window. Tiny in the head, big standalone. */
 @Composable
-private fun ContextRing(context: Long, window: Long, modifier: Modifier = Modifier) {
+private fun ContextRing(
+    context: Long,
+    window: Long,
+    modifier: Modifier = Modifier,
+    ringSize: androidx.compose.ui.unit.Dp = 120.dp,
+    strokeWidth: androidx.compose.ui.unit.Dp = 10.dp,
+) {
     val pct = if (window > 0) (context * 100.0 / window).coerceIn(0.0, 100.0) else 0.0
     val color = when {
         pct >= 85 -> AgentPalette.Danger
         pct >= 50 -> AgentPalette.Working
         else -> AgentPalette.Ready
     }
-    Box(modifier.size(120.dp), contentAlignment = Alignment.Center) {
+    Box(modifier.size(ringSize), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
-            val stroke = 10.dp.toPx()
+            val stroke = strokeWidth.toPx()
             drawArc(
                 AgentPalette.Hairline.copy(alpha = 0.6f),
                 -90f, 360f, false,
@@ -590,17 +567,19 @@ private fun ContextRing(context: Long, window: Long, modifier: Modifier = Modifi
                 )
             }
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                formatTokens(context),
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = AgentPalette.Ink,
-            )
-            Text(
-                "${pct.roundToInt()}%",
-                style = MaterialTheme.typography.labelSmall,
-                color = AgentPalette.Ink2,
-            )
+        if (ringSize >= 64.dp) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    formatTokens(context),
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = AgentPalette.Ink,
+                )
+                Text(
+                    "${pct.roundToInt()}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = AgentPalette.Ink2,
+                )
+            }
         }
     }
 }
@@ -643,76 +622,6 @@ private fun GlassMenu(
     }
 }
 
-/** The 11px section caption between the tool column's blocks. */
-@Composable
-private fun ToolLabel(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
-        color = AgentPalette.Ink2,
-        modifier = Modifier.padding(top = 2.dp),
-    )
-}
-
-/** The usage card: context occupancy left in ink, the window's cost right in ink-2. */
-@Composable
-private fun UsageCard(tokens: Long, cost: Double) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(13.dp))
-            .background(AgentPalette.Panel, RoundedCornerShape(13.dp))
-            .border(1.dp, AgentPalette.Hairline, RoundedCornerShape(13.dp))
-            .padding(horizontal = 16.dp, vertical = 13.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            formatTokens(tokens),
-            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-            color = AgentPalette.Ink,
-        )
-        if (cost > 0.0) {
-            Text(
-                "¥%.2f".format(cost),
-                style = MaterialTheme.typography.bodyMedium,
-                color = AgentPalette.Ink2,
-            )
-        }
-    }
-}
-
-/** The model pill: 36dp, glass, the readiness dot on the left, the settings on a tap. */
-@Composable
-private fun ModelPill(model: String, onOpenSettings: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .height(36.dp)
-            .background(AgentPalette.Panel, RoundedCornerShape(50))
-            .border(1.dp, AgentPalette.Hairline, RoundedCornerShape(50))
-            .clickable(onClick = onOpenSettings)
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Box(Modifier.size(7.dp).clip(CircleShape).background(AgentPalette.Ready))
-        Text(
-            model,
-            style = MaterialTheme.typography.bodyMedium,
-            color = AgentPalette.Ink,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        Icon(
-            Icons.Filled.KeyboardArrowDown,
-            null,
-            Modifier.size(14.dp),
-            tint = AgentPalette.Ink2,
-        )
-    }
-}
-
 /** A quick ask: a glass card, the words coming from the page context. */
 @Composable
 private fun QuickCard(label: String, onClick: () -> Unit) {
@@ -729,80 +638,6 @@ private fun QuickCard(label: String, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     )
-}
-
-/** The composer: a one-line glass input, the ghost new-chat and the orange send under it. */
-@Composable
-private fun Composer(
-    text: String,
-    onTextChange: (String) -> Unit,
-    running: Boolean,
-    onSend: () -> Unit,
-    onStop: () -> Unit,
-    onNewSession: () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        OutlinedTextField(
-            text,
-            onTextChange,
-            Modifier.fillMaxWidth().height(44.dp),
-            singleLine = true,
-            placeholder = { Text(stringResource(R.string.agent_input_hint), style = MaterialTheme.typography.bodyMedium) },
-            textStyle = MaterialTheme.typography.bodyMedium.copy(color = AgentPalette.Ink),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AgentPalette.Hairline,
-                unfocusedBorderColor = AgentPalette.Hairline,
-                focusedContainerColor = AgentPalette.Panel,
-                unfocusedContainerColor = AgentPalette.Panel,
-                focusedTextColor = AgentPalette.Ink,
-                unfocusedTextColor = AgentPalette.Ink,
-                cursorColor = AgentPalette.Orange,
-                focusedPlaceholderColor = AgentPalette.Idle,
-                unfocusedPlaceholderColor = AgentPalette.Idle,
-            ),
-        )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                Modifier
-                    .weight(1f)
-                    .height(40.dp)
-                    .background(AgentPalette.Panel, RoundedCornerShape(13.dp))
-                    .border(1.dp, AgentPalette.Hairline, RoundedCornerShape(13.dp))
-                    .clickable(onClick = onNewSession)
-                    .padding(horizontal = 18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Icon(
-                    Icons.Filled.AddComment,
-                    null,
-                    Modifier.size(14.dp),
-                    tint = AgentPalette.Ink2,
-                )
-                Text(
-                    stringResource(R.string.agent_action_new_session),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = AgentPalette.Ink2,
-                )
-            }
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(AgentPalette.Orange)
-                    .clickable { if (running) onStop() else onSend() },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    if (running) Icons.Filled.Stop else Icons.AutoMirrored.Filled.Send,
-                    stringResource(if (running) R.string.agent_stop else R.string.agent_send),
-                    Modifier.size(20.dp),
-                    tint = AgentPalette.CreamInk,
-                )
-            }
-        }
-    }
 }
 
 /** opencode style: 642.2k above a thousand gets one decimal and a k. */
