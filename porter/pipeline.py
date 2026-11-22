@@ -1191,7 +1191,9 @@ class Port:
             src = Path(pre)
             if not (src / 'dmsh_xlate.dll').is_file(): raise BuildError(f'NX2A_DMSH_XLATE has no dmsh_xlate.dll: {src}')
             out = paths.user_dir() / 'tools/dmsh_xlate'; nsp.rmtree(out); shutil.copytree(src, out)
-            key = nsp.fingerprint(('stat', out), ('cmd', ['dmsh_xlate', 'prebuilt']), env=self.env)
+            # The bytes, not their times: installing a new APK re-extracts the shipped translator with fresh mtimes,
+            # and a stat key would then translate every shader again (FINAL FANTASY RESONANCE: 73,512 shaders).
+            key = nsp.fingerprint(product_cache.inventory(out), ('cmd', ['dmsh_xlate', 'prebuilt']), env=self.env)
             return out / 'dmsh_xlate.dll', key
         return build_translator(self.tools['dotnet'], self.env, self.logs)
 
