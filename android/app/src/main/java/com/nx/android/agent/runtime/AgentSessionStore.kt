@@ -105,7 +105,11 @@ class AgentSessionStore @Inject constructor(private val workspace: AgentWorkspac
         val arr = runCatching { JSONArray(text) }.getOrNull() ?: return emptyList()
         return (0 until arr.length()).mapNotNull { i ->
             val o = arr.optJSONObject(i) ?: return@mapNotNull null
-            val role = if (o.optString("role") == "user") AgentRole.USER else AgentRole.ASSISTANT
+            val role = if (o.optString("role").equals("user", ignoreCase = true)) {
+                AgentRole.USER
+            } else {
+                AgentRole.ASSISTANT
+            }
             AgentMessage(o.optLong("id", i.toLong()), role, o.optString("text"))
         }
     }
@@ -113,7 +117,7 @@ class AgentSessionStore @Inject constructor(private val workspace: AgentWorkspac
     private fun titleOf(text: String): String {
         val arr = runCatching { JSONArray(text) }.getOrNull() ?: return "新会话"
         val first = (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
-            .firstOrNull { it.optString("role") == "user" }?.optString("text").orEmpty()
+            .firstOrNull { it.optString("role").equals("user", ignoreCase = true) }?.optString("text").orEmpty()
         return first.take(16).ifBlank { "新会话" }
     }
 

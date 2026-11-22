@@ -329,9 +329,9 @@ private fun UserBubbleText(text: String) {
 @Composable
 private fun AssistantBlock(message: AgentMessage, onToolsClick: ((AgentMessage) -> Unit)? = null) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        message.tools.filter { it.state == AgentToolState.RUNNING }.forEach { ToolCard(it) }
-        val finished = message.tools.filter { it.state != AgentToolState.RUNNING }
-        if (finished.isNotEmpty()) ToolSummary(finished, message.id, onToolsClick?.let { cb -> { cb(message) } })
+        if (message.tools.isNotEmpty()) {
+            ToolSummary(message.tools, message.id, onToolsClick?.let { cb -> { cb(message) } })
+        }
         if (message.text.isNotEmpty()) {
             Markdown(message.text, typography = agentMarkdownTypography())
         }

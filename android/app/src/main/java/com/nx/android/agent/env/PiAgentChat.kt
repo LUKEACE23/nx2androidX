@@ -99,7 +99,10 @@ class PiAgentChat @Inject constructor(
         nextId = (list.maxOfOrNull { it.id } ?: -1L) + 1L
         val meta = sessionStore.list().firstOrNull { it.id == sessionStore.activeId() }
         sessionTokens = meta?.contextTokens ?: 0L
-        sessionWindow = meta?.contextWindow ?: 0L
+        // the window: pi's precise value after a turn; the static catalog before the first one
+        sessionWindow = meta?.contextWindow
+            ?.takeIf { it > 0 }
+            ?: PiCatalog.contextWindowFor(PiCatalog.fullModelId(settings.config))
     }
 
     override suspend fun send(userText: String, context: AgentPageContext?): Flow<AgentEvent> = channelFlow {
@@ -207,6 +210,21 @@ class PiAgentChat @Inject constructor(
                         )
                     }
 
+                    "message_end" -> obj.optJSONObject("message")?.optJSONObject("usage")?.let { usage ->
+                        val seen = usage.optLong("input") + usage.optLong("cacheRead") +
+                            usage.optLong("output")
+                        if (seen > turnContext) {
+                            turnContext = seen
+                            send(AgentEvent.UsageUpdated(sessionTokens + turnContext, sessionWindow))
+                        }
+                    }
+
+                    "turn_end" -> obj.optJSONObject("message")?.optJSONObject("usage")?.let { usage ->
+                        val seen = usage.optLong("input") + usage.optLong("cacheRead") +
+                            usage.optLong("output")
+                        if (seen > turnContext) turnContext = seen
+                    }
+
                     "agent_settled" -> settled = true
                 }
                 if (settled) break
@@ -308,6 +326,28 @@ class PiAgentChat @Inject constructor(
 
 /** The provider facts both pi entry points share: the catalog's model id and the key's env var. */
 internal object PiCatalog {
+
+    /**
+     * The context windows pi's own catalog reports for the models our presets offer — seeded from
+     * `pi --list-models`. The runtime corrects them with pi's get_state once a process is up;
+     * before that, the static value is what the head and the ring need to show a percent on
+     * first open.
+     */
+    private val CONTEXT_WINDOWS: Map<String, Long> = mapOf(
+        "minimax-cn/MiniMax-M3.1-Flash" to 1_048_576L,
+        "minimax-cn/MiniMax-M3" to 1_048_576L,
+        "minimax-cn/MiniMax-M2.7" to 204_800L,
+        "minimax-cn/MiniMax-M2.1" to 204_800L,
+        "minimax-cn/MiniMax-M2" to 204_800L,
+        "deepseek/deepseek-chat" to 131_072L,
+        "deepseek/deepseek-reasoner" to 131_072L,
+        "moonshot/kimi-latest" to 262_144L,
+        "zai/glm-4.6" to 204_800L,
+        "zai/glm-4.5" to 131_072L,
+    )
+
+    fun contextWindowFor(fullModelId: String): Long = CONTEXT_WINDOWS[fullModelId] ?: 0L
+
     fun fullModelId(config: AgentModelConfig): String =
         if (config.modelName.contains('/')) config.modelName
         else when (config.providerId) {
