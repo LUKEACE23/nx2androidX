@@ -90,6 +90,10 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
             "PYTHONHOME" to "${rootfs}/usr",
             "PYTHONPATH" to "${tool}/pylibs",
             "LD_LIBRARY_PATH" to "${rootfs}/usr/lib/aarch64-linux-gnu:${rootfs}/usr/lib",
+            // The CA bundle the payload carries (rootfs_trim.py keeps it). The guest is not a chroot: OpenSSL's
+            // built-in CA path names the phone's own files, not the rootfs's, so nothing would be trusted and
+            // every TLS handshake would fail. This points the TLS libraries at the bundle in the rootfs.
+            "SSL_CERT_FILE" to "${rootfs}/etc/ssl/certs/ca-certificates.crt",
             "NX2A_HOME" to nxHome.absolutePath,
             "NX2A_NDK" to "${tool}/toolchain/ndk",
             "NX2A_REPO" to tool.absolutePath,

@@ -22,6 +22,7 @@
 | `nxnative/dm/android/` | Android 运行时（Vulkan 后端、Horizon 宿主、输入、覆盖层、暂停菜单） | **产品本体** |
 | `nxnative/dm/games/<title ID>/` | 游戏档案；Android 侧的关键是 `android.tsv` | **产品本体** |
 | `porter/` | 移植流水线本体（Python） | 活跃代码：玩家桌面工具与手机 app 共用同一套 pipeline |
+| `phone_tools/` | 手机上的小工具（Python） | 随 payload 进手机（`tool/tools/`）：助手与玩家按名字调用，与流水线同版本 |
 | `gui/` | 桌面壳（PySide/Tk） | 玩家向工具，不是开发重心 |
 | `packaging/` | 玩家桌面 zip + `android-apk/` 出 APK | 桌面 zip 是玩家分发物；**APK 才是本 fork 的产物** |
 | `nxnative/`（其余） | 上游引擎 fork | 运行时在 `dm/android/`；`nxnative/AGENTS.md` 与 `nxnative/docs/` 讲的是上游的 Apple/iOS 路线，不是本 fork 的方向 |

@@ -46,17 +46,26 @@ EXT_ROOTS = ['toolchain/clang/bin/clang', 'toolchain/clang/bin/ld.lld', 'toolcha
 # The list is a list of names, and the program behind a name may be a symlink (awk -> mawk, python3 -> python3.13).
 # The name is kept and the file it points at is kept with it, with the libraries that file needs: a program whose
 # libraries are missing cannot start on the phone, and the build says so instead of the phone.
+#
+# curl and wget are not among the names: the payload's rootfs has neither, so naming them only hid the fact.
+# The guest fetches what it needs over TLS with its own tools (the phone's tools/fetch.py), and the proxy in
+# between speaks CONNECT only: a wget that cannot do TLS has nothing to say to it.
 PROGRAMS = """
 sh bash dash env printenv cat cp mv rm mkdir rmdir ln ls readlink realpath dirname basename touch chmod chown stat
 du df true false sleep uname id whoami groups hostname mktemp date seq sort tr cut head tail wc grep sed awk find
-xargs tee expr test [ cmp md5sum sha256sum gzip gunzip zcat bzip2 xz tar file curl wget timeout nohup sync nproc
+xargs tee expr test [ cmp md5sum sha256sum gzip gunzip zcat bzip2 xz tar file timeout nohup sync nproc
 echo python3
 """
 
 # The data files the programs read. The rest of /etc and /usr/share is a package manager's leftovers.
+#
+# The CA bundle is the one that matters: the guest is not a chroot, so OpenSSL's built-in CA path names the
+# phone's own files, not the rootfs's, and nothing would be trusted. The app points SSL_CERT_FILE at this
+# bundle (Env.guestEnv), and the guest's TLS then checks the certificates against it.
 KEEP_FILES = """
 etc/ld.so.conf etc/nsswitch.conf etc/passwd etc/group etc/hosts etc/hostname etc/resolv.conf
 etc/terminfo etc/terms.etc usr/share/terminfo usr/share/misc usr/share/common-licenses
+etc/ssl/certs/ca-certificates.crt
 """
 
 # The Python standard library: the porter's own scripts run in it.

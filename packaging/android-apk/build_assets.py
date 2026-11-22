@@ -358,6 +358,10 @@ def main():
         src = REPO / name
         if not src.exists(): continue
         copy_tree(src, tool / name, skip=TOOL_SKIP)
+    # the phone's own tools (phone_tools/): they travel with the app, in the tool tree's tools folder, so the
+    # assistant finds them at $NX2A_REPO/tools/<name>.py without looking for them
+    if (REPO / 'phone_tools').is_dir():
+        copy_tree(REPO / 'phone_tools', tool / 'tools', skip=TOOL_SKIP)
     # the tool's own patch script (the interpreter paths of the programs the porter starts) and the SDK's
     # globalization fix (the phone's .NET has no ICU): both are run by the app, so they travel with it
     shutil.copy2(REPO / 'packaging/android-apk/patch_interp.py', tool / 'tools/patch_interp.py')

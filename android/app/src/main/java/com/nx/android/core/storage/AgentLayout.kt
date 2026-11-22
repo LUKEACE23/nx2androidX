@@ -1,6 +1,7 @@
 package com.nx.android.core.storage
 
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * The assistant's folder layout: where its pieces live inside the player's nx2android folder.
@@ -43,14 +44,30 @@ object AgentLayout {
     /**
      * The agreement, in the places it is read from. A file that still carries one of our seeds is
      * brought up to date; a file the player has edited is left alone.
+     *
+     * How we tell our own text from the player's: beside the file we keep a mark with the digest of
+     * the text we wrote. The file is ours while that digest still matches it; the moment the player
+     * changes it, it is theirs. Without the mark (the seeds we wrote before it existed) the old
+     * texts are recognized by hand, in [knownSeeds].
      */
     fun seedAgreement(files: List<File>, seed: String, knownSeeds: Set<String>) {
         for (file in files) {
             val text = if (file.isFile) file.readText() else null
-            when {
-                text == null -> { file.parentFile?.mkdirs(); file.writeText(seed) }
-                text in knownSeeds && text != seed -> file.writeText(seed)
+            val mark = File(file.parentFile, "${file.name}.seed")
+            val ours = when {
+                text == null -> true
+                text == seed -> false
+                text in knownSeeds -> true
+                else -> mark.isFile && mark.readText().trim() == digest(text)
             }
+            if (!ours) continue
+            file.parentFile?.mkdirs()
+            file.writeText(seed)
+            runCatching { mark.writeText(digest(seed)) }
         }
     }
+
+    /** A text's SHA-256, as hex. */
+    private fun digest(text: String): String =
+        MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
 }

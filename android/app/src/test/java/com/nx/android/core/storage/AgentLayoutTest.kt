@@ -68,6 +68,30 @@ class AgentLayoutTest {
     }
 
     @Test
+    fun aSeedWeWroteIsUpdatedWithoutKnowingItsText() {
+        // the mark beside the file says it is ours: a later seed replaces it, and the old text does
+        // not have to be listed by hand (the tool catalog grows with every change)
+        val agreement = File(tmp.root, "nx2a/AGENTS.md")
+        AgentLayout.seedAgreement(listOf(agreement), "the rules of the day", setOf("the rules of the day"))
+        assertEquals("the rules of the day", agreement.readText())
+
+        AgentLayout.seedAgreement(listOf(agreement), "the rules of tomorrow", setOf("the rules of tomorrow"))
+
+        assertEquals("the rules of tomorrow", agreement.readText())
+    }
+
+    @Test
+    fun aFileThePlayerChangedAfterWeWroteItIsLeftAlone() {
+        val agreement = File(tmp.root, "nx2a/AGENTS.md")
+        AgentLayout.seedAgreement(listOf(agreement), "the rules of the day", setOf("the rules of the day"))
+        agreement.writeText("the rules of the day, plus mine")
+
+        AgentLayout.seedAgreement(listOf(agreement), "the rules of tomorrow", setOf("the rules of tomorrow"))
+
+        assertEquals("the rules of the day, plus mine", agreement.readText())
+    }
+
+    @Test
     fun theEngineAndItsManifestAreNamed() {
         assertEquals("pi", AgentLayout.BINARY)
         assertEquals("manifest.json", AgentLayout.MANIFEST)
