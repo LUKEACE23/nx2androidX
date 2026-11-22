@@ -5,6 +5,7 @@ import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -75,7 +77,6 @@ import com.nx.android.agent.AgentToolState
 
 /** The user bubble's ground: the design spec's one off-palette neutral (a step above the palette's Surface). */
 /** The player's own bubble: the brand's tint — warmer than the grey, still quiet. */
-private val UserBubble = Color(0x33FF8A00)
 
 /**
  * The assistant's chat page: a full cover like the settings and the FAQ, but portrait (the activity turns
@@ -112,7 +113,7 @@ fun AgentScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize().background(NxPalette.Background)) {
+    Box(Modifier.fillMaxSize().background(AgentPalette.Ground)) {
         Column(
             Modifier.fillMaxSize().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -307,18 +308,20 @@ internal fun MessageRow(message: AgentMessage) {
 }
 
 /** The player's own words: a bubble on the right, at most 78% of the width. */
+/** The player's own bubble: the design's soft fill with the hairline, square like the rest of the sheet. */
 @Composable
 private fun UserBubbleText(text: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Text(
             text,
-            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 19.5.sp),
-            color = MaterialTheme.colorScheme.onBackground,
+            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 24.sp),
+            color = AgentPalette.Ink,
             modifier = Modifier
-                .fillMaxWidth(0.78f)
+                .fillMaxWidth(0.84f)
                 .clip(RoundedCornerShape(14.dp))
-                .background(UserBubble)
-                .padding(horizontal = 12.dp, vertical = 9.dp),
+                .background(Color(0x1AFFF0D6))
+                .border(1.dp, Color(0x24FFF0D6))
+                .padding(horizontal = 16.dp, vertical = 12.dp),
         )
     }
 }
@@ -344,51 +347,93 @@ private fun AssistantBlock(message: AgentMessage) {
  */
 @Composable
 private fun agentMarkdownTypography(): MarkdownTypography = markdownTypography(
-    h1 = MaterialTheme.typography.titleMedium,
-    h2 = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Normal),
-    h3 = MaterialTheme.typography.titleSmall,
-    h4 = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Normal),
-    text = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
-    code = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-    link = MaterialTheme.typography.bodyMedium.copy(color = NxPalette.Brand),
+    h1 = MaterialTheme.typography.titleLarge.copy(
+        fontFamily = FontFamily.Serif, fontSize = 16.sp, color = AgentPalette.Ink,
+    ),
+    h2 = MaterialTheme.typography.titleMedium.copy(
+        fontFamily = FontFamily.Serif, fontSize = 16.sp, lineHeight = 22.sp,
+        color = AgentPalette.Ink,
+    ),
+    h3 = MaterialTheme.typography.titleSmall.copy(fontFamily = FontFamily.Serif, color = AgentPalette.Ink),
+    text = MaterialTheme.typography.bodyMedium.copy(
+        fontSize = 15.sp, lineHeight = 26.sp, color = AgentPalette.Ink,
+    ),
+    code = MaterialTheme.typography.bodySmall.copy(
+        fontFamily = FontFamily.Monospace, color = AgentPalette.Ink,
+    ),
+    link = MaterialTheme.typography.bodyMedium.copy(color = AgentPalette.Orange),
 )
 
 /**
- * The finished tool calls, folded: one line says the count and the per-tool tallies; a tap unfolds
- * the full cards. The fold is per message, so it stays as the player left it across recompositions.
+ * The fold: a mono row — the count left, the state right — and the expanded records print each
+ * call like a line on a repair ticket (the command, then its output). The hairlines above and
+ * below are the frame; no card chrome.
  */
 @Composable
 private fun ToolSummary(tools: List<AgentToolCard>, messageId: Long) {
     var expanded by remember(messageId) { mutableStateOf(false) }
-    val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "agent-tools-fold")
-    if (expanded) {
-        tools.forEach { ToolCard(it) }
-    }
-    val tallies = tools.groupingBy { it.name }.eachCount()
-        .entries.sortedByDescending { it.value }
-        .joinToString(" · ") { "${it.key}×${it.value}" }
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-            .clickable { expanded = !expanded }
-            .padding(horizontal = 10.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(
-            stringResource(R.string.agent_tools_summary, tools.size) +
-                if (tallies.isNotBlank()) " · $tallies" else "",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
+    Column(Modifier.fillMaxWidth()) {
+        Spacer(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(AgentPalette.Hairline),
         )
-        Icon(
-            Icons.Filled.ExpandMore,
-            contentDescription = null,
-            Modifier.size(16.dp).rotate(rotation),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp, horizontal = 2.dp)
+                .clickable { expanded = !expanded },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            val tallies = tools.groupingBy { it.name }.eachCount()
+                .entries.sortedByDescending { it.value }
+                .joinToString(" · ") { "${it.key}×${it.value}" }
+            Text(
+                stringResource(R.string.agent_tools_summary, tools.size) +
+                    if (tallies.isNotBlank()) " · $tallies" else "",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = AgentPalette.Ink2,
+                ),
+                modifier = Modifier.weight(1f),
+            )
+            val live = tools.any { it.state == AgentToolState.RUNNING }
+            Text(
+                stringResource(if (live) R.string.agent_state_working else R.string.agent_state_ready),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 0.4.sp,
+                    color = if (live) AgentPalette.Ink else AgentPalette.Idle,
+                ),
+            )
+        }
+        if (expanded) {
+            Column(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                tools.forEach { card ->
+                    Column(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+                        Text(
+                            card.name + (if (card.argsSummary.isNotBlank()) "  " + card.argsSummary else ""),
+                            style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
+                            color = AgentPalette.Ink,
+                        )
+                        card.resultSummary?.let { result ->
+                            Text(
+                                "→ $result",
+                                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                                color = AgentPalette.Ink2,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(AgentPalette.Hairline),
         )
     }
 }
@@ -403,9 +448,14 @@ internal fun ToolCard(card: AgentToolCard) {
         AgentToolState.DONE -> NxPalette.Ready to stringResource(R.string.agent_tool_done)
         AgentToolState.FAILED -> NxPalette.Danger to stringResource(R.string.agent_tool_failed)
     }
-    GlassPanel(
-        modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
-        contentPadding = 12.dp,
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(AgentPalette.Panel)
+            .border(1.dp, AgentPalette.Hairline)
+            .clickable { expanded = !expanded }
+            .padding(horizontal = 14.dp, vertical = 11.dp),
     ) {
         Column {
             Row(
@@ -509,7 +559,7 @@ internal fun AgentInputBar(
                 if (running) Icons.Filled.Stop else Icons.AutoMirrored.Filled.Send,
                 stringResource(if (running) R.string.agent_stop else R.string.agent_send),
                 Modifier.size(20.dp),
-                tint = if (running || canSend) NxPalette.Background else NxPalette.Unbuilt,
+                tint = if (running || canSend) AgentPalette.CreamInk else AgentPalette.Idle,
             )
         }
     }

@@ -27,6 +27,9 @@ sealed interface AgentEvent {
     data class ToolFinished(val id: String, val state: AgentToolState, val resultSummary: String) : AgentEvent
     data class TurnDone(val assistantText: String) : AgentEvent
     data class Failed(val reason: AgentFailure) : AgentEvent
+
+    /** The running totals of the session, re-emitted as usage lands (ADR-009's usage row). */
+    data class UsageUpdated(val tokens: Long, val cost: Double) : AgentEvent
 }
 
 enum class AgentFailure { NO_KEY, BAD_KEY, NETWORK, MODEL_NO_TOOLS, LOOP_ERROR }

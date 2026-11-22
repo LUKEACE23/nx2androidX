@@ -708,6 +708,15 @@
     <string name="agent_env_run">运行测试</string>
         <string name="agent_action_new_session">新会话</string>
         <string name="agent_model_unset">未配置模型</string>
+        <string name="agent_state_ready">本地环境就绪</string>
+        <string name="agent_state_working">正在环境里干活</string>
+        <string name="agent_label_session">会话</string>
+        <string name="agent_label_usage">本次用量</string>
+        <string name="agent_label_model">模型</string>
+        <string name="agent_label_quick">快捷提问</string>
+        <string name="agent_empty_hint">闪退、构建失败、游戏库状态都可以问——助手自己会翻日志。</string>
+        <string name="agent_head_env">本机环境</string>
+        <string name="agent_label_quick_ops">快捷操作</string>
     <string name="agent_tools_summary">%1$d 次工具调用</string>
     <string name="agent_env_running">运行中…</string>
     <string name="agent_provider_glm">GLM（智谱）</string>

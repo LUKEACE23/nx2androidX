@@ -56,21 +56,46 @@ class PiAgentChat @Inject constructor(
     private var lineBus: Channel<String>? = null
     private var builtFor: String? = null
 
+    /** The session's running totals (ADR-009's usage row); zeroed on switch and new session. */
+    private var sessionTokens: Long = 0L
+    private var sessionCost: Double = 0.0
+
     private var nextId: Long = 0
     private var list: MutableList<AgentMessage> = mutableListOf()
 
     init {
         workspace.ensure()
-        list = sessionStore.load().toMutableList()
+        AgentSessionStore.migrateV0(File(workspace.root, "sessions"))
+        list = sessionStore.loadActive().toMutableList()
         nextId = (list.maxOfOrNull { it.id } ?: -1L) + 1L
     }
 
     override val messages: List<AgentMessage> get() = list
 
+    /** A hard reset is the new-session semantic: a fresh store entry, empty history, process down. */
     override fun reset() {
+        newSession()
+    }
+
+    /** Switch to another conversation: the process restarts on the next turn, the history reloads. */
+    fun switchSession(id: String) {
+        sessionStore.switch(id)
+        loadSession()
+    }
+
+    /** A fresh conversation: a new store entry, an empty history, the process restarts. */
+    fun newSession(): String {
+        val id = sessionStore.create()
+        loadSession()
+        return id
+    }
+
+    private fun loadSession() {
         kill()
-        list = mutableListOf()
-        sessionStore.clear()
+        list = sessionStore.loadActive().toMutableList()
+        nextId = (list.maxOfOrNull { it.id } ?: -1L) + 1L
+        sessionTokens = 0L
+        sessionCost = 0.0
     }
 
     override suspend fun send(userText: String, context: AgentPageContext?): Flow<AgentEvent> = channelFlow {
@@ -95,6 +120,8 @@ class PiAgentChat @Inject constructor(
 
         val answer = StringBuilder()
         var settled = false
+        var turnTokens = 0L
+        var turnCost = 0.0
         try {
             withContext(Dispatchers.IO) {
                 val proc = checkNotNull(process) { "the pi process went away" }
@@ -116,6 +143,11 @@ class PiAgentChat @Inject constructor(
                     }
 
                     "message_update" -> {
+                        obj.optJSONObject("usage")?.let { usage ->
+                            turnTokens = usage.optLong("totalTokens", turnTokens)
+                            turnCost = usage.optJSONObject("cost")?.optDouble("total") ?: turnCost
+                            send(AgentEvent.UsageUpdated(sessionTokens + turnTokens, sessionCost + turnCost))
+                        }
                         val ev = obj.optJSONObject("assistantMessageEvent") ?: continue
                         if (ev.optString("type") == "text_delta") {
                             val delta = ev.optString("delta", "")
@@ -161,11 +193,13 @@ class PiAgentChat @Inject constructor(
             // the process died mid-turn: the next turn respawns it
             kill()
             list.add(AgentMessage(nextId++, AgentRole.ASSISTANT, ""))
-            sessionStore.save(list)
+            sessionStore.save(list, sessionTokens, sessionCost)
             send(AgentEvent.Failed(AgentFailure.LOOP_ERROR))
             return@channelFlow
         }
 
+        sessionTokens += turnTokens
+        sessionCost += turnCost
         val text = answer.toString().trim()
         list.add(AgentMessage(nextId++, AgentRole.ASSISTANT, text))
         sessionStore.save(list)

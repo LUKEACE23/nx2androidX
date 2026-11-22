@@ -709,6 +709,15 @@
     <string name="agent_env_run">Run test</string>
         <string name="agent_action_new_session">New chat</string>
         <string name="agent_model_unset">No model set</string>
+        <string name="agent_state_ready">Local environment ready</string>
+        <string name="agent_state_working">Working in the environment</string>
+        <string name="agent_label_session">Session</string>
+        <string name="agent_label_usage">Usage</string>
+        <string name="agent_label_model">Model</string>
+        <string name="agent_label_quick">Quick asks</string>
+        <string name="agent_empty_hint">Ask about a crash, a failed build, or the library status — the assistant reads the logs itself.</string>
+        <string name="agent_head_env">On-device env</string>
+        <string name="agent_label_quick_ops">Quick actions</string>
     <string name="agent_tools_summary">%1$d tool calls</string>
     <string name="agent_env_running">Running…</string>
     <string name="agent_provider_glm">GLM (Zhipu)</string>

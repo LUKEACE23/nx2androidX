@@ -10,10 +10,13 @@ import com.nx.android.agent.AgentEvent
 import com.nx.android.agent.AgentFailure
 import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentModelConfig
+import com.nx.android.agent.AgentPresets
 import com.nx.android.agent.AgentRole
 import com.nx.android.agent.env.PiAgentChat
 import com.nx.android.agent.env.PiRunner
 import com.nx.android.agent.runtime.AgentSettingsStore
+import com.nx.android.agent.runtime.AgentSessionStore
+import com.nx.android.agent.runtime.AgentSessionMeta
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -39,6 +42,14 @@ data class AgentUiState(
 
     /** The words half-typed: the drawer closes and opens, the draft stays (it lives here, not in composition). */
     val draft: String = "",
+
+    /** The session dropdown's list, and which one answers now. */
+    val sessions: List<AgentSessionMeta> = emptyList(),
+    val activeSessionId: String? = null,
+
+    /** The session's running token/cost totals (the tool column's usage row). */
+    val usageTokens: Long = 0L,
+    val usageCost: Double = 0.0,
 )
 
 /**
@@ -53,6 +64,7 @@ data class AgentUiState(
 class AgentViewModel @Inject constructor(
     private val piChat: PiAgentChat,
     private val settings: AgentSettingsStore,
+    private val sessionStore: AgentSessionStore,
     private val piRunner: PiRunner,
 ) : ViewModel() {
 
@@ -60,6 +72,10 @@ class AgentViewModel @Inject constructor(
     private var running by mutableStateOf(false)
     private var failure by mutableStateOf<AgentFailure?>(null)
     private var config by mutableStateOf(settings.config)
+    private var sessions by mutableStateOf(sessionStore.list())
+    private var activeSessionId by mutableStateOf(sessionStore.activeId())
+    private var usageTokens by mutableStateOf(0L)
+    private var usageCost by mutableStateOf(0.0)
     private var piRunning by mutableStateOf(false)
     private var piResult by mutableStateOf<String?>(null)
     private var draft by mutableStateOf("")
@@ -72,8 +88,46 @@ class AgentViewModel @Inject constructor(
     private var turn: Job? = null
 
     val uiState: StateFlow<AgentUiState> = snapshotFlow {
-        AgentUiState(messages, running, failure, config, config.configured, piRunning, piResult, draft)
+        AgentUiState(messages, running, failure, config, config.configured, piRunning, piResult, draft, sessions, activeSessionId, usageTokens, usageCost)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AgentUiState())
+
+    private fun syncFromChat() {
+        messages = piChat.messages
+        nextId = (messages.maxOfOrNull { it.id } ?: 0L) + 1
+        sessions = sessionStore.list()
+        activeSessionId = sessionStore.activeId()
+    }
+
+    /** The model chip's menu: a preset brings its endpoint and first model; the player's key stays. */
+    fun selectModel(providerId: String) {
+        if (running) return
+        val preset = AgentPresets.byId(providerId)
+        config = AgentModelConfig(
+            preset.id,
+            preset.baseUrl,
+            preset.defaultModel.ifBlank { config.modelName },
+            config.apiKey,
+        )
+        settings.update(config)
+    }
+
+    /** Another conversation answers from here on: history reloads, the process restarts next turn. */
+    fun switchSession(id: String) {
+        if (running || id == activeSessionId) return
+        piChat.switchSession(id)
+        syncFromChat()
+        failure = null
+    }
+
+    /** The menu's new-chat entry: a fresh store entry; the process restarts on the next turn. */
+    fun newSession() {
+        if (running) return
+        piChat.newSession()
+        syncFromChat()
+        failure = null
+        usageTokens = 0L
+        usageCost = 0.0
+    }
 
     /** The input box is controlled: closing the drawer must not eat the player's half-typed words. */
     fun updateDraft(text: String) {
@@ -122,14 +176,6 @@ class AgentViewModel @Inject constructor(
         turn = null
     }
 
-    /** The menu's new chat: the turn stops, the conversation and the strip are forgotten. */
-    fun newSession() {
-        stop()
-        piChat.reset()
-        messages = emptyList()
-        failure = null
-    }
-
     /** The strip's way out (the next turn replaces the words anyway). */
     fun dismissError() {
         failure = null
@@ -146,6 +192,11 @@ class AgentViewModel @Inject constructor(
 
     private fun fold(event: AgentEvent) {
         when (event) {
+            is AgentEvent.UsageUpdated -> {
+                usageTokens = event.tokens
+                usageCost = event.cost
+            }
+
             is AgentEvent.TextDelta -> {
                 val draft = draft()
                 update(draft.id) { it.copy(text = it.text + event.text) }
@@ -173,6 +224,8 @@ class AgentViewModel @Inject constructor(
                         messages = messages + AgentMessage(nextId++, AgentRole.ASSISTANT, event.assistantText)
                     }
                 }
+                // the turn's save renamed nothing but touched updatedAt: keep the dropdown fresh
+                sessions = sessionStore.list()
                 draftId = null
             }
 
