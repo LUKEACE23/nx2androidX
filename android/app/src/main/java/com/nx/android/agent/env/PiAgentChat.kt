@@ -289,10 +289,9 @@ class PiAgentChat @Inject constructor(
         kill()
 
         val base = guest.guestEnv()
-        engine.migrateLegacy()
         val nx2a = File(requireNotNull(base["NX2A_HOME"]) { "NX2A_HOME is not set in the guest env" })
         val binary = engine.binary
-        check(binary.isFile) { "pi 没有安装（files/agent/runtime/pi 不存在）" }
+        check(binary.isFile) { "pi 没有安装（nx2a/agent/runtime/pi 不存在）" }
 
         val port = proxy.ensure()
 

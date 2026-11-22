@@ -190,6 +190,9 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
         // The tree has to GO, not just be written over: the port compiles every source it finds (build.py globs
         // dm/android/*.c), so a file the new archive no longer has - a renamed one - would be compiled next to
         // its replacement, and the link would die on duplicate symbols.
+        // These two folders and nothing else: the player's nx2android folder (nxHome) keeps what he has - the
+        // imported profiles, the build products, the assistant's own folder - so a rebuild never takes the
+        // assistant's data with it.
         rootfs.deleteRecursively()
         tool.deleteRecursively()
         val bytes = payloadBytes()

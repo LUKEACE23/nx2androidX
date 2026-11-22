@@ -1,6 +1,7 @@
 package com.nx.android.agent.runtime
 
 import android.util.Log
+import com.nx.android.core.storage.AgentLayout
 import com.nx.android.core.storage.AppPaths
 import com.nx.android.data.agent.AgentPackageCatalog
 import com.nx.android.data.agent.AgentPackageDownloader
@@ -82,7 +83,7 @@ class AgentEngineInstaller @Inject constructor(
         result.onSuccess {
             Log.i(TAG, "the engine package is in: $it")
             // the engine runs in the guest: its interpreter has to point at this phone's loader
-            env.patchInterpreter(File(paths.agentRuntime, AgentEngineLayout.BINARY))
+            env.patchInterpreter(File(paths.agentRuntime, AgentLayout.BINARY))
         }
         return result
     }

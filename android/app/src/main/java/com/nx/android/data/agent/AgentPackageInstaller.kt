@@ -1,6 +1,6 @@
 package com.nx.android.data.agent
 
-import com.nx.android.agent.runtime.AgentEngineLayout
+import com.nx.android.core.storage.AgentLayout
 import com.nx.android.domain.AgentPackageManifest
 import java.io.File
 import java.io.IOException
@@ -44,7 +44,7 @@ object AgentPackageInstaller {
                     val out = File(stage, name)
                     out.parentFile?.mkdirs()
                     out.outputStream().use { zip.copyTo(it) }
-                    if (name == AgentEngineLayout.MANIFEST) {
+                    if (name == AgentLayout.MANIFEST) {
                         manifest = AgentPackageManifest.parse(out.readText())
                     }
                 }
@@ -67,7 +67,7 @@ object AgentPackageInstaller {
         val stage = File(runtimeDir.parentFile, ".install").apply { deleteRecursively(); mkdirs() }
         val manifest = unpack(archive, stage)
         if (!manifest.fits(appVersion)) throw Refused(Refusal.TOO_NEW)
-        val binary = File(stage, AgentEngineLayout.BINARY)
+        val binary = File(stage, AgentLayout.BINARY)
         if (!binary.isFile) throw Refused(Refusal.NO_BINARY)
         if (digest(binary) != manifest.sha256) throw Refused(Refusal.BAD_DIGEST)
         // the engine has to be runnable: an archive carries no permissions

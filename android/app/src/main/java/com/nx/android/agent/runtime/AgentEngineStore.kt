@@ -1,5 +1,6 @@
 package com.nx.android.agent.runtime
 
+import com.nx.android.core.storage.AgentLayout
 import com.nx.android.core.storage.AppPaths
 import java.io.File
 import javax.inject.Inject
@@ -7,11 +8,12 @@ import javax.inject.Singleton
 import org.json.JSONObject
 
 /**
- * The engine's own place: the binary, the home it runs under, and the one-time copy of what an
- * earlier build kept in the folders the environment's reset throws away.
+ * The engine's own place: the binary, the home it runs under, and the manifest of the installed
+ * package.
  *
- * The reset deletes the environment's own folders (rootfs, tool, nx2a, home, tmp) — the engine, its
- * home, the models and the conversations live in the assistant's own folder, which it does not touch.
+ * It sits inside the player's nx2android folder, beside the imported profiles and the build
+ * products: the environment's rebuild throws away the rootfs and the tool tree, and nothing else,
+ * so the engine, its home, the models and the conversations stay.
  */
 @Singleton
 class AgentEngineStore @Inject constructor(
@@ -25,10 +27,10 @@ class AgentEngineStore @Inject constructor(
     val runtimeDir: File get() = paths.agentRuntime
 
     /** The engine binary. */
-    val binary: File get() = File(runtimeDir, AgentEngineLayout.BINARY)
+    val binary: File get() = File(runtimeDir, AgentLayout.BINARY)
 
     /** The manifest of the installed package: what is in, and what it needs. */
-    val manifest: File get() = File(runtimeDir, AgentEngineLayout.MANIFEST)
+    val manifest: File get() = File(runtimeDir, AgentLayout.MANIFEST)
 
     /** Whether the engine is there. */
     val installed: Boolean get() = binary.isFile
@@ -37,27 +39,5 @@ class AgentEngineStore @Inject constructor(
     fun installedVersion(): String {
         val text = manifest.takeIf { it.isFile }?.readText().orEmpty()
         return runCatching { JSONObject(text).optString("version").trim() }.getOrDefault("")
-    }
-
-    /**
-     * One-time: the engine and its own tree an earlier build kept in the environment's folders come
-     * in here. The conversation pointers that name the old place are rewritten with them.
-     *
-     * @return whether anything moved
-     */
-    fun migrateLegacy(): Boolean {
-        val legacyHome = File(paths.home, ".pi")
-        val moved = AgentEngineLayout.migrate(
-            legacyBinary = File(paths.nxHome, "agent/pi/pi"),
-            legacyPiHome = legacyHome,
-            runtimeDir = runtimeDir,
-            home = home,
-        )
-        AgentEngineLayout.rewriteSessionPointers(
-            metaFile = File(File(paths.agentWorkspace, "sessions"), "_meta.json"),
-            oldPrefix = legacyHome.absolutePath,
-            newPrefix = File(home, ".pi").absolutePath,
-        )
-        return moved
     }
 }

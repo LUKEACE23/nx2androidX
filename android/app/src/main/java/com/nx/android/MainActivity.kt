@@ -199,12 +199,8 @@ class MainActivity : ComponentActivity() {
                     else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             }
         }
-        // the engine an earlier build kept in the environment's folders comes into the
-        // assistant's own folder (one-time, a copy)
+        // the assistant's own facts (the engine that is installed, the models that are configured)
         Thread {
-            agentEngine.migrateLegacy()
-            // the assistant's own facts (the engine that is installed, the models that are
-            // configured) — read again now that the migration had its turn
             agentSetup.refresh()
         }.start()
         // The app brought another environment: it is built again, with a progress the player can see.

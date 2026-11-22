@@ -3,6 +3,7 @@ package com.nx.android.agent.env
 import android.content.Context
 import com.nx.android.agent.runtime.AgentEngineStore
 import com.nx.android.agent.runtime.AgentSettingsStore
+import com.nx.android.agent.runtime.AgentWorkspace
 import com.nx.android.domain.environment.GuestProcessLauncher
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -28,16 +29,17 @@ class PiRunner @Inject constructor(
     private val proxy: GuestProxy,
     private val settings: AgentSettingsStore,
     private val engine: AgentEngineStore,
+    private val workspace: AgentWorkspace,
 ) {
 
     /** One headless pi turn; the answer's text, or a failure the caller shows verbatim. */
     suspend fun run(prompt: String): Result<String> = withContext(Dispatchers.IO) {
         val base = guest.guestEnv()
-        engine.migrateLegacy()
+        workspace.ensure()
         val nx2a = File(requireNotNull(base["NX2A_HOME"]) { "NX2A_HOME is not set in the guest env" })
         val binary = engine.binary
         if (!binary.isFile) {
-            return@withContext Result.failure(IllegalStateException("pi 没有安装（files/agent/runtime/pi 不存在）"))
+            return@withContext Result.failure(IllegalStateException("pi 没有安装（nx2a/agent/runtime/pi 不存在）"))
         }
         val config = settings.config
         if (!config.configured) {
