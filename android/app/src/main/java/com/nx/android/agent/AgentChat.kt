@@ -58,9 +58,24 @@ interface AgentChat {
     /** 中止当前这一轮：引擎停下手里的活，进程留着给下一轮。 */
     fun abort()
 
-    /** 切到另一个会话。 */
-    fun switchSession(id: String)
+    /**
+     * 读回一段会话的历史：prefer 为空就是指针上的（或最新的一段），指定就是切到那一段再读。
+     * 会话的真相在引擎那里——这是抽屉渲染历史的唯一来源。
+     */
+    suspend fun history(prefer: String? = null): Result<AgentHistory>
 }
+
+/** 一段会话的历史（从引擎读回的形状）：消息、会话文件的路径、标题、上下文占用。 */
+data class AgentHistory(
+    val messages: List<AgentMessage>,
+    val sessionFile: String,
+    val title: String,
+    val contextTokens: Long,
+    val contextWindow: Long,
+)
+
+/** 引擎还没装：历史读不了，面板要引导安装，而不是显示一段空历史。 */
+class AgentEngineMissingException : IllegalStateException("引擎未安装")
 
 data class AgentPageContext(
     val page: String,

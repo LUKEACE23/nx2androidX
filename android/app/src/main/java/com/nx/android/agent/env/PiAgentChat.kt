@@ -2,14 +2,15 @@ package com.nx.android.agent.env
 
 import android.util.Log
 import com.nx.android.agent.AgentChat
+import com.nx.android.agent.AgentEngineMissingException
 import com.nx.android.agent.AgentEvent
 import com.nx.android.agent.AgentFailure
+import com.nx.android.agent.AgentHistory
 import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
-import com.nx.android.agent.TurnJournal
 import com.nx.android.agent.runtime.AgentEngineStore
 import com.nx.android.agent.runtime.AgentSessionStore
 import com.nx.android.agent.runtime.AgentSettingsStore
@@ -49,6 +50,7 @@ class PiAgentChat @Inject constructor(
     private val tools: AgentTools,
     private val workspace: AgentWorkspace,
     private val sessionStore: AgentSessionStore,
+    private val catalog: PiSessionCatalog,
     private val engine: AgentEngineStore,
 ) : AgentChat {
 
@@ -58,40 +60,46 @@ class PiAgentChat @Inject constructor(
 
         /** 中止之后等引擎说它闲下来的上限：引擎回话之前，尾巴事件都还在路上。 */
         const val ABORT_ACK_TIMEOUT_MS = 3_000L
+
+        /** 一条 RPC 命令等回话的上限。 */
+        const val RPC_TIMEOUT_MS = 8_000L
+
+        /** 新会话的标题：玩家第一句话的前几个字。 */
+        const val TITLE_CHARS = 16
     }
 
     @Volatile private var process: Process? = null
     @Volatile private var lineBus: Channel<String>? = null
+    @Volatile private var rpcBus: Channel<String>? = null
     @Volatile private var builtFor: String? = null
 
     /** 往引擎写命令的锁：两条命令不许交错的半行。 */
     private val writeLock = Any()
 
-    /** 请求号：只是给引擎看的关联标记。 */
+    /** 请求号：命令与回话的关联标记。 */
     private var requestSeq: Long = 0L
 
-    /** 这一轮的账：会话里有哪些消息、什么时候落盘。 */
-    private val journal = TurnJournal()
+    /** 上次读到的历史（接口要用），与最近一次确认的会话文件（给新会话起名用）。 */
+    private var loadedMessages: List<AgentMessage> = emptyList()
+    private var lastSessionFile: String? = null
 
     /** 有一笔中止在途：下一轮开始前要等引擎确认它闲下来了。 */
     @Volatile private var abortPending: Boolean = false
 
-    /** The session's context occupancy and its model's window (ADR-009's usage row); zeroed on switch/new. */
+    /** The session's context occupancy and its model's window; live from the engine, zeroed on switch/new. */
     private var sessionTokens: Long = 0L
     private var sessionWindow: Long = 0L
 
-    /** pi's own session jsonl (from get_state) — the future --resume anchor for session switching. */
+    /** pi's own session jsonl (from get_state) — the anchor the active pointer holds. */
     private var piSessionFile: String? = null
 
     init {
         workspace.ensure()
-        AgentSessionStore.migrateV0(File(workspace.root, "sessions"))
-        journal.load(sessionStore.loadActive())
     }
 
-    override val messages: List<AgentMessage> get() = journal.snapshot()
+    override val messages: List<AgentMessage> get() = loadedMessages
 
-    /** A hard reset is the new-session semantic: a fresh store entry, empty history, process down. */
+    /** A hard reset is the new-session semantic: a fresh engine session, empty history, process stays. */
     override fun reset() {
         newSession()
     }
@@ -110,53 +118,101 @@ class PiAgentChat @Inject constructor(
         }, "pi-abort").apply { isDaemon = true }.start()
     }
 
-    /** Switch to another conversation: pi resumes its own context via the stored session file. */
-    override fun switchSession(id: String) {
-        sessionStore.switch(id)
-        val meta = sessionStore.list().firstOrNull { it.id == id }
-        // pi's own context: if we have its session file, tell pi to load it (the model remembers)
-        if (process?.isAlive == true && !meta?.piSessionFile.isNullOrBlank()) {
-            val sessionPath = meta!!.piSessionFile
-            Thread({
-                runCatching {
-                    val cmd = JSONObject()
-                        .put("id", "switch-$$")
-                        .put("type", "switch_session")
-                        .put("sessionPath", sessionPath)
-                    writeCommand(cmd)
-                    Log.d(TAG, "pi session resumed: $sessionPath")
-                }
-            }, "pi-switch-session").apply { isDaemon = true }.start()
-        }
-        loadSession()
-    }
-
-    /** A fresh conversation: a new store entry, pi's context resets too. */
+    /** A fresh conversation: the engine's context resets; the file itself is created at the first prompt. */
     fun newSession(): String {
         if (process?.isAlive == true) {
             Thread({
-                runCatching {
-                    val cmd = JSONObject()
-                        .put("id", "new-$$")
-                        .put("type", "new_session")
-                    writeCommand(cmd)
-                }
+                runCatching { writeCommand(JSONObject().put("id", "new-$$").put("type", "new_session")) }
             }, "pi-new-session").apply { isDaemon = true }.start()
         }
-        val id = sessionStore.create()
-        loadSession()
-        return id
+        sessionStore.clearActive()
+        lastSessionFile = null
+        piSessionFile = null
+        loadedMessages = emptyList()
+        sessionTokens = 0L
+        sessionWindow = 0L
+        return ""
     }
 
-    private fun loadSession() {
-        kill()
-        journal.load(sessionStore.loadActive())
-        val meta = sessionStore.list().firstOrNull { it.id == sessionStore.activeId() }
-        sessionTokens = meta?.contextTokens ?: 0L
-        // the window: pi's precise value after a turn; the static catalog before the first one
-        sessionWindow = meta?.contextWindow
-            ?.takeIf { it > 0 }
-            ?: PiCatalog.contextWindowFor(PiCatalog.fullModelId(settings.config))
+    /**
+     * 读历史（冷启动、切换、下拉选择共用）：引擎起来 → 切到目标会话（指针的，或指定的）→
+     * 取回消息与状态。进程新起时若不先切，第一轮会开一个新会话文件——所以永远先切再读。
+     */
+    override suspend fun history(prefer: String?): Result<AgentHistory> = withContext(Dispatchers.IO) {
+        val config = settings.config
+        if (!config.configured) return@withContext Result.failure(IllegalStateException("模型还没有配置"))
+        if (!engine.installed) return@withContext Result.failure(AgentEngineMissingException())
+
+        val bus = try {
+            ensureProcess(config)
+        } catch (e: Exception) {
+            return@withContext Result.failure(e)
+        }
+        // 目标：指定的（下拉选择）→ 指针的（还在盘上才算）→ 最新的一段
+        val target = prefer
+            ?: sessionStore.activePath()?.takeIf { File(it).isFile }
+            ?: catalog.list().firstOrNull()?.path
+        if (target != null) {
+            val switched = rpc(JSONObject().put("type", "switch_session").put("sessionPath", target))
+            Log.d(TAG, "switch: ${switched?.optBoolean("success")}")
+            if (switched == null) return@withContext Result.failure(IllegalStateException("切换会话没有回话"))
+        }
+
+        val state = rpc(JSONObject().put("type", "get_state"))
+            ?: return@withContext Result.failure(IllegalStateException("引擎没有回话"))
+        val file = state.optJSONObject("data")?.optString("sessionFile").orEmpty()
+        val title = state.optJSONObject("data")?.optString("sessionName").orEmpty()
+
+        val stats = rpc(JSONObject().put("type", "get_session_stats"))
+        val usage = stats?.optJSONObject("data")?.optJSONObject("contextUsage")
+        sessionTokens = usage?.optLong("tokens", 0L) ?: 0L
+        sessionWindow = usage?.optLong("contextWindow", 0L) ?: 0L
+        if (sessionWindow <= 0) {
+            state.optJSONObject("data")?.optJSONObject("model")?.optLong("contextWindow")?.takeIf { it > 0 }
+                ?.let { sessionWindow = it }
+        }
+
+        val raw = rpc(JSONObject().put("type", "get_messages"))
+            ?.optJSONObject("data")?.optJSONArray("messages")
+            ?: return@withContext Result.failure(IllegalStateException("取不到会话内容"))
+        val history = ArrayList<JSONObject>(raw.length())
+        for (i in 0 until raw.length()) raw.optJSONObject(i)?.let { history.add(it) }
+        loadedMessages = PiHistoryMapper.map(history)
+        Log.d(TAG, "messages: ${raw.length()} mapped: ${loadedMessages.size}")
+
+        if (file.isNotBlank()) {
+            piSessionFile = file
+            lastSessionFile = file
+            sessionStore.setActive(file)   // 指针跟着真实读取落到的地方
+        }
+
+        Result.success(
+            AgentHistory(
+                messages = loadedMessages,
+                sessionFile = file,
+                title = title,
+                contextTokens = sessionTokens,
+                contextWindow = sessionWindow,
+            ),
+        )
+    }
+
+    /**
+     * 一问一答式的 RPC：带上请求号写命令，从回话通道等那条回应（其余的行不归它管）。
+     * 回话与事件走两条通道，所以读历史与跑一轮可以同时发生。
+     */
+    private suspend fun rpc(cmd: JSONObject): JSONObject? {
+        val id = "rpc-${++requestSeq}"
+        cmd.put("id", id)
+        withContext(Dispatchers.IO) { writeCommand(cmd) }
+        val replies = rpcBus ?: return null
+        return withTimeoutOrNull(RPC_TIMEOUT_MS) {
+            for (line in replies) {
+                val obj = runCatching { JSONObject(line) }.getOrNull() ?: continue
+                if (obj.optString("id") == id) return@withTimeoutOrNull obj
+            }
+            null
+        }
     }
 
     override suspend fun send(userText: String, context: AgentPageContext?): Flow<AgentEvent> = channelFlow {
@@ -170,15 +226,13 @@ class PiAgentChat @Inject constructor(
         }
         // 中止在途：等引擎说它闲下来了，这一轮的尾巴才收干净
         awaitIdle(bus)
+        // earlier turns' leftovers (prompt echoes, stray events) must not read as this turn's
+        // 先清残留再问状态：引擎回话是毫秒级的，问完再清会把回话一起吃掉
+        while (true) { bus.tryReceive().getOrNull() ?: break }
         // the state ride-along: the model's context window + pi's own session file, for free
         withContext(Dispatchers.IO) {
             writeCommand(JSONObject().put("id", "state-$$").put("type", "get_state"))
         }
-        // earlier turns' leftovers (prompt echoes, stray events) must not read as this turn's
-        while (true) { bus.tryReceive().getOrNull() ?: break }
-
-        journal.beginTurn(userText)
-        persist(force = true)   // 问过什么立刻记上，不等这一轮结束
 
         val composed = composeTurn(
             userText,
@@ -192,6 +246,7 @@ class PiAgentChat @Inject constructor(
         // 这一轮生成的 token：每条消息结束时报一次（带工具的轮次有不止一条）
         var turnOutput = 0L
         var turnEndOutput = 0L
+        val answer = StringBuilder()
         try {
             withContext(Dispatchers.IO) {
                 writeCommand(
@@ -233,9 +288,8 @@ class PiAgentChat @Inject constructor(
                         if (ev.optString("type") == "text_delta") {
                             val delta = ev.optString("delta", "")
                             if (delta.isNotEmpty()) {
-                                journal.appendDelta(delta)
+                                answer.append(delta)
                                 send(AgentEvent.TextDelta(delta))
-                                persist()   // 写出来的字隔几秒落一次盘：App 没了也还剩这些
                             }
                         }
                     }
@@ -286,41 +340,36 @@ class PiAgentChat @Inject constructor(
                 if (settled) break
             }
         } catch (e: CancellationException) {
-            // 玩家按了停止：这一轮到此为止，已写出的部分算数
-            journal.stopTurn()
-            persist(force = true)
+            // 玩家按了停止：引擎自己把这一轮（含已写出的部分）收进它的会话，App 不用补
             throw e
         } catch (e: Exception) {
             Log.d(TAG, "turn failed: $e")
-            if (!settled && journal.draftText().isEmpty()) {
+            if (!settled && answer.isEmpty()) {
                 // the process died mid-turn: the next turn respawns it
                 kill()
-                journal.failTurn()
-                persist(force = true)
                 send(AgentEvent.Failed(AgentFailure.LOOP_ERROR))
                 return@channelFlow
             }
         }
 
         sessionTokens = maxOf(sessionTokens, turnContext)
-        val text = journal.draftText().trim()
         // 这一轮自己花了多少生成量：消息级累加，引擎没报消息级 usage 时退回整轮那一条
         val tokens = if (turnOutput > 0) turnOutput else turnEndOutput
-        journal.finishTurn(tokens)
-        persist(force = true)
-        send(AgentEvent.TurnDone(text, tokens))
-    }
-
-    /** 会话落盘：这一轮的内容与上下文占用一起写进会话文件。 */
-    private fun persist(force: Boolean = false) {
-        if (!force && !journal.dueForWrite()) return
-        sessionStore.save(
-            journal.snapshot(),
-            sessionTokens,
-            sessionWindow,
-            piSessionFile.orEmpty(),
-        )
-        journal.markWritten()
+        // 轮次收尾，引擎闲下来了：问一次它现在在哪个会话文件（新会话的第一问会开新文件）。
+        // 名字与指针都在这里落：新会话写上名字（玩家第一句话的前 16 字），指针指过去。
+        withContext(Dispatchers.IO) {
+            val state = rpc(JSONObject().put("type", "get_state"))
+            val file = state?.optJSONObject("data")?.optString("sessionFile").orEmpty()
+            if (file.isNotBlank() && file != lastSessionFile) {
+                lastSessionFile = file
+                piSessionFile = file
+                sessionStore.setActive(file)
+                writeCommand(
+                    JSONObject().put("type", "set_session_name").put("name", userText.take(TITLE_CHARS)),
+                )
+            }
+        }
+        send(AgentEvent.TurnDone(answer.toString().trim(), tokens))
     }
 
     /**
@@ -384,19 +433,26 @@ class PiAgentChat @Inject constructor(
 
         val p = pb.start()
         val bus = Channel<String>(capacity = Channel.UNLIMITED)
+        // 回话走自己那条通道（读历史时用），其余事件走事件总线：分开走，两边才不会
+        // 互相抢对方的行（读历史与跑一轮可以同时发生）。
+        val replies = Channel<String>(capacity = Channel.UNLIMITED)
+        rpcBus = replies
         // 读引擎输出的两个线程：管道被拆的时候（进程被杀或重建）读会抛 IO 异常。
         // 那是正常收场，不是错误——让它逃出去就是 App 进程自杀。
         Thread({
             try {
                 p.inputStream.use { stream ->
                     stream.reader(Charsets.UTF_8).buffered().useLines { lines ->
-                        lines.forEach { bus.trySend(it) }
+                        lines.forEach { line ->
+                            if (isRpcReply(line)) replies.trySend(line) else bus.trySend(line)
+                        }
                     }
                 }
             } catch (e: IOException) {
                 Log.d(TAG, "rpc stdout closed: ${e.message}")
             } finally {
                 bus.close()
+                replies.close()
             }
         }, "pi-rpc-reader").apply { isDaemon = true }.start()
         Thread({
@@ -414,6 +470,10 @@ class PiAgentChat @Inject constructor(
         builtFor = fingerprint
         return bus
     }
+
+    /** 这一行是我们自己问出去的那条命令的回话吗（请求号以 rpc- 开头）。 */
+    private fun isRpcReply(line: String): Boolean =
+        runCatching { JSONObject(line).optString("id").startsWith("rpc-") }.getOrDefault(false)
 
     /**
      * 往引擎写一条命令。
@@ -438,8 +498,10 @@ class PiAgentChat @Inject constructor(
             runCatching { p.destroy() }
         }
         lineBus?.close()
+        rpcBus?.close()
         process = null
         lineBus = null
+        rpcBus = null
         builtFor = null
         abortPending = false   // 进程都没了，没有中止要等了
     }

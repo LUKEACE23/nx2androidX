@@ -7,7 +7,12 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +34,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -134,6 +140,8 @@ fun AgentScreen(
     LaunchedEffect(Unit) {
         // the models are read again: the settings page may have changed them while this was closed
         conversation.refreshModels()
+        // 历史第一次打开就读：引擎起进程那零点几秒由加载态盖住
+        conversation.ensureHistory()
     }
     // 消息到了才跟：万一开页时对话还没载入，别把这一跟的机会烧掉
     LaunchedEffect(state.messages) {
@@ -198,12 +206,12 @@ fun AgentScreen(
                 ) {
                     if (state.messages.isEmpty()) {
                         item {
-                            Box(
-                                Modifier.fillMaxWidth().padding(top = 96.dp),
-                                contentAlignment = Alignment.TopCenter,
-                            ) {
-                                Hint(stringResource(R.string.agent_empty), size = 13.sp)
-                            }
+                            HistoryStatus(
+                                state.loading,
+                                state.engineMissing,
+                                onOpenSettings,
+                                Modifier.fillMaxWidth().padding(top = 48.dp),
+                            )
                         }
                     }
                     items(state.messages, key = { it.id }) { message ->
@@ -229,6 +237,65 @@ fun AgentScreen(
 }
 
 // ---- the top bar -----------------------------------------------------------------------------------------------
+
+/** 对话区的占位：历史在路上（加载态）、引擎没装（引导安装）、空白新会话（欢迎）。 */
+@Composable
+internal fun HistoryStatus(
+    loading: Boolean,
+    engineMissing: Boolean,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier.fillMaxWidth().padding(top = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        when {
+            loading -> Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                val pulse by rememberInfiniteTransition(label = "history-pulse").animateFloat(
+                    initialValue = 0.35f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
+                    label = "alpha",
+                )
+                Box(
+                    Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(AgentPalette.Working.copy(alpha = pulse)),
+                )
+                Text(
+                    stringResource(R.string.agent_loading_history),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AgentPalette.Ink2,
+                )
+            }
+
+            engineMissing -> {
+                Text(
+                    stringResource(R.string.agent_engine_missing_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AgentPalette.Ink2,
+                )
+                CapsuleButton(
+                    stringResource(R.string.agent_go_settings),
+                    onOpenSettings,
+                    Modifier.fillMaxWidth(0.6f),
+                )
+            }
+
+            else -> Text(
+                stringResource(R.string.agent_empty),
+                style = MaterialTheme.typography.bodySmall,
+                color = AgentPalette.Ink2,
+            )
+        }
+    }
+}
 
 /** The page's header: the way back, the name, who answers, and the two things this page can redo. */
 @Composable
@@ -365,7 +432,7 @@ internal fun MessageRow(
     onToolsClick: ((AgentMessage) -> Unit)? = null,
     onCopy: ((AgentMessage) -> Unit)? = null,
 ) {
-    if (message.role == AgentRole.USER) UserBubbleText(message.text)
+    if (message.role == AgentRole.USER) UserBubbleText(message.text, message.pending)
     else AssistantBlock(message, streaming, markdownState, onToolsClick, onCopy)
 }
 
@@ -374,18 +441,29 @@ internal fun copyPayloadOf(message: AgentMessage): String = message.text
 
 /** The player's bubble: the soft navy wash with the hairline, 13sp — the size the answers match. */
 @Composable
-private fun UserBubbleText(text: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        Text(
-            text,
-            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
-            color = AgentPalette.Ink,
-            modifier = Modifier
-                .fillMaxWidth(0.84f)
-                .background(AgentPalette.Bubble, RoundedCornerShape(14.dp))
-                .border(1.dp, AgentPalette.BubbleBorder, RoundedCornerShape(14.dp))
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-        )
+private fun UserBubbleText(text: String, interrupted: Boolean = false) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Text(
+                text,
+                style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
+                color = AgentPalette.Ink,
+                modifier = Modifier
+                    .fillMaxWidth(0.84f)
+                    .background(AgentPalette.Bubble, RoundedCornerShape(14.dp))
+                    .border(1.dp, AgentPalette.BubbleBorder, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            )
+        }
+        // 这一轮断在 App 没了的时候：标在问题这一行（这一轮没有留下回答）
+        if (interrupted) {
+            Text(
+                stringResource(R.string.agent_interrupted),
+                style = MaterialTheme.typography.labelSmall,
+                color = AgentPalette.Ink2,
+                modifier = Modifier.padding(top = 4.dp, end = 4.dp),
+            )
+        }
     }
 }
 

@@ -687,6 +687,9 @@
     <string name="agent_send">Send</string>
     <string name="agent_stop">Stop</string>
     <string name="agent_interrupted">Interrupted — the app closed during this turn</string>
+    <string name="agent_loading_history">Reading the assistant\'s history…</string>
+    <string name="agent_engine_missing_hint">The assistant engine is not installed yet — install it in Settings first.</string>
+    <string name="agent_go_settings">Open Settings</string>
     <string name="agent_error_no_key">Set up a model first</string>
     <string name="agent_error_bad_key">The key is invalid. Check it in the model settings.</string>
     <string name="agent_error_network">The network is not available</string>

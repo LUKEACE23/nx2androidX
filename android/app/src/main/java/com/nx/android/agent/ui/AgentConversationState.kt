@@ -2,6 +2,7 @@ package com.nx.android.agent.ui
 
 import com.nx.android.agent.AgentChat
 import com.nx.android.agent.AgentConversation
+import com.nx.android.agent.AgentEngineMissingException
 import com.nx.android.agent.AgentEvent
 import com.nx.android.agent.AgentFailure
 import com.nx.android.agent.AgentMessage
@@ -9,9 +10,9 @@ import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentTextBatch
 import com.nx.android.agent.env.PiRunner
+import com.nx.android.agent.env.PiSessionCatalog
 import com.nx.android.agent.runtime.AgentModelProfile
 import com.nx.android.agent.runtime.AgentModelStore
-import com.nx.android.agent.runtime.AgentSessionMeta
 import com.nx.android.agent.runtime.AgentSessionStore
 import com.nx.android.agent.runtime.AgentSettingsStore
 import com.nx.android.core.di.ApplicationCoroutineScope
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** What the chat surfaces render: the conversation, the running turn, the strip's failure, the model choice. */
 data class AgentUiState(
@@ -44,9 +46,18 @@ data class AgentUiState(
     /** The words half-typed: the drawer closes and opens, the draft stays (it lives here, not in composition). */
     val draft: String = "",
 
-    /** The session dropdown's list, and which one answers now. */
-    val sessions: List<AgentSessionMeta> = emptyList(),
-    val activeSessionId: String? = null,
+    /** The session dropdown's list (the engine's own sessions), and which one answers now. */
+    val sessions: List<PiSessionCatalog.Entry> = emptyList(),
+    val activePath: String? = null,
+
+    /** 当前会话的名字（引擎报的那个）；没有名字就退回列表里那一条的标题。 */
+    val activeTitle: String = "",
+
+    /** 历史正在从引擎读：对话区给加载态，占用区不给假数字。 */
+    val loading: Boolean = false,
+
+    /** 引擎还没装：抽屉引导安装，而不是显示一段空历史。 */
+    val engineMissing: Boolean = false,
 
     /** The session's context occupancy and its model's window (the tool column's usage row). */
     val usageTokens: Long = 0L,
@@ -64,17 +75,16 @@ data class AgentUiState(
  * The assistant's conversation, app-wide: one copy of the messages, of the turn that runs and of
  * the words half-typed.
  *
- * The engine lives in the environment; the rendered history lives here, and it lives here for the
- * whole process — the home drawer, the portrait chat page and the game drawer all read this one
- * copy, so a conversation carries over from one window to the next. The turn runs on the
- * application's own scope: it goes on while the player closes the drawer, and the answer is
- * there when they open it again.
+ * 会话的真相在引擎那里：这里的消息是渲染用的副本，冷启动不急着拉——抽屉第一次打开时
+ * 才去读（引擎进程冷启动只要零点几秒，读的那一下用加载态盖住）。历史在整个进程里只有
+ * 这一份：首页抽屉、竖屏聊天页、游戏抽屉读的都是它。
  */
 @Singleton
 class AgentConversationState @Inject constructor(
     private val chat: AgentChat,
     private val settings: AgentSettingsStore,
     private val sessionStore: AgentSessionStore,
+    private val catalog: PiSessionCatalog,
     private val piRunner: PiRunner,
     private val models: AgentModelStore,
     @ApplicationCoroutineScope private val scope: CoroutineScope,
@@ -94,8 +104,11 @@ class AgentConversationState @Inject constructor(
     @Volatile private var config = settings.config
     @Volatile private var profiles = models.list()
     @Volatile private var activeProfileId = models.activeId()
-    @Volatile private var sessions = sessionStore.list()
-    @Volatile private var activeSessionId = sessionStore.activeId()
+    @Volatile private var sessions: List<PiSessionCatalog.Entry> = emptyList()
+    @Volatile private var activePath: String? = null
+    @Volatile private var activeTitle = ""
+    @Volatile private var loading = false
+    @Volatile private var engineMissing = false
     @Volatile private var usageTokens = 0L
     @Volatile private var usageWindow = 0L
     @Volatile private var draft = ""
@@ -103,13 +116,10 @@ class AgentConversationState @Inject constructor(
     @Volatile private var piResult: String? = null
     private var turn: Job? = null
 
+    /** 历史读过了没有：抽屉每次打开都会问一遍，读过就不再劳师动众。 */
+    @Volatile private var historyLoaded = false
+
     init {
-        // a cold start reads the active session's last known occupancy from the store — the live
-        // UsageUpdated events take over from the first turn (fix: the usage row vanished after restart)
-        val meta = sessions.firstOrNull { it.id == activeSessionId }
-        usageTokens = meta?.contextTokens ?: 0L
-        usageWindow = meta?.contextWindow ?: 0L
-        conversation.load(chat.messages)
         publish()
     }
 
@@ -127,17 +137,87 @@ class AgentConversationState @Inject constructor(
             piResult = piResult,
             draft = draft,
             sessions = sessions,
-            activeSessionId = activeSessionId,
+            activePath = activePath,
+            activeTitle = activeTitle,
+            loading = loading,
+            engineMissing = engineMissing,
             usageTokens = usageTokens,
             usageWindow = usageWindow,
             profiles = profiles,
             activeProfileId = activeProfileId,
             streamingId = conversation.streamingId,
         )
-        // markdown 的 AST 在这里备：冷启动就开始解析，首开抽屉时高度已经是最终值。
-        // 放在面板里备是不够的——面板冷启动时根本不组合，那儿备就等于没备：
-        // 首开那刻才开始解析，落底会停在半路（甚至卡住不动）。
+        // markdown 的 AST 在这里备：读到的历史一落地就开始解析，首开抽屉时高度已经是最终值。
         markdownCache.ensureAll(conversation.messages, conversation.streamingId)
+    }
+
+    /**
+     * 抽屉打开时问一句：历史在吗？
+     *
+     * 第一次：从引擎读（指针上的那段，没有就最新的那段），引擎起进程那零点几秒由加载态
+     * 盖住。引擎没装则挂出引导，不算失败。
+     */
+    fun ensureHistory() {
+        if (historyLoaded || loading || conversation.running) return
+        if (!config.configured) return   // 模型没配：芯片会把玩家送去过设置，先不劳驾引擎
+        load(prefer = null)
+    }
+
+    /** Another conversation answers from here on: the engine loads its own session, the panel re-renders. */
+    fun switchSession(path: String) {
+        if (conversation.running || path == activePath) return
+        historyLoaded = false
+        load(prefer = path)
+    }
+
+    /** The menu's new-chat entry: the engine's context resets; the file itself appears at the first prompt. */
+    fun newSession() {
+        if (conversation.running) return
+        chat.reset()
+        conversation.load(emptyList())
+        activePath = null
+        activeTitle = ""
+        conversation.dismissFailure()
+        usageTokens = 0L
+        usageWindow = 0L
+        historyLoaded = true   // 空白即所需，第一问发出时引擎自会开新文件
+        refreshSessions()
+        publish()
+    }
+
+    /** 读一段历史：prefer 指定就是切过去读，为空就是指针上的（或最新的）。 */
+    private fun load(prefer: String?) {
+        loading = true
+        engineMissing = false
+        publish()
+        scope.launch {
+            val result = chat.history(prefer)
+            loading = false
+            result.onSuccess { history ->
+                conversation.load(history.messages)
+                usageTokens = history.contextTokens
+                usageWindow = history.contextWindow
+                activePath = history.sessionFile.ifBlank { null }
+                activeTitle = history.title
+                historyLoaded = true
+                conversation.dismissFailure()
+            }.onFailure { e ->
+                if (e is AgentEngineMissingException) engineMissing = true
+                historyLoaded = true   // 读不回来也不反复重试：引导玩家去处理
+            }
+            refreshSessions()
+            publish()
+        }
+    }
+
+    /** 会话列表是磁盘上的目录：后台读，读回来刷新下拉。 */
+    private fun refreshSessions() {
+        scope.launch {
+            val listed = withContext(Dispatchers.IO) { catalog.list() }
+            sessions = listed
+            if (activePath == null) activePath = sessionStore.activePath()
+            publish()
+        }
     }
 
     /**
@@ -155,33 +235,6 @@ class AgentConversationState @Inject constructor(
         profiles = models.list()
         activeProfileId = models.activeId()
         config = settings.config
-        publish()
-    }
-
-    /** Another conversation answers from here on: history reloads, the process restarts next turn. */
-    fun switchSession(id: String) {
-        if (conversation.running || id == activeSessionId) return
-        chat.switchSession(id)
-        conversation.load(chat.messages)
-        sessions = sessionStore.list()
-        activeSessionId = sessionStore.activeId()
-        val meta = sessions.firstOrNull { it.id == id }
-        usageTokens = meta?.contextTokens ?: 0L
-        usageWindow = meta?.contextWindow ?: 0L
-        conversation.dismissFailure()
-        publish()
-    }
-
-    /** The menu's new-chat entry: a fresh store entry; the process restarts on the next turn. */
-    fun newSession() {
-        if (conversation.running) return
-        chat.reset()
-        conversation.load(chat.messages)
-        sessions = sessionStore.list()
-        activeSessionId = sessionStore.activeId()
-        conversation.dismissFailure()
-        usageTokens = 0L
-        usageWindow = 0L
         publish()
     }
 
@@ -258,7 +311,7 @@ class AgentConversationState @Inject constructor(
      * 停止：这一轮到此为止。
      *
      * 界面立刻解锁（不等引擎），引擎那边收到中止命令后停下手里的活——它不跑完这一轮，
-     * 进程也留着给下一轮。已写出来的字留在这一轮的回答里。
+     * 进程也留着给下一轮。已写出的字留在这一轮的回答里。
      */
     fun stop() {
         turn?.cancel()
@@ -284,9 +337,9 @@ class AgentConversationState @Inject constructor(
     private fun apply(event: AgentEvent) {
         conversation.apply(event)
         if (event is AgentEvent.TurnDone) {
-            // the turn's save renamed nothing but touched updatedAt: keep the dropdown fresh
-            sessions = sessionStore.list()
-            activeSessionId = sessionStore.activeId()
+            // 这一轮可能开过新会话文件（新会话的第一问）：列表与指针都跟上
+            activePath = sessionStore.activePath()
+            refreshSessions()
         }
         publish()
     }

@@ -92,7 +92,6 @@ import com.nx.android.R
 import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentPresets
 import com.nx.android.agent.AgentRole
-import com.nx.android.agent.runtime.AgentSessionMeta
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.HazeBlurStyle
@@ -212,6 +211,11 @@ fun AgentPanel(
     }
 
     val last = state.messages.lastOrNull()
+    // 当前会话的名字：引擎报的那个优先，没有就用列表里那一条的标题
+    val activeTitle = state.activeTitle.ifBlank {
+        state.sessions.firstOrNull { it.path == state.activePath }?.title
+            ?: stringResource(R.string.agent_action_new_session)
+    }
     // the first open lands at the conversation's true bottom; every open after it keeps the place
     // the player left (the drawer is never rebuilt, so there is nothing to restore)
     var opened by remember { mutableStateOf(false) }
@@ -220,6 +224,8 @@ fun AgentPanel(
         if (!open) return@LaunchedEffect
         // the models are read again: the settings page may have changed them while this was closed
         conversation.refreshModels()
+        // 历史第一次打开就读：引擎起进程那零点几秒由加载态盖住
+        conversation.ensureHistory()
     }
     // 首开落在真底。这个开关只有一次机会，所以别在消息还没到的时候把它烧掉：
     // 消息到了（哪怕抽屉这会儿正开着）就补上这一跟。
@@ -287,18 +293,19 @@ fun AgentPanel(
                 ) {
                     if (state.messages.isEmpty()) {
                         item {
-                            Column(Modifier.fillMaxWidth().padding(top = 32.dp)) {
-                                Text(
-                                    stringResource(R.string.agent_empty),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = AgentPalette.Ink,
-                                )
-                                Text(
-                                    stringResource(R.string.agent_empty_hint),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = AgentPalette.Ink2,
-                                    modifier = Modifier.padding(top = 6.dp),
-                                )
+                            Column(
+                                Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                HistoryStatus(state.loading, state.engineMissing, onOpenSettings)
+                                if (!state.loading && !state.engineMissing) {
+                                    Text(
+                                        stringResource(R.string.agent_empty_hint),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = AgentPalette.Ink2,
+                                        modifier = Modifier.padding(top = 6.dp),
+                                    )
+                                }
                             }
                         }
                     }
@@ -354,8 +361,7 @@ fun AgentPanel(
                     // the head: the session's title (truncated) and its context occupancy (opencode style)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            state.sessions.firstOrNull { it.id == state.activeSessionId }?.title
-                                ?: stringResource(R.string.agent_action_new_session),
+                            activeTitle,
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
                             color = AgentPalette.Ink,
                             maxLines = 1,
@@ -370,7 +376,12 @@ fun AgentPanel(
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            formatTokens(state.usageTokens) + usagePct(state.usageTokens, state.usageWindow),
+                            // 引擎没就绪不给假数字：窗口还不知道就先省略号
+                            if (state.usageWindow > 0) {
+                                formatTokens(state.usageTokens) + usagePct(state.usageTokens, state.usageWindow)
+                            } else {
+                                "…"
+                            },
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = AgentPalette.Ink,
                         )
@@ -528,8 +539,7 @@ fun AgentPanel(
                                     tint = AgentPalette.Ink2,
                                 )
                                 Text(
-                                    state.sessions.firstOrNull { it.id == state.activeSessionId }?.title
-                                        ?: stringResource(R.string.agent_action_new_session),
+                                    activeTitle,
                                     style = MaterialTheme.typography.labelMedium,
                                     color = AgentPalette.Ink,
                                     maxLines = 1,
@@ -553,27 +563,17 @@ fun AgentPanel(
                                 state.sessions.take(6).forEach { meta ->
                                     DropdownMenuItem(
                                         text = {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(
-                                                    meta.title,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = AgentPalette.Ink,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.weight(1f),
-                                                )
-                                                if (meta.contextTokens > 0) {
-                                                    Text(
-                                                        formatTokens(meta.contextTokens),
-                                                        style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                                                        color = AgentPalette.Ink2,
-                                                    )
-                                                }
-                                            }
+                                            Text(
+                                                meta.title,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = if (meta.path == state.activePath) AgentPalette.Quick else AgentPalette.Ink,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
                                         },
                                         onClick = {
                                             sessionMenu = false
-                                            conversation.switchSession(meta.id)
+                                            conversation.switchSession(meta.path)
                                         },
                                     )
                                 }
