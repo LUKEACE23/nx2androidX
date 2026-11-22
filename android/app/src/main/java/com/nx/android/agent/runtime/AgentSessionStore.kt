@@ -15,6 +15,7 @@ data class AgentSessionMeta(
     val updatedAt: Long,
     val contextTokens: Long = 0L,
     val contextWindow: Long = 0L,
+    val piSessionFile: String = "",
 )
 
 /**
@@ -47,6 +48,7 @@ class AgentSessionStore @Inject constructor(private val workspace: AgentWorkspac
                     f.lastModified(),
                     m?.optLong("context") ?: 0L,
                     m?.optLong("window") ?: 0L,
+                    m?.optString("piFile") ?: "",
                 )
             }
             ?.sortedByDescending { it.updatedAt }
@@ -61,14 +63,14 @@ class AgentSessionStore @Inject constructor(private val workspace: AgentWorkspac
     fun load(id: String): List<AgentMessage> = parse(file(id).takeIf { it.isFile }?.readText().orEmpty())
 
     /** Persists under the active id (creating it on first save), with the session's context state. */
-    fun save(messages: List<AgentMessage>, context: Long = 0L, window: Long = 0L): String {
+    fun save(messages: List<AgentMessage>, context: Long = 0L, window: Long = 0L, piFile: String = ""): String {
         dir.mkdirs()
         val id = activeId() ?: newId()
         val array = JSONArray()
         for (m in messages) array.put(JSONObject().put("id", m.id).put("role", m.role.name).put("text", m.text))
         file(id).writeText(array.toString(2))
         activeFile.writeText(id)
-        writeMeta(id, context, window)
+        writeMeta(id, context, window, piFile)
         return id
     }
 
@@ -89,9 +91,12 @@ class AgentSessionStore @Inject constructor(private val workspace: AgentWorkspac
         dir.deleteRecursively()
     }
 
-    private fun writeMeta(id: String, context: Long, window: Long) {
+    private fun writeMeta(id: String, context: Long, window: Long, piFile: String) {
         val meta = readMeta()
-        val entry = (meta.optJSONObject(id) ?: JSONObject()).put("context", context).put("window", window)
+        val entry = (meta.optJSONObject(id) ?: JSONObject())
+            .put("context", context)
+            .put("window", window)
+        if (piFile.isNotBlank()) entry.put("piFile", piFile)
         meta.put(id, entry)
         metaFile.writeText(meta.toString(2))
     }

@@ -80,14 +80,44 @@ class PiAgentChat @Inject constructor(
         newSession()
     }
 
-    /** Switch to another conversation: the process restarts on the next turn, the history reloads. */
+    /** Switch to another conversation: pi resumes its own context via the stored session file. */
     fun switchSession(id: String) {
         sessionStore.switch(id)
+        val meta = sessionStore.list().firstOrNull { it.id == id }
+        // pi's own context: if we have its session file, tell pi to load it (the model remembers)
+        if (process?.isAlive == true && !meta?.piSessionFile.isNullOrBlank()) {
+            Thread({
+                runCatching {
+                    val proc = checkNotNull(process)
+                    val cmd = JSONObject()
+                        .put("id", "switch-$$")
+                        .put("type", "switch_session")
+                        .put("sessionPath", meta!!.piSessionFile)
+                        .toString() + "\n"
+                    proc.outputStream.write(cmd.toByteArray(Charsets.UTF_8))
+                    proc.outputStream.flush()
+                    Log.d(TAG, "pi session resumed: ${meta!!.piSessionFile}")
+                }
+            }, "pi-switch-session").apply { isDaemon = true }.start()
+        }
         loadSession()
     }
 
-    /** A fresh conversation: a new store entry, an empty history, the process restarts. */
+    /** A fresh conversation: a new store entry, pi's context resets too. */
     fun newSession(): String {
+        if (process?.isAlive == true) {
+            Thread({
+                runCatching {
+                    val proc = checkNotNull(process)
+                    val cmd = JSONObject()
+                        .put("id", "new-$$")
+                        .put("type", "new_session")
+                        .toString() + "\n"
+                    proc.outputStream.write(cmd.toByteArray(Charsets.UTF_8))
+                    proc.outputStream.flush()
+                }
+            }, "pi-new-session").apply { isDaemon = true }.start()
+        }
         val id = sessionStore.create()
         loadSession()
         return id
@@ -237,7 +267,7 @@ class PiAgentChat @Inject constructor(
             // the process died mid-turn: the next turn respawns it
             kill()
             list.add(AgentMessage(nextId++, AgentRole.ASSISTANT, ""))
-            sessionStore.save(list, sessionTokens, sessionWindow)
+            sessionStore.save(list, sessionTokens, sessionWindow, piSessionFile.orEmpty())
             send(AgentEvent.Failed(AgentFailure.LOOP_ERROR))
             return@channelFlow
         }
@@ -264,7 +294,7 @@ class PiAgentChat @Inject constructor(
         val port = proxy.ensure()
         val pb = ProcessBuilder(
             listOf(
-                binary.absolutePath, "--mode", "rpc", "--no-session",
+                binary.absolutePath, "--mode", "rpc",
                 "--model", PiCatalog.fullModelId(config),
             ),
         ).directory(nx2a)
