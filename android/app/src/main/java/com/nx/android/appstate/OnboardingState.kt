@@ -234,7 +234,7 @@ class OnboardingState @Inject constructor(
         keysChecking = true
         keysDetail = ""
         val buf = StringBuilder()
-        PortRunner(env, guestLauncher, locale) { line -> buf.appendLine(line) }.doctor(p, json = true) {
+        PortRunner(env, guestLauncher, locale::str) { line -> buf.appendLine(line) }.doctor(p, json = true) {
             keysChecking = false
             // the port reads the file: a file that cannot be read is not good keys
             if (!readable(p)) {
