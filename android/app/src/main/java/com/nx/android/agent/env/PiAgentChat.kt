@@ -292,6 +292,31 @@ class PiAgentChat @Inject constructor(
         check(binary.isFile) { "pi 没有安装（files/nx2a/agent/pi/pi 不存在）" }
 
         val port = proxy.ensure()
+
+        // glm routes through bigmodel.cn, not pi's built-in zai (coding-plan): models.json adds it
+        if (config.providerId == "glm") {
+            val piHome = File(base["HOME"] ?: error("HOME not set"), ".pi/agent")
+            piHome.mkdirs()
+            File(piHome, "models.json").writeText(
+                """
+                {
+                  "providers": {
+                    "zhipu": {
+                      "baseUrl": "${'$'}{config.baseUrl.trimEnd('/')}",
+                      "api": "openai-completions",
+                      "apiKey": "${'$'}ZHIPU_API_KEY",
+                      "models": [
+                        { "id": "glm-4.6", "contextWindow": 204800 },
+                        { "id": "glm-4.5", "contextWindow": 131072 },
+                        { "id": "glm-4.5-air", "contextWindow": 131072 }
+                      ]
+                    }
+                  }
+                }
+                """.trimIndent(),
+            )
+        }
+
         val pb = ProcessBuilder(
             listOf(
                 binary.absolutePath, "--mode", "rpc",
@@ -372,8 +397,8 @@ internal object PiCatalog {
         "deepseek/deepseek-chat" to 131_072L,
         "deepseek/deepseek-reasoner" to 131_072L,
         "moonshot/kimi-latest" to 262_144L,
-        "zai/glm-4.6" to 204_800L,
-        "zai/glm-4.5" to 131_072L,
+        "zhipu/glm-4.6" to 204_800L,
+        "zhipu/glm-4.5" to 131_072L,
     )
 
     fun contextWindowFor(fullModelId: String): Long = CONTEXT_WINDOWS[fullModelId] ?: 0L
@@ -390,7 +415,7 @@ internal object PiCatalog {
 
     fun keyEnv(providerId: String, key: String): Pair<String, String> = when (providerId) {
         "minimax" -> "MINIMAX_CN_API_KEY" to key
-        "glm" -> "ZAI_CODING_CN_API_KEY" to key
+        "glm" -> "ZHIPU_API_KEY" to key
         "deepseek" -> "DEEPSEEK_API_KEY" to key
         "kimi" -> "MOONSHOT_API_KEY" to key
         else -> "OPENAI_API_KEY" to key

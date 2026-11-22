@@ -42,6 +42,28 @@ class PiRunner @Inject constructor(
         }
 
         val proxyPort = proxy.ensure()
+        if (config.providerId == "glm") {
+            val piHome = File(guest.guestEnv()["HOME"] ?: error("HOME not set"), ".pi/agent")
+            piHome.mkdirs()
+            File(piHome, "models.json").writeText(
+                """
+                {
+                  "providers": {
+                    "zhipu": {
+                      "baseUrl": "${'$'}{config.baseUrl.trimEnd('/')}",
+                      "api": "openai-completions",
+                      "apiKey": "${'$'}ZHIPU_API_KEY",
+                      "models": [
+                        { "id": "glm-4.6", "contextWindow": 204800 },
+                        { "id": "glm-4.5", "contextWindow": 131072 },
+                        { "id": "glm-4.5-air", "contextWindow": 131072 }
+                      ]
+                    }
+                  }
+                }
+                """.trimIndent(),
+            )
+        }
         val pb = ProcessBuilder(listOf(binary.absolutePath, "-p", "--model", PiCatalog.fullModelId(config), prompt))
             .directory(nx2a)
         pb.redirectErrorStream(true)
