@@ -454,7 +454,7 @@ class Port:
         try:
             try:
                 self.inputs()
-                PROG.plan(1 + len(self.versions) + bool(self.fam['dlc']) + bool(o.firmware and self.ap.sysdata) + bool(o.fps60) + 6 + bool(o.install))   # nx_extract, the versions, the DLC, the system data, 60 fps, rewrite / split / Vulkan shaders / host / APK / data, install (unpack adds its own)
+                PROG.plan(1 + len(self.versions) + bool(self.fam['dlc']) + bool(o.firmware and self.ap.sysdata) + bool(o.fps60) + (5 if o.app else 6) + bool(o.install))   # nx_extract, the versions, the DLC, the system data, 60 fps, rewrite / split / Vulkan shaders / host / data (the app's mode makes no APK), install (unpack adds its own)
                 self.extract()
             finally: self.drop_unpacked()   # a failed run leaves no decompressed dumps behind either
             self.check_graphics()
@@ -1409,7 +1409,7 @@ class Port:
                              files=files, text=self.lists(), host=host, icon=icon, drivers=drivers, profile_h=getattr(self, 'profile_h', None),
                              no_lsfg=self.o.no_lsfg,
                              pack_base=str(dst) if self.o.app else None,   # the app's mode: the pack lives in the app's own folder, not in the app's files folder
-                             progress=lambda what: PROG.set(step=f'linking {what}'))
+                             progress=lambda what, done, total: PROG.set(step=f'linking {what}', done=done, total=total, unit='B'))
         self.data_path = dst; self.result['data'] = str(dst)
         PROG.end(f'{man["files"]:,} files, {man["bytes"] / 2**30:.1f} GB')
 
