@@ -44,6 +44,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -90,6 +91,8 @@ import com.nx.android.domain.EnvCheck
 import com.nx.android.domain.GAME_FILE_EXTENSIONS
 import com.nx.android.domain.GameConfig
 import com.nx.android.domain.GameEntry
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import com.nx.android.domain.GameIdentity
 import com.nx.android.domain.drivers.DriverRepository
 import com.nx.android.domain.environment.EnvironmentSetup
@@ -531,9 +534,11 @@ fun MainScreen(
     val installedDrivers by drivers.drivers.collectAsStateWithLifecycle()
 
     // 选中游戏的背景铺满整块屏幕：顶栏透明画在图上，三个 tab 共用这层背景
+    // agent 抽屉的磨砂：页面这两层被抽屉捕获做背景模糊（hazeSource → hazeBlur）
+    val agentHaze = rememberHazeState()
     Box(Modifier.fillMaxSize()) {
-        HeroBackground(lib.visible().getOrNull(lib.heroIndex))
-        Column(Modifier.fillMaxSize()) {
+        HeroBackground(lib.visible().getOrNull(lib.heroIndex), Modifier.hazeSource(agentHaze))
+        Column(Modifier.fillMaxSize().hazeSource(agentHaze)) {
             TopBar(
                 selected = tab,
                 onSelect = { tab = it.ordinal },
@@ -670,6 +675,7 @@ fun MainScreen(
                 AgentPanel(
                     viewModel = hiltViewModel(),
                     chips = agentChips,
+                    haze = agentHaze,
                     onCollapse = { agentPanelOpen = false },
                     onExpand = {
                         agentPanelOpen = false

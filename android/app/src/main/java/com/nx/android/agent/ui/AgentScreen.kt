@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -44,6 +45,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.MarkdownTypography
@@ -66,17 +68,12 @@ import com.nx.android.core.ui.components.Hint
 import com.nx.android.core.ui.components.StatusDot
 import com.nx.android.core.ui.nav.NavKey
 import com.nx.android.core.ui.nav.OnNavKey
-import com.nx.android.core.ui.theme.GlassPanel
-import com.nx.android.core.ui.theme.NxPalette
 import com.nx.android.agent.AgentFailure
 import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentRole
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
-
-/** The user bubble's ground: the design spec's one off-palette neutral (a step above the palette's Surface). */
-/** The player's own bubble: the brand's tint — warmer than the grey, still quiet. */
 
 /**
  * The assistant's chat page: a full cover like the settings and the FAQ, but portrait (the activity turns
@@ -107,12 +104,24 @@ fun AgentScreen(
 
     // new content arrives at the bottom: follow it (not while the player is scrolling up to read)
     val last = state.messages.lastOrNull()
+    // every (re)open lands at the true bottom — after the first layout, not before it exists
+    LaunchedEffect(Unit) {
+        if (state.messages.isEmpty()) return@LaunchedEffect
+        snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > 0 }
+        listState.scrollToBottom()
+    }
     LaunchedEffect(state.messages.size, last?.text?.length, last?.tools?.size) {
-        if (state.messages.isNotEmpty() && !listState.isScrollInProgress) {
-            listState.scrollToItem(state.messages.size - 1)
-        }
+        if (state.messages.isEmpty()) return@LaunchedEffect
+        val info = listState.layoutInfo
+        val lastVisible = info.visibleItemsInfo.lastOrNull()
+        val atEnd = lastVisible == null ||
+            (lastVisible.index >= info.totalItemsCount - 1 &&
+                lastVisible.offset + lastVisible.size - info.viewportEndOffset < 400)
+        if (atEnd) listState.scrollToBottom()
     }
 
+    // the light sheet: everything inside resolves ink-on-white, whatever the app's dark theme says
+    MaterialTheme(colorScheme = AgentLightScheme, typography = AgentTypography) {
     Box(Modifier.fillMaxSize().background(AgentPalette.Ground)) {
         Column(
             Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -172,6 +181,7 @@ fun AgentScreen(
             }
         }
     }
+    } // MaterialTheme(agent light)
 }
 
 // ---- the top bar -----------------------------------------------------------------------------------------------
@@ -194,7 +204,7 @@ private fun AgentTopBar(
                 Icons.AutoMirrored.Filled.ArrowBack,
                 stringResource(R.string.common_back),
                 Modifier.size(22.dp),
-                tint = MaterialTheme.colorScheme.onBackground,
+                tint = AgentPalette.Ink,
             )
         }
         Spacer(Modifier.width(4.dp))
@@ -202,6 +212,7 @@ private fun AgentTopBar(
             stringResource(R.string.agent_title),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
+            color = AgentPalette.Ink,
             modifier = Modifier.weight(1f),
         )
         StatusCapsule(config)
@@ -215,7 +226,7 @@ private fun AgentTopBar(
                     Icons.Filled.MoreVert,
                     stringResource(R.string.agent_menu_more),
                     Modifier.size(22.dp),
-                    tint = MaterialTheme.colorScheme.onBackground,
+                    tint = AgentPalette.Ink,
                 )
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
@@ -239,13 +250,13 @@ private fun StatusCapsule(config: AgentModelConfig) {
         Modifier
             .heightIn(min = 32.dp)
             .clip(RoundedCornerShape(50))
-            // a faint white floats on the ground; a solid pill would read as a hole
-            .background(Color.White.copy(alpha = 0.10f))
+            .background(AgentPalette.Panel)
+            .border(1.dp, AgentPalette.Hairline, RoundedCornerShape(50))
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        StatusDot(if (config.configured) NxPalette.Ready else NxPalette.Unbuilt, size = 7.dp)
+        StatusDot(if (config.configured) AgentPalette.Ready else AgentPalette.Idle, size = 7.dp)
         Text(
             if (config.configured) {
                 stringResource(providerLabelRes(config.providerId)) + " · " + shortModel(config.modelName)
@@ -253,7 +264,7 @@ private fun StatusCapsule(config: AgentModelConfig) {
                 stringResource(R.string.agent_status_unset)
             },
             style = MaterialTheme.typography.labelSmall,
-            color = if (config.configured) MaterialTheme.colorScheme.onSurfaceVariant else NxPalette.Unbuilt,
+            color = if (config.configured) AgentPalette.Ink2 else AgentPalette.Idle,
             maxLines = 1,
         )
     }
@@ -268,23 +279,23 @@ internal fun ErrorStrip(reason: AgentFailure, onDismiss: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(NxPalette.Danger.copy(alpha = 0.14f))
+            .background(AgentPalette.Danger.copy(alpha = 0.10f))
             .clickable(onClick = onDismiss)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        StatusDot(NxPalette.Danger, size = 7.dp)
+        StatusDot(AgentPalette.Danger, size = 7.dp)
         Text(
             stringResource(failureText(reason)),
             style = MaterialTheme.typography.bodySmall,
-            color = NxPalette.Danger,
+            color = AgentPalette.Danger,
             modifier = Modifier.weight(1f),
         )
         Text(
             stringResource(R.string.common_close),
             style = MaterialTheme.typography.labelSmall,
-            color = NxPalette.Danger,
+            color = AgentPalette.Danger,
         )
     }
 }
@@ -307,20 +318,19 @@ internal fun MessageRow(message: AgentMessage, onToolsClick: ((AgentMessage) -> 
     if (message.role == AgentRole.USER) UserBubbleText(message.text) else AssistantBlock(message, onToolsClick)
 }
 
-/** The player's own words: a bubble on the right, at most 78% of the width. */
-/** The player's own bubble: the design's soft fill with the hairline, square like the rest of the sheet. */
+/** The player's bubble: the soft navy wash with the hairline, 13sp — the size the answers match. */
 @Composable
 private fun UserBubbleText(text: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Text(
             text,
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp, lineHeight = 20.sp),
+            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
             color = AgentPalette.Ink,
             modifier = Modifier
                 .fillMaxWidth(0.84f)
-                .background(Color(0x1AFFF0D6), RoundedCornerShape(16.dp))
-                .border(1.dp, Color(0x24FFF0D6), RoundedCornerShape(16.dp))
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .background(AgentPalette.Bubble, RoundedCornerShape(14.dp))
+                .border(1.dp, AgentPalette.BubbleBorder, RoundedCornerShape(14.dp))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
         )
     }
 }
@@ -338,23 +348,24 @@ private fun AssistantBlock(message: AgentMessage, onToolsClick: ((AgentMessage) 
     }
 }
 
-/** The panel's density: 14sp body on 22, serif headings, ink on the glass. */
+/** The answers' voice: serif headings, 13sp body on 22 (the bubble's size), mono code. */
 @Composable
 private fun agentMarkdownTypography(): MarkdownTypography = markdownTypography(
     h1 = MaterialTheme.typography.titleLarge.copy(
-        fontFamily = FontFamily.Serif, fontSize = 16.sp, color = AgentPalette.Ink,
+        fontFamily = AgentHeading, fontSize = 16.sp, lineHeight = 22.sp, color = AgentPalette.Ink,
     ),
     h2 = MaterialTheme.typography.titleMedium.copy(
-        fontFamily = FontFamily.Serif, fontSize = 15.sp, lineHeight = 21.sp, color = AgentPalette.Ink,
+        fontFamily = AgentHeading, fontSize = 15.sp, lineHeight = 21.sp, color = AgentPalette.Ink,
     ),
-    h3 = MaterialTheme.typography.titleSmall.copy(fontFamily = FontFamily.Serif, color = AgentPalette.Ink),
+    h3 = MaterialTheme.typography.titleSmall.copy(
+        fontFamily = AgentHeading, fontSize = 14.sp, lineHeight = 19.sp, color = AgentPalette.Ink,
+    ),
     text = MaterialTheme.typography.bodyMedium.copy(
         fontSize = 13.sp, lineHeight = 22.sp, color = AgentPalette.Ink,
     ),
     code = MaterialTheme.typography.bodySmall.copy(
-        fontFamily = FontFamily.Monospace, color = AgentPalette.Ink,
+        fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = AgentPalette.Ink,
     ),
-    link = MaterialTheme.typography.bodyMedium.copy(color = AgentPalette.Orange),
 )
 
 /**
@@ -409,7 +420,7 @@ private fun ToolSummary(
                                 fontFamily = FontFamily.Monospace,
                                 letterSpacing = 0.5.sp,
                             ),
-                            color = AgentPalette.Idle,
+                            color = AgentPalette.Ink2,
                         )
                         if (card.argsSummary.isNotBlank()) {
                             Text(
@@ -445,9 +456,9 @@ internal fun ToolCard(card: AgentToolCard) {
     var expanded by remember(card.id) { mutableStateOf(false) }
     val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "agent-tool-arrow")
     val (tint, stateWord) = when (card.state) {
-        AgentToolState.RUNNING -> NxPalette.Building to stringResource(R.string.agent_tool_running)
-        AgentToolState.DONE -> NxPalette.Ready to stringResource(R.string.agent_tool_done)
-        AgentToolState.FAILED -> NxPalette.Danger to stringResource(R.string.agent_tool_failed)
+        AgentToolState.RUNNING -> AgentPalette.Working to stringResource(R.string.agent_tool_running)
+        AgentToolState.DONE -> AgentPalette.Ready to stringResource(R.string.agent_tool_done)
+        AgentToolState.FAILED -> AgentPalette.Danger to stringResource(R.string.agent_tool_failed)
     }
     Column(
         Modifier
@@ -474,7 +485,7 @@ internal fun ToolCard(card: AgentToolCard) {
                 Text(
                     card.resultSummary ?: stateWord,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = AgentPalette.Ink2,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
@@ -483,7 +494,7 @@ internal fun ToolCard(card: AgentToolCard) {
                     Icons.Filled.KeyboardArrowDown,
                     null,
                     Modifier.size(18.dp).rotate(rotation),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = AgentPalette.Ink2,
                 )
                 StatusDot(tint, size = 8.dp)
             }
@@ -495,7 +506,7 @@ internal fun ToolCard(card: AgentToolCard) {
                     Text(
                         stringResource(R.string.agent_tool_args),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = AgentPalette.Ink2,
                     )
                     Text(
                         card.argsSummary,
@@ -506,12 +517,12 @@ internal fun ToolCard(card: AgentToolCard) {
                         Text(
                             stringResource(R.string.agent_tool_result),
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = AgentPalette.Ink2,
                         )
                         Text(
                             card.resultSummary,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = AgentPalette.Ink2,
                         )
                     }
                 }
@@ -549,7 +560,7 @@ internal fun AgentInputBar(
                 .padding(bottom = 4.dp)
                 .size(46.dp)
                 .clip(RoundedCornerShape(50))
-                .background(if (running || canSend) NxPalette.Brand else NxPalette.Surface)
+                .background(if (running || canSend) AgentPalette.Orange else AgentPalette.Panel)
                 .clickable(enabled = running || canSend) {
                     if (running) onStop()
                     else onSend(text)   // the ViewModel clears the draft as the words land
@@ -560,7 +571,7 @@ internal fun AgentInputBar(
                 if (running) Icons.Filled.Stop else Icons.AutoMirrored.Filled.Send,
                 stringResource(if (running) R.string.agent_stop else R.string.agent_send),
                 Modifier.size(20.dp),
-                tint = if (running || canSend) AgentPalette.CreamInk else AgentPalette.Idle,
+                tint = if (running || canSend) Color.White else AgentPalette.Idle,
             )
         }
     }

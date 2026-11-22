@@ -83,6 +83,14 @@ class AgentViewModel @Inject constructor(
     /** The ids are this list's own: they start above whatever the chat brought along. */
     private var nextId = (piChat.messages.maxOfOrNull { it.id } ?: 0L) + 1
 
+    init {
+        // a cold start reads the active session's last known occupancy from the store — the live
+        // UsageUpdated events take over from the first turn (fix: the usage row vanished after restart)
+        val meta = sessions.firstOrNull { it.id == activeSessionId }
+        usageTokens = meta?.contextTokens ?: 0L
+        usageWindow = meta?.contextWindow ?: 0L
+    }
+
     /** The assistant message the running turn's events land in; the turn's first event makes it. */
     private var draftId: Long? = null
     private var turn: Job? = null

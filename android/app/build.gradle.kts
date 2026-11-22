@@ -154,8 +154,12 @@ android {
         implementation("androidx.compose.material3:material3")
         implementation("androidx.compose.material:material-icons-extended")
         // the assistant's answers are markdown (ADR-009): full renderer — tables, links, nested lists
-        implementation("com.mikepenz:multiplatform-markdown-renderer-m3:0.27.0-rc02")
-        implementation("com.mikepenz:multiplatform-markdown-renderer-coil3:0.27.0-rc02")
+        implementation("com.mikepenz:multiplatform-markdown-renderer-m3:0.46.0")
+        implementation("com.mikepenz:multiplatform-markdown-renderer-coil3:0.46.0")
+        // the agent drawer's frosted glass (磨砂): the page behind is captured and blurred (API 31+,
+        // older devices fall back to the solid tint)
+        implementation("dev.chrisbanes.haze:haze:2.1.0")
+        implementation("dev.chrisbanes.haze:haze-blur:2.1.0")
         implementation("androidx.activity:activity-compose:1.13.0")
         implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
         implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")

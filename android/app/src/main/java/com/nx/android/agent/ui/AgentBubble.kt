@@ -82,7 +82,13 @@ fun AgentBubble(onClick: () -> Unit, modifier: Modifier = Modifier) {
                         },
                     )
                 }
-                .clickable { if (!dragged) onClick() },
+                .clickable {
+                    // a tap that slid past the slop counted as a drag and swallowed its click —
+                    // nothing reset the flag (only a real drag did), so every later tap died too
+                    val wasDragged = dragged
+                    dragged = false
+                    if (!wasDragged) onClick()
+                },
             contentAlignment = Alignment.Center,
         ) {
             Icon(

@@ -16,12 +16,15 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -47,6 +50,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,11 +75,29 @@ import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentPresets
 import com.nx.android.agent.AgentRole
 import com.nx.android.agent.runtime.AgentSessionMeta
+import dev.chrisbanes.haze.HazeInput
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.blur.HazeBlurStyle
+import dev.chrisbanes.haze.blur.HazeColorEffect
+import dev.chrisbanes.haze.blur.hazeBlur
+import kotlinx.coroutines.flow.first
 import kotlin.math.roundToInt
 
 /**
+ * The drawer's frosted glass (磨砂): the page behind is blurred at 28dp and washed with the warm
+ * white at 84% — the hero art bleeds through just enough to feel like glass, while ink text keeps a
+ * ~12:1 contrast. Devices without backdrop blur (API < 31) get the solid ground instead.
+ */
+private val DrawerGlass = HazeBlurStyle {
+    blurRadius(28.dp)
+    backgroundColor(AgentPalette.Ground)
+    colorEffects(listOf(HazeColorEffect.tint(AgentPalette.Ground.copy(alpha = 0.84f))))
+    fallbackColorEffect(HazeColorEffect.tint(AgentPalette.Ground))
+}
+
+/**
  * The assistant's side drawer, phone-landscape (ADR-009, the mobile draft) — the app's own glass
- * language: two columns (conversation 460dp, tools 240dp) over a near-opaque ground, the dimmed
+ * language: two columns (conversation 460dp, tools 240dp) over a frosted ground, the dimmed
  * home hero showing through on the left. The conversation has no header; the tool column carries
  * the head (title + context occupancy), the model chip, quick asks, the composer, and the session
  * switcher beside the send button at the very bottom. The tool-call overlay covers the tool column.
@@ -84,6 +106,7 @@ import kotlin.math.roundToInt
 fun AgentPanel(
     viewModel: AgentViewModel,
     chips: List<Int>,
+    haze: HazeState,
     onCollapse: () -> Unit,
     onExpand: () -> Unit,
     onOpenSettings: () -> Unit = {},
@@ -94,10 +117,23 @@ fun AgentPanel(
     var toolsOverlay by remember { mutableStateOf<AgentMessage?>(null) }
 
     val last = state.messages.lastOrNull()
+    // every (re)open lands at the conversation's true bottom — but the effect runs before the
+    // first layout, so wait for the list to actually exist before scrolling (totalItemsCount == 0
+    // made scrollToBottom return early and the drawer kept the old position)
+    LaunchedEffect(Unit) {
+        if (state.messages.isEmpty()) return@LaunchedEffect
+        snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > 0 }
+        listState.scrollToBottom()
+    }
+    // while it streams: stick to the bottom, but only while the player hasn't scrolled up to read
     LaunchedEffect(state.messages.size, last?.text?.length, last?.tools?.size, state.running) {
-        if (state.messages.isNotEmpty() && !listState.isScrollInProgress) {
-            listState.scrollToItem(state.messages.size - 1)
-        }
+        if (state.messages.isEmpty()) return@LaunchedEffect
+        val info = listState.layoutInfo
+        val lastVisible = info.visibleItemsInfo.lastOrNull()
+        val atEnd = lastVisible == null ||
+            (lastVisible.index >= info.totalItemsCount - 1 &&
+                lastVisible.offset + lastVisible.size - info.viewportEndOffset < 400)
+        if (atEnd) listState.scrollToBottom()
     }
 
     Box(
@@ -113,11 +149,13 @@ fun AgentPanel(
             .clickable { onCollapse() },
         contentAlignment = Alignment.CenterEnd,
     ) {
+        // the light sheet: everything inside resolves ink-on-white, whatever the app's dark theme says
+        MaterialTheme(colorScheme = AgentLightScheme, typography = AgentTypography) {
         Row(
             Modifier
                 .fillMaxHeight()
                 .width(700.dp)
-                .background(AgentPalette.DrawerBg)
+                .hazeBlur(input = HazeInput.Sources(haze), style = DrawerGlass)
                 .statusBarsPadding()
                 .imePadding()
                 // consume taps: the drawer is not the scrim (a tap in the flow used to close it)
@@ -128,10 +166,7 @@ fun AgentPanel(
         ) {
             // ---- the conversation: no header, the whole height -------------------------------------------
             Column(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .background(AgentPalette.Ground),
+                Modifier.weight(1f).fillMaxHeight(),
             ) {
                 state.error?.let { reason -> ErrorStrip(reason) { viewModel.dismissError() } }
                 LazyColumn(
@@ -200,6 +235,13 @@ fun AgentPanel(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f),
                         )
+                        ContextRing(
+                            state.usageTokens,
+                            state.usageWindow,
+                            ringSize = 14.dp,
+                            strokeWidth = 2.5.dp,
+                        )
+                        Spacer(Modifier.width(6.dp))
                         Text(
                             formatTokens(state.usageTokens) + usagePct(state.usageTokens, state.usageWindow),
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
@@ -237,7 +279,8 @@ fun AgentPanel(
                     GlassMenu(
                         expanded = modelMenu,
                         onDismiss = { modelMenu = false },
-                        modifier = Modifier.fillMaxWidth(),
+                        // a Popup has no parent width: fillMaxWidth here once stretched to the screen
+                        modifier = Modifier.width(224.dp),
                     ) {
                         AgentPresets.ALL.forEach { preset ->
                             DropdownMenuItem(
@@ -376,7 +419,7 @@ fun AgentPanel(
                                                     Text(
                                                         formatTokens(meta.contextTokens),
                                                         style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                                                        color = AgentPalette.Idle,
+                                                        color = AgentPalette.Ink2,
                                                     )
                                                 }
                                             }
@@ -421,7 +464,7 @@ fun AgentPanel(
                                 if (state.running) Icons.Filled.Stop else Icons.AutoMirrored.Filled.Send,
                                 stringResource(if (state.running) R.string.agent_stop else R.string.agent_send),
                                 Modifier.size(20.dp),
-                                tint = if (state.running || state.draft.isNotBlank()) AgentPalette.CreamInk else AgentPalette.Idle,
+                                tint = if (state.running || state.draft.isNotBlank()) Color.White else AgentPalette.Idle,
                             )
                         }
                     }
@@ -436,6 +479,7 @@ fun AgentPanel(
                 }
             }
         }
+        } // MaterialTheme(agent light)
     }
 }
 
@@ -481,7 +525,7 @@ private fun ToolOverlay(message: AgentMessage, onDismiss: () -> Unit, modifier: 
                             fontFamily = FontFamily.Monospace,
                             letterSpacing = 0.5.sp,
                         ),
-                        color = AgentPalette.Idle,
+                        color = AgentPalette.Ink2,
                     )
                     if (card.argsSummary.isNotBlank()) {
                         Text(
@@ -522,10 +566,6 @@ private fun GlassChip(
 ) {
     Row(
         modifier
-            .background(
-                Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.05f), Color.Transparent)),
-                RoundedCornerShape(50),
-            )
             .background(AgentPalette.Panel, RoundedCornerShape(50))
             .border(1.dp, AgentPalette.Hairline, RoundedCornerShape(50))
             .padding(contentPadding)
@@ -607,14 +647,11 @@ private fun GlassMenu(
     ) {
         Column(
             modifier
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.White.copy(alpha = 0.05f), Color.Transparent),
-                    ),
-                    RoundedCornerShape(20.dp),
-                )
-                .background(AgentPalette.Panel.copy(alpha = 0.94f), RoundedCornerShape(20.dp))
-                .border(1.dp, AgentPalette.Hairline, RoundedCornerShape(20.dp))
+                .widthIn(max = 320.dp)
+                .heightIn(max = 380.dp)
+                .verticalScroll(rememberScrollState())
+                .background(AgentPalette.Panel, RoundedCornerShape(16.dp))
+                .border(1.dp, AgentPalette.Hairline, RoundedCornerShape(16.dp))
                 .padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
             content = content,
@@ -648,3 +685,17 @@ internal fun formatTokens(tokens: Long): String =
 /** The occupancy percent — empty when the window is unknown. */
 internal fun usagePct(context: Long, window: Long): String =
     if (window > 0 && context > 0) "(${(context * 100 / window).coerceAtMost(999)}%)" else ""
+
+/**
+ * The true bottom: snap to the last item's start, then push through whatever of it spills below
+ * the viewport — [scrollToItem] alone leaves a long last message opened at its top.
+ */
+internal suspend fun LazyListState.scrollToBottom() {
+    val n = layoutInfo.totalItemsCount
+    if (n == 0) return
+    scrollToItem(n - 1)
+    val item = layoutInfo.visibleItemsInfo.lastOrNull() ?: return
+    val viewport = layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset
+    val spill = item.size - viewport
+    if (spill > 0) scrollToItem(n - 1, scrollOffset = spill)
+}
