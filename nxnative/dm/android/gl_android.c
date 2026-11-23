@@ -300,10 +300,16 @@ EGLB(eglCreatePbufferSurface, EGLSurface, EGLDisplay d, EGLConfig c, const EGLin
 EGLB(eglDestroySurface, EGLBoolean, EGLDisplay d, EGLSurface s) { (void)d; REAL(EGLBoolean, eglDestroySurface, EGLDisplay, EGLSurface); if (s == G.surf) G.surf = NULL; return r_eglDestroySurface(G.dpy, s); }
 EGLB(eglQuerySurface, EGLBoolean, EGLDisplay d, EGLSurface s, EGLint attr, EGLint *v) { (void)d; REAL(EGLBoolean, eglQuerySurface, EGLDisplay, EGLSurface, EGLint, EGLint *); return r_eglQuerySurface(G.dpy, s, attr, v); }
 EGLB(eglMakeCurrent, EGLBoolean, EGLDisplay d, EGLSurface dr, EGLSurface rd, EGLContext c) {
-    (void)d; REAL(EGLBoolean, eglMakeCurrent, EGLDisplay, EGLSurface, EGLSurface, EGLContext); egl_init();
-    EGLBoolean ok = r_eglMakeCurrent(G.dpy, dr, rd, c);
-    if (!ok) { REAL(EGLint, eglGetError, void); RED1("eglMakeCurrent failed: %#x", r_eglGetError()); }
-    return ok;
+  (void)d; REAL(EGLBoolean, eglMakeCurrent, EGLDisplay, EGLSurface, EGLSurface, EGLContext); egl_init();
+  if (c && (!dr || !rd)) {
+    static EGLSurface dummy;
+    if (!dummy) dummy = pbuffer(1, 1);
+    if (!dr) dr = dummy;
+    if (!rd) rd = dummy;
+  }
+  EGLBoolean ok = r_eglMakeCurrent(G.dpy, dr, rd, c);
+  if (!ok) { REAL(EGLint, eglGetError, void); RED1("eglMakeCurrent failed: %#x", r_eglGetError()); }
+  return ok;
 }
 EGLB(eglGetCurrentContext, EGLContext, void) { REAL(EGLContext, eglGetCurrentContext, void); return r_eglGetCurrentContext(); }
 EGLB(eglGetCurrentSurface, EGLSurface, EGLint which) { REAL(EGLSurface, eglGetCurrentSurface, EGLint); return r_eglGetCurrentSurface(which); }
