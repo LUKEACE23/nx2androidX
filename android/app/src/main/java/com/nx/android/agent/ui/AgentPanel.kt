@@ -737,7 +737,16 @@ fun AgentPanel(
 /** The tool-call overlay: the tool column's whole face — title, close, the records below. */
 @Composable
 private fun ToolOverlay(message: AgentMessage, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.background(AgentPalette.DrawerBg)) {
+    // consume taps: the overlay covers the tool column, so a tap on its blank face must not
+    // reach the chips underneath (the model chip answered the player through it)
+    Column(
+        modifier
+            .background(AgentPalette.DrawerBg)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) { },
+    ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,

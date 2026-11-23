@@ -3,6 +3,7 @@ package com.nx.android.agent.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -341,7 +342,16 @@ internal fun AgentsOverlay(
 ) {
     var open by remember { mutableStateOf<AgentSubagent?>(null) }
     val current = open
-    Column(modifier.background(AgentPalette.DrawerBg)) {
+    // consume taps: the overlay covers the whole panel, so a tap on its blank face must not
+    // reach the chips underneath (the model chip answered the player through it)
+    Column(
+        modifier
+            .background(AgentPalette.DrawerBg)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) { },
+    ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
