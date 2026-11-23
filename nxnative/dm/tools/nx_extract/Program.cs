@@ -237,30 +237,31 @@ static class P {
     // The game itself, not its update: a cartridge dump rebuilt with the update merged in holds the game's card NCA
     // (card distribution) beside the update's download NCA, and both carry the game's title ID, so the title ID alone
     // does not tell them apart. The card NCA is the game's; the download one is a patch (BKTR) over it.
-    static Nca PickGame(List<Nca> l) {
+    static Nca PickGame(List<NcaEntry> l) {
         Nca r = null;
-        foreach (Nca n in l) if (n.Header.ContentType == NcaContentType.Program && n.Header.DistributionType == DistributionType.GameCard && (r == null || n.Header.TitleId < r.Header.TitleId)) r = n;
+        foreach (var e in l) if (e.Nca.Header.ContentType == NcaContentType.Program && e.Nca.Header.DistributionType == DistributionType.GameCard && (r == null || e.Nca.Header.TitleId < r.Header.TitleId)) r = e.Nca;
         return r ?? Pick(l, NcaContentType.Program);   // an NSP: its program NCA is the game (downloaded, but not a patch)
     }
 
     // The update inside the same package, when there is one (a cartridge dump rebuilt with the update merged in): its
     // download NCA of that title. A package whose only program NCA is the game's own (an NSP) has no update in it.
-    static Nca PickUpdate(List<Nca> l, Nca game) {
+    static Nca PickUpdate(List<NcaEntry> l, Nca game) {
         Nca r = null;
-        foreach (Nca n in l) if (n != game && n.Header.ContentType == NcaContentType.Program && n.Header.DistributionType == DistributionType.Download && n.Header.TitleId == game.Header.TitleId) r = n;
+        foreach (var e in l) if (e.Nca != game && e.Nca.Header.ContentType == NcaContentType.Program && e.Nca.Header.DistributionType == DistributionType.Download && e.Nca.Header.TitleId == game.Header.TitleId) r = e.Nca;
         return r;
     }
 
     // The control data with that title ID and that distribution (the update's control holds its version: the game's
     // own control holds the version of the card). A dump whose controls all carry one distribution has none of that
     // distribution: then any control of that title is taken.
-    static Nca PickControl(List<Nca> l, ulong id, byte distr) {
+    static Nca PickControl(List<NcaEntry> l, ulong id, byte distr) {
         Nca r = null;
-        foreach (Nca n in l) if (n.Header.ContentType == NcaContentType.Control && n.Header.TitleId == id && (byte)n.Header.DistributionType == distr) r = n;
+        foreach (var e in l) if (e.Nca.Header.ContentType == NcaContentType.Control && e.Nca.Header.TitleId == id && (byte)e.Nca.Header.DistributionType == distr) r = e.Nca;
         if (r != null) return r;
-        foreach (Nca n in l) if (n.Header.ContentType == NcaContentType.Control && n.Header.TitleId == id) r = n;
+        foreach (var e in l) if (e.Nca.Header.ContentType == NcaContentType.Control && e.Nca.Header.TitleId == id) r = e.Nca;
         return r;
     }
+
     // Every meta NCA's data section holds its title's content meta (a CNMT, named *.cnmt), which lists that title's NCAs by content ID: the NCA entry's file name. The merged
     // container's titles and versions come from these (LibHac's Cnmt parses a CNMT); the ordinary path never reads them
     static List<Cnmt> Cnmts(List<NcaEntry> ncas) {
@@ -279,8 +280,8 @@ static class P {
         }
         return metas;
     }
-    // A multi-program title (an update may add a whole second program, e.g. ROMANCE OF THE THREE KINGDOMS 8 REMAKE's 1.1.3, title ID …0001) lists a Program (and Control) entry per index: take the lowest IdOffset (program 0, the game), as Pick takes the lowest title ID on the ordinary path — the list's order need not start at 0
-    static CnmtContentEntry EntryOf(Cnmt m, LibHac.Ncm.ContentType t) => m?.ContentEntries.Where(c => c.Type == t).OrderBy(c => c.IdOffset).FirstOrDefault();
+    // A multi-program title (an update may add a whole second program, e.g. ROMANCE OF THE THREE KINGDOMS 8 REMAKE's 1.1.3, title ID …0001) lists a Program (and Control) entry per index: take the first one (program 0, the game), as Pick takes the lowest title ID on the ordinary path. LibHac 0.19.0's CnmtContentEntry does not carry the index (upstream's newer LibHac has it as IdOffset), but the content entries are in index order, so the first of that type is the game's
+    static CnmtContentEntry EntryOf(Cnmt m, LibHac.Ncm.ContentType t) => m?.ContentEntries.Where(c => c.Type == t).FirstOrDefault();
 
     // A merged dump ("(1G+1U)"): base game, update and DLC NCAs beside one another in one container. NCA headers cannot pick them: an update's program and control NCAs carry the
     // base game's title ID, so base and update both read …000. The content metas decide: the application CNMT's entries are the base's NCAs, the newest patch CNMT's the update's
