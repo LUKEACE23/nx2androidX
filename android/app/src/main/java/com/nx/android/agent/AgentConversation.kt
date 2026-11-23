@@ -61,6 +61,7 @@ class AgentConversation {
             is AgentEvent.ToolFinished -> finishTool(event.id, event.state, event.resultSummary)
             is AgentEvent.TurnDone -> finishTurn(event.assistantText, event.tokens)
             is AgentEvent.Failed -> fail(event.reason)
+            is AgentEvent.Notification -> addNotification(event.notification)
             // 上下文占用不是对话的事：那是持有者那边的账
             is AgentEvent.UsageUpdated -> Unit
         }
@@ -119,6 +120,24 @@ class AgentConversation {
         running = false
     }
 
+    /**
+     * A sub-agent finished: its notice joins the answer it belongs to.
+     *
+     * The notice arrives while the answer is being written, so it lands on that answer. When the
+     * turn is already over, it becomes its own little answer — the notice is worth seeing either
+     * way.
+     */
+    private fun addNotification(notification: AgentNotification) {
+        val last = messages.lastOrNull()
+        if (last != null && last.role == AgentRole.ASSISTANT) {
+            update(last.id) { it.copy(notifications = it.notifications + notification) }
+            return
+        }
+        messages = messages + AgentMessage(
+            nextId++, AgentRole.ASSISTANT, "", notifications = listOf(notification),
+        )
+    }
+
     /** The assistant message the events of the running turn land in; the turn's first event makes it. */
     private fun draft(): AgentMessage {
         val id = draftId
@@ -135,7 +154,9 @@ class AgentConversation {
     private fun dropEmptyDraft() {
         val id = draftId
         val last = messages.lastOrNull()
-        if (id != null && last?.id == id && last.text.isEmpty() && last.tools.isEmpty()) {
+        val empty = last != null && last.text.isEmpty() && last.tools.isEmpty() &&
+            last.notifications.isEmpty()
+        if (id != null && last?.id == id && empty) {
             messages = messages.dropLast(1)
         }
         draftId = null

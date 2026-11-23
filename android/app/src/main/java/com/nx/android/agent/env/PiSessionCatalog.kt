@@ -33,29 +33,46 @@ class PiSessionCatalog internal constructor(private val home: File) {
         val files = sessions.listFiles { f -> f.isDirectory }
             ?.flatMap { dir -> dir.listFiles { f -> f.isFile && f.extension == "jsonl" }?.toList() ?: emptyList() }
             .orEmpty()
-        return files.map { f -> Entry(f.absolutePath, titleOf(f), f.lastModified()) }
-            .sortedByDescending { it.updatedAt }
+        return files.mapNotNull { f ->
+            val head = headOf(f)
+            // 子 Agent 自己的会话不是玩家的会话：它的头里写着是谁派它出来的
+            if (head.isSubagent) return@mapNotNull null
+            Entry(f.absolutePath, head.title, f.lastModified())
+        }.sortedByDescending { it.updatedAt }
     }
+
+    /** The session's head: its name, and whether a sub-agent owns it. */
+    private data class Head(val title: String, val isSubagent: Boolean)
 
     /**
      * 标题：会话名优先——我们自己建的会话在首轮就把名字写进了文件头部，读文件头一小段
      * 就够；没读到（别处来的老会话）退回文件名里的时间。
+     *
+     * 同一个文件头还回答了另一个问题：这个会话是谁的。子 Agent 的会话头里写着它的父会话，
+     * 玩家的会话没有——所以子 Agent 的会话不进玩家的列表。
      */
-    private fun titleOf(f: File): String {
+    private fun headOf(f: File): Head {
+        var name: String? = null
+        var isSubagent = false
         runCatching {
             f.inputStream().use { stream ->
                 val head = ByteArray(64 * 1024)
                 val n = stream.read(head)
-                var name: String? = null
-                for (line in String(head, 0, n, Charsets.UTF_8).split('\n')) {
+                val lines = String(head, 0, n, Charsets.UTF_8).split('\n')
+                lines.firstOrNull()?.takeIf { it.isNotBlank() }?.let { first ->
+                    val header = runCatching { JSONObject(first) }.getOrNull()
+                    if (header != null && !header.optString("parentSession").isNullOrBlank()) {
+                        isSubagent = true
+                    }
+                }
+                for (line in lines) {
                     if (!line.contains("\"session_info\"")) continue
                     runCatching { JSONObject(line).optString("name") }.getOrNull()
                         ?.takeIf { it.isNotBlank() }?.let { name = it }
                 }
-                name?.let { return it }
             }
         }
-        return timeTitle(f.name)
+        return Head(name ?: timeTitle(f.name), isSubagent)
     }
 
     /** 文件名里的时间戳（UTC）转成本地可读的样子。 */

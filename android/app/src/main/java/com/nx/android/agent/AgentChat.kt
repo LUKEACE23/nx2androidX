@@ -10,6 +10,8 @@ data class AgentToolCard(
     val argsSummary: String,
     val state: AgentToolState,
     val resultSummary: String? = null,
+    /** The sub-agent this call spawned (null for an ordinary tool). */
+    val subagent: AgentSubagentCall? = null,
 )
 
 enum class AgentToolState { RUNNING, DONE, FAILED }
@@ -26,6 +28,8 @@ data class AgentMessage(
      * 重新打开时它显示「已中断」——玩家看得见这一轮断在哪。
      */
     val pending: Boolean = false,
+    /** 这一轮里，子 Agent 完成时回来的通知（一张卡片一张通知）。 */
+    val notifications: List<AgentNotification> = emptyList(),
 )
 
 sealed interface AgentEvent {
@@ -37,6 +41,9 @@ sealed interface AgentEvent {
 
     /** The running context occupancy (tokens in the model's window) and the window itself. */
     data class UsageUpdated(val contextTokens: Long, val contextWindow: Long) : AgentEvent
+
+    /** A sub-agent finished: the notice that says so. */
+    data class Notification(val notification: AgentNotification) : AgentEvent
 }
 
 enum class AgentFailure { NO_KEY, BAD_KEY, NETWORK, MODEL_NO_TOOLS, LOOP_ERROR }

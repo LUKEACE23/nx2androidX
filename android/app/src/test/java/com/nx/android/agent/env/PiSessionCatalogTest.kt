@@ -29,6 +29,18 @@ class PiSessionCatalogTest {
         return f
     }
 
+    /** 子 Agent 自己的会话：文件头里写着它的父会话。 */
+    private fun subagentSession(dir: File, name: String, parent: String): File {
+        dir.mkdirs()
+        val f = File(dir, name)
+        f.writeText(
+            """{"type":"session","version":3,"id":"sub","timestamp":"2026-11-22T10:33:53.596Z","cwd":"/x","parentSession":"$parent"}""" +
+                "\n" +
+                """{"type":"message","id":"1","parentId":null,"message":{"role":"user","content":"task"}}""" + "\n",
+        )
+        return f
+    }
+
     private fun catalog(): PiSessionCatalog = PiSessionCatalog(folder.newFolder("home"))
 
     @Test
@@ -76,5 +88,27 @@ class PiSessionCatalogTest {
         val title = PiSessionCatalog(home).list().first().title
         assertTrue(title.contains("11-22"))
         assertTrue(title.contains("18:33"))   // 文件名里是 UTC，转成本地时间
+    }
+
+    @Test
+    fun `a sub-agent's own session is not the player's`() {
+        val home = folder.newFolder("home")
+        val dir = File(home, ".pi/agent/sessions/--x--")
+        val mine = session(dir, "2026-11-22T10-33-53-596Z_a.jsonl", named = "我的会话")
+        subagentSession(dir, "2026-11-22T11-40-27-295Z_b.jsonl", mine.absolutePath)
+
+        val entries = PiSessionCatalog(home).list()
+        assertEquals(1, entries.size)
+        assertEquals("我的会话", entries[0].title)
+    }
+
+    @Test
+    fun `a session whose parent is gone is still not the player's`() {
+        val home = folder.newFolder("home")
+        val dir = File(home, ".pi/agent/sessions/--x--")
+        session(dir, "2026-11-22T10-33-53-596Z_a.jsonl")
+        subagentSession(dir, "2026-11-22T11-40-27-295Z_b.jsonl", "/gone/parent.jsonl")
+
+        assertEquals(1, PiSessionCatalog(home).list().size)
     }
 }

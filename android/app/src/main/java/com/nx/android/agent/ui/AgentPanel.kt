@@ -48,6 +48,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.AddComment
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -203,6 +204,8 @@ fun AgentPanel(
     val state by conversation.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     var toolsOverlay by remember { mutableStateOf<AgentMessage?>(null) }
+    // the sub-agents overlay: the list of this chat's runs, and the one that is open
+    var agentsOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val copiedWord = stringResource(R.string.agent_copied)
     val copyLabel = stringResource(R.string.agent_title)
@@ -234,6 +237,14 @@ fun AgentPanel(
         opened = true
         followBottom = true
     }
+    // 攻关面板开着的时候清单跟着走：还在跑的子 Agent 会自己长大
+    LaunchedEffect(agentsOpen) {
+        if (!agentsOpen) return@LaunchedEffect
+        while (agentsOpen) {
+            conversation.refreshSubagents()
+            delay(1200)
+        }
+    }
     // markdown 提前在后台解析好：条目进屏时高度一次就对，滚动不再等解析
     val mdStates by conversation.markdownCache.ready.collectAsStateWithLifecycle()
     // 跟着底部走：markdown 是一条条排出来的，跳过去那一刻高度还不是最终值，
@@ -262,24 +273,25 @@ fun AgentPanel(
 
     // the light sheet: everything inside resolves ink-on-white, whatever the app's dark theme says
     MaterialTheme(colorScheme = AgentLightScheme, typography = AgentTypography) {
-        Row(
-            modifier
-                .fillMaxHeight()
-                .width(DrawerWidth)
-                .then(
-                    // the frosted sheet where there is something to frost (the page behind);
-                    // a solid ground where there is not (the game's surface)
-                    if (haze != null) Modifier.hazeBlur(input = HazeInput.Sources(haze), style = DrawerGlass)
-                    else Modifier.background(AgentPalette.Ground)
-                )
-                .statusBarsPadding()
-                .imePadding()
-                // consume taps: the drawer is not the scrim (a tap in the flow used to close it)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                ) { },
-        ) {
+    Box(
+        modifier
+            .fillMaxHeight()
+            .width(DrawerWidth)
+            .then(
+                // the frosted sheet where there is something to frost (the page behind);
+                // a solid ground where there is not (the game's surface)
+                if (haze != null) Modifier.hazeBlur(input = HazeInput.Sources(haze), style = DrawerGlass)
+                else Modifier.background(AgentPalette.Ground)
+            )
+            .statusBarsPadding()
+            .imePadding()
+            // consume taps: the drawer is not the scrim (a tap in the flow used to close it)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) { },
+    ) {
+    Row(Modifier.fillMaxSize()) {
             // ---- the conversation: no header, the whole height -------------------------------------------
             Column(
                 Modifier.weight(1f).fillMaxHeight(),
@@ -316,6 +328,7 @@ fun AgentPanel(
                             markdownState = mdStates[message.id],
                             onToolsClick = { toolsOverlay = it },
                             onCopy = onCopy,
+                            subagents = state.subagents,
                         )
                     }
                 }
@@ -473,6 +486,43 @@ fun AgentPanel(
                             },
                         )
                     }
+                    // the sub-agents entry: this chat's runs, and the ones still going
+                    GlassChip(
+                        modifier = Modifier.fillMaxWidth().height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp),
+                        onClick = { agentsOpen = true },
+                    ) {
+                        Icon(
+                            Icons.Filled.AccountTree,
+                            null,
+                            Modifier.size(13.dp),
+                            tint = AgentPalette.Ink2,
+                        )
+                        Text(
+                            stringResource(R.string.agent_subagents_entry),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = AgentPalette.Ink,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (state.subagents.isNotEmpty()) {
+                            Text(
+                                state.subagents.size.toString(),
+                                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                                color = AgentPalette.Ink2,
+                            )
+                        }
+                        // 有活儿在跑：那盏灯亮着
+                        if (state.subagents.any { it.running }) {
+                            Box(
+                                Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(AgentPalette.Working),
+                            )
+                        }
+                    }
                     // quick asks: they follow the page context and stay while the agent works.
                     // 只有还没开聊的新会话才给它们——开了聊就不打扰了。
                     if (state.messages.isEmpty()) {
@@ -626,6 +676,17 @@ fun AgentPanel(
                 }
             }
         }
+        // the sub-agents overlay: the list of this chat's runs, and the one that is open
+        if (agentsOpen) {
+            AgentsOverlay(
+                subagents = state.subagents,
+                running = state.subagents.count { it.running },
+                loadConversation = { subagent -> conversation.subagentConversation(subagent) },
+                onDismiss = { agentsOpen = false },
+                modifier = Modifier.matchParentSize(),
+            )
+        }
+    }
     } // MaterialTheme(agent light)
 }
 /** The tool-call overlay: the tool column's whole face — title, close, the records below. */

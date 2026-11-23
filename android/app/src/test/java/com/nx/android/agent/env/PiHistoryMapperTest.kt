@@ -6,6 +6,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -146,5 +147,59 @@ class PiHistoryMapperTest {
         )
         assertEquals(2, out.size)
         assertEquals("答", out[1].text)
+    }
+
+    @Test
+    fun `a sub-agent notification becomes a card`() {
+        val notice = JSONObject().apply {
+            put("role", "custom")
+            put("customType", "subagent-notification")
+            put("content", "<task-notification><task-id>t1</task-id><status>Done</status>" +
+                "<summary>Agent \"run\" completed</summary>" +
+                "<usage><total_tokens>10</total_tokens><duration_ms>500</duration_ms></usage>" +
+                "</task-notification>")
+        }
+        val out = PiHistoryMapper.map(listOf(user("玩家说：派个活"), assistant(text("派了")), notice))
+        assertEquals(2, out.size)
+        assertEquals(1, out[1].notifications.size)
+        val card = out[1].notifications.first()
+        assertEquals("t1", card.id)
+        assertEquals("Done", card.status)
+        assertEquals(10L, card.totalTokens)
+    }
+
+    @Test
+    fun `other custom messages are ignored`() {
+        val other = JSONObject().apply {
+            put("role", "custom")
+            put("customType", "something-else")
+            put("content", "not a notice")
+        }
+        val out = PiHistoryMapper.map(listOf(user("玩家说：派个活"), assistant(text("派了")), other))
+        assertEquals(2, out.size)
+        assertTrue(out[1].notifications.isEmpty())
+    }
+
+    @Test
+    fun `an agent tool call carries the sub-agent it spawned`() {
+        val call = JSONObject().apply {
+            put("type", "toolCall")
+            put("id", "c9")
+            put("name", "Agent")
+            put(
+                "arguments",
+                JSONObject()
+                    .put("prompt", "run echo MARKER_TEST")
+                    .put("description", "Run marker echo")
+                    .put("subagent_type", "general-purpose"),
+            )
+        }
+        val out = PiHistoryMapper.map(listOf(user("玩家说：派个活"), assistant(call, stop = "toolUse")))
+        val card = out[1].tools.first()
+        assertNotNull(card.subagent)
+        assertEquals("general-purpose", card.subagent!!.type)
+        assertEquals("Run marker echo", card.subagent!!.description)
+        assertEquals("run echo MARKER_TEST", card.subagent!!.prompt)
+        assertEquals("Run marker echo", card.argsSummary)
     }
 }

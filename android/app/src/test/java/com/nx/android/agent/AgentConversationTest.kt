@@ -169,4 +169,39 @@ class AgentConversationTest {
         c.load(listOf(AgentMessage(1L, AgentRole.ASSISTANT, "看日志", pending = true)))
         assertTrue(c.messages.last().pending)
     }
+
+    @Test
+    fun `a sub-agent notice joins the answer it belongs to`() {
+        val c = AgentConversation()
+        c.say("派个活")
+        c.begin()
+        c.apply(AgentEvent.TextDelta("派了"))
+        c.apply(AgentEvent.Notification(AgentNotification("t1", "Done", "Agent done")))
+        c.end()
+        assertEquals(2, c.messages.size)
+        assertEquals(1, c.messages[1].notifications.size)
+        assertEquals("t1", c.messages[1].notifications.first().id)
+    }
+
+    @Test
+    fun `a notice after the turn joins the answer it is about`() {
+        val c = AgentConversation()
+        c.say("派个活")
+        c.begin()
+        c.apply(AgentEvent.TextDelta("派了"))
+        c.end()
+        c.apply(AgentEvent.Notification(AgentNotification("t1", "Done", "Agent done")))
+        assertEquals(2, c.messages.size)
+        assertEquals(1, c.messages.last().notifications.size)
+        assertEquals("t1", c.messages.last().notifications.first().id)
+    }
+
+    @Test
+    fun `a notice with no answer at all stands on its own`() {
+        val c = AgentConversation()
+        c.apply(AgentEvent.Notification(AgentNotification("t1", "Done", "Agent done")))
+        assertEquals(1, c.messages.size)
+        assertEquals("", c.messages.first().text)
+        assertEquals(1, c.messages.first().notifications.size)
+    }
 }

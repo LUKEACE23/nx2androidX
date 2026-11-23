@@ -1,7 +1,9 @@
 package com.nx.android.agent.env
 
 import com.nx.android.agent.AgentMessage
+import com.nx.android.agent.AgentNotification
 import com.nx.android.agent.AgentRole
+import com.nx.android.agent.AgentSubagentCallParser
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
 import org.json.JSONObject
@@ -17,6 +19,7 @@ import org.json.JSONObject
  * - thinking 跳过（推理过程不是回答）
  * - assistant 的 text 部件拼成回答正文，toolCall 部件开一张工具卡
  * - toolResult 按 toolCallId 对回卡片：isError 定成败，首段文字当结果摘要
+ * - custom 的子 Agent 完成通知 → 一张通知卡片（别的 custom 消息照旧忽略）
  * - 每条 assistant 的 usage.output 累加 = 这一轮回答自己生成的量
  * - 玩家的话剥掉注入块（[本机状态]/[助手记忆]/[页面上下文]），只留「玩家说：」后面的部分
  * - 一轮没收尾（引擎没了：最后没有 stopReason 为 stop/aborted 的 assistant）→ 玩家那条标
@@ -40,20 +43,23 @@ object PiHistoryMapper {
         var text = StringBuilder()
         var tokens = 0L
         var terminated = false
+        val notices = mutableListOf<AgentNotification>()
 
         fun closeTurn() {
             val words = question ?: return
             out += AgentMessage(nextId++, AgentRole.USER, words, pending = !terminated)
-            if (text.isNotEmpty() || cards.isNotEmpty()) {
+            if (text.isNotEmpty() || cards.isNotEmpty() || notices.isNotEmpty()) {
                 out += AgentMessage(
                     nextId++, AgentRole.ASSISTANT, text.toString(),
                     tools = cards.toList(), tokens = tokens,
+                    notifications = notices.toList(),
                 )
             }
             cards = mutableListOf()
             text = StringBuilder()
             tokens = 0L
             terminated = false
+            notices.clear()
         }
 
         for (raw in messages) {
@@ -72,16 +78,39 @@ object PiHistoryMapper {
                         val p = parts.optJSONObject(i) ?: continue
                         when (p.optString("type")) {
                             "text" -> text.append(p.optString("text"))
-                            "toolCall" -> cards += AgentToolCard(
-                                id = p.optString("id"),
-                                name = p.optString("name"),
-                                argsSummary = p.optJSONObject("arguments")?.toString()?.take(60) ?: "",
-                                state = AgentToolState.RUNNING,
-                            )
+                            "toolCall" -> {
+                                val call = AgentSubagentCallParser.of(
+                                    p.optString("name"),
+                                    p.optJSONObject("arguments"),
+                                )
+                                cards += AgentToolCard(
+                                    id = p.optString("id"),
+                                    name = p.optString("name"),
+                                    argsSummary = if (call != null) {
+                                        call.description.ifBlank { call.type }
+                                    } else {
+                                        p.optJSONObject("arguments")?.toString()?.take(60) ?: ""
+                                    },
+                                    state = AgentToolState.RUNNING,
+                                    subagent = call,
+                                )
+                            }
                         }
                     }
                     raw.optJSONObject("usage")?.let { tokens += it.optLong("output", 0L) }
                     if (raw.optString("stopReason") in TERMINAL) terminated = true
+                }
+
+                // 子 Agent 跑完了：引擎把它完成的通知塞进对话，这一段是一张卡片
+                "custom" -> {
+                    val notice = noticeOf(raw) ?: continue
+                    if (question == null) {
+                        out += AgentMessage(
+                            nextId++, AgentRole.ASSISTANT, "", notifications = listOf(notice),
+                        )
+                    } else {
+                        notices.add(notice)
+                    }
                 }
 
                 "toolResult" -> {
@@ -118,11 +147,24 @@ object PiHistoryMapper {
 
     /** 结果摘要：首个文本部件。 */
     private fun firstText(m: JSONObject): String? {
-        val parts = m.optJSONArray("content") ?: return null
-        for (i in 0 until parts.length()) {
-            val p = parts.optJSONObject(i) ?: continue
-            if (p.optString("type") == "text") return p.optString("text")
+        val parts = m.optJSONArray("content")
+        if (parts != null) {
+            for (i in 0 until parts.length()) {
+                val p = parts.optJSONObject(i) ?: continue
+                if (p.optString("type") == "text") return p.optString("text")
+            }
+            return null
         }
-        return null
+        return m.optString("content").takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * 子 Agent 的完成通知：只有引擎自己发的那一种才算，其余的 custom 消息照旧忽略。
+     */
+    private fun noticeOf(m: JSONObject): AgentNotification? {
+        if (m.optString("customType") != SubagentNotifications.MESSAGE_TYPE) return null
+        val text = firstText(m) ?: m.optString("content")
+        if (text.isBlank()) return null
+        return SubagentNotifications.parse(text)
     }
 }

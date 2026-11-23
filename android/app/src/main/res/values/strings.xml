@@ -700,6 +700,16 @@
     <string name="agent_tool_failed">Failed</string>
     <string name="agent_tool_args">Arguments</string>
     <string name="agent_tool_result">Result</string>
+    <string name="agent_subagents_entry">Sub-agents</string>
+    <string name="agent_subagents_title">Sub-agents</string>
+    <string name="agent_subagents_viewer_title">The sub-agent\'s chat</string>
+    <string name="agent_subagents_empty">No sub-agent has been spawned in this chat yet.</string>
+    <string name="agent_subagents_count">%1$d runs</string>
+    <string name="agent_subagents_running">%1$d running</string>
+    <string name="agent_subagents_state_running">running</string>
+    <string name="agent_subagents_gone">That record is gone.</string>
+    <string name="agent_subagents_back">Back</string>
+    <string name="agent_subagents_tool_uses">tool uses</string>
     <string name="agent_setup_title">Model settings</string>
     <string name="agent_setup_prompt">Configure a model and the chat begins.</string>
     <string name="agent_setup_intro">Bring your own key: the assistant talks to one OpenAI-compatible endpoint of your choice. The key is stored on this phone only and never leaves it.</string>

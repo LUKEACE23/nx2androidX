@@ -88,6 +88,7 @@ import com.nx.android.agent.AgentFailure
 import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentRole
+import com.nx.android.agent.AgentSubagent
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
 
@@ -220,6 +221,7 @@ fun AgentScreen(
                             streaming = message.id == state.streamingId,
                             markdownState = mdStates[message.id],
                             onCopy = onCopy,
+                            subagents = state.subagents,
                         )
                     }
                 }
@@ -431,9 +433,10 @@ internal fun MessageRow(
     markdownState: MarkdownState? = null,
     onToolsClick: ((AgentMessage) -> Unit)? = null,
     onCopy: ((AgentMessage) -> Unit)? = null,
+    subagents: List<AgentSubagent> = emptyList(),
 ) {
     if (message.role == AgentRole.USER) UserBubbleText(message.text, message.pending)
-    else AssistantBlock(message, streaming, markdownState, onToolsClick, onCopy)
+    else AssistantBlock(message, streaming, markdownState, onToolsClick, onCopy, subagents)
 }
 
 /** What the copy button puts on the clipboard: the answer's own markdown, fences and all. */
@@ -475,10 +478,19 @@ private fun AssistantBlock(
     markdownState: MarkdownState? = null,
     onToolsClick: ((AgentMessage) -> Unit)? = null,
     onCopy: ((AgentMessage) -> Unit)? = null,
+    subagents: List<AgentSubagent> = emptyList(),
 ) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (message.tools.isNotEmpty()) {
-            ToolSummary(message.tools, message.id, onToolsClick?.let { cb -> { cb(message) } })
+        // 子 Agent 的运行有自己的卡片：类型、任务、状态——折成一行就看不见了
+        val subagentCards = message.tools.filter { it.subagent != null }
+        val otherTools = message.tools.filter { it.subagent == null }
+        subagentCards.forEach { card ->
+            val call = card.subagent
+            val record = subagents.firstOrNull { it.prompt != null && it.prompt == call?.prompt }
+            AgentRunCard(card, message.notifications.firstOrNull { it.toolCallId == card.id }, record)
+        }
+        if (otherTools.isNotEmpty()) {
+            ToolSummary(otherTools, message.id, onToolsClick?.let { cb -> { cb(message) } })
         }
         if (message.text.isNotEmpty()) {
             if (streaming) {
@@ -497,6 +509,10 @@ private fun AssistantBlock(
             } else {
                 Markdown(message.text, typography = agentMarkdownTypography())
             }
+        }
+        // 子 Agent 跑完的通知：一张卡片，不是那坨 XML
+        message.notifications.forEach { notification ->
+            AgentNotificationCard(notification)
         }
         // 这一轮断在 App 没了的时候：标出来（字写了一半的也标）
         if (message.pending) {

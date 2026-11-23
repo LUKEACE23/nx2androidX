@@ -10,6 +10,7 @@ import com.nx.android.agent.AgentHistory
 import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentPageContext
+import com.nx.android.agent.AgentSubagentCallParser
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
 import com.nx.android.agent.runtime.AgentEngineStore
@@ -301,16 +302,26 @@ class PiAgentChat @Inject constructor(
                         }
                     }
 
-                    "tool_execution_start" -> send(
-                        AgentEvent.ToolStarted(
-                            AgentToolCard(
-                                id = obj.optString("toolCallId"),
-                                name = obj.optString("toolName"),
-                                argsSummary = obj.optJSONObject("args")?.toString()?.take(60) ?: "",
-                                state = AgentToolState.RUNNING,
+                    "tool_execution_start" -> {
+                        val name = obj.optString("toolName")
+                        val args = obj.optJSONObject("args")
+                        val call = AgentSubagentCallParser.of(name, args)
+                        send(
+                            AgentEvent.ToolStarted(
+                                AgentToolCard(
+                                    id = obj.optString("toolCallId"),
+                                    name = name,
+                                    argsSummary = if (call != null) {
+                                        call.description.ifBlank { call.type }
+                                    } else {
+                                        args?.toString()?.take(60) ?: ""
+                                    },
+                                    state = AgentToolState.RUNNING,
+                                    subagent = call,
+                                ),
                             ),
-                        ),
-                    )
+                        )
+                    }
 
                     "tool_execution_end" -> {
                         val resultText = obj.optJSONObject("result")
@@ -324,15 +335,26 @@ class PiAgentChat @Inject constructor(
                         )
                     }
 
-                    "message_end" -> obj.optJSONObject("message")?.optJSONObject("usage")?.let { usage ->
-                        val seen = usage.optLong("input") + usage.optLong("cacheRead") +
-                            usage.optLong("output")
-                        if (seen > turnContext) {
-                            turnContext = seen
-                            send(AgentEvent.UsageUpdated(sessionTokens + turnContext, sessionWindow))
+                    "message_end" -> {
+                        val message = obj.optJSONObject("message")
+                        // 子 Agent 跑完了：引擎发来一条自己的消息，正文是那份通知
+                        if (message != null &&
+                            message.optString("role") == "custom" &&
+                            message.optString("customType") == SubagentNotifications.MESSAGE_TYPE
+                        ) {
+                            SubagentNotifications.parse(SubagentTranscripts.textOf(message))
+                                ?.let { send(AgentEvent.Notification(it)) }
                         }
-                        // 这一条消息生成了多少：这一轮的回答要报自己的消耗
-                        turnOutput += usage.optLong("output")
+                        message?.optJSONObject("usage")?.let { usage ->
+                            val seen = usage.optLong("input") + usage.optLong("cacheRead") +
+                                usage.optLong("output")
+                            if (seen > turnContext) {
+                                turnContext = seen
+                                send(AgentEvent.UsageUpdated(sessionTokens + turnContext, sessionWindow))
+                            }
+                            // 这一条消息生成了多少：这一轮的回答要报自己的消耗
+                            turnOutput += usage.optLong("output")
+                        }
                     }
 
                     "turn_end" -> obj.optJSONObject("message")?.optJSONObject("usage")?.let { usage ->

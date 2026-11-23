@@ -8,9 +8,12 @@ import com.nx.android.agent.AgentFailure
 import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentPageContext
+import com.nx.android.agent.AgentSubagent
 import com.nx.android.agent.AgentTextBatch
+import com.nx.android.agent.env.PiHistoryMapper
 import com.nx.android.agent.env.PiRunner
 import com.nx.android.agent.env.PiSessionCatalog
+import com.nx.android.agent.env.SubagentStore
 import com.nx.android.agent.runtime.AgentModelProfile
 import com.nx.android.agent.runtime.AgentModelStore
 import com.nx.android.agent.runtime.AgentSessionStore
@@ -69,6 +72,9 @@ data class AgentUiState(
 
     /** The message the running turn writes into: it shows as plain text until the turn ends. */
     val streamingId: Long? = null,
+
+    /** The sub-agents this chat spawned: the runs that finished and the ones still going. */
+    val subagents: List<AgentSubagent> = emptyList(),
 )
 
 /**
@@ -87,6 +93,7 @@ class AgentConversationState @Inject constructor(
     private val catalog: PiSessionCatalog,
     private val piRunner: PiRunner,
     private val models: AgentModelStore,
+    private val subagentStore: SubagentStore,
     @ApplicationCoroutineScope private val scope: CoroutineScope,
 ) {
 
@@ -114,6 +121,7 @@ class AgentConversationState @Inject constructor(
     @Volatile private var draft = ""
     @Volatile private var piRunning = false
     @Volatile private var piResult: String? = null
+    @Volatile private var subagents: List<AgentSubagent> = emptyList()
     private var turn: Job? = null
 
     /** 历史读过了没有：抽屉每次打开都会问一遍，读过就不再劳师动众。 */
@@ -146,6 +154,7 @@ class AgentConversationState @Inject constructor(
             profiles = profiles,
             activeProfileId = activeProfileId,
             streamingId = conversation.streamingId,
+            subagents = subagents,
         )
         // markdown 的 AST 在这里备：读到的历史一落地就开始解析，首开抽屉时高度已经是最终值。
         markdownCache.ensureAll(conversation.messages, conversation.streamingId)
@@ -177,6 +186,7 @@ class AgentConversationState @Inject constructor(
         conversation.load(emptyList())
         activePath = null
         activeTitle = ""
+        subagents = emptyList()
         conversation.dismissFailure()
         usageTokens = 0L
         usageWindow = 0L
@@ -206,6 +216,7 @@ class AgentConversationState @Inject constructor(
                 historyLoaded = true   // 读不回来也不反复重试：引导玩家去处理
             }
             refreshSessions()
+            refreshSubagents()
             publish()
         }
     }
@@ -219,6 +230,31 @@ class AgentConversationState @Inject constructor(
             publish()
         }
     }
+
+    /**
+     * 子 Agent 的清单：会话文件里的记录（跑完的）+ 还在写的 transcript（在跑的）。
+     *
+     * 派生一次的工具调用带着那个子 Agent 的 prompt——它是工具调用与 transcript 之间唯一的
+     * 准确联系，靠它把类型和任务对上。
+     */
+    fun refreshSubagents() {
+        val path = activePath
+        val calls = conversation.messages.flatMap { message ->
+            message.tools.mapNotNull { it.subagent }
+        }
+        scope.launch {
+            val listed = withContext(Dispatchers.IO) { subagentStore.list(path, calls) }
+            subagents = listed
+            publish()
+        }
+    }
+
+    /** 子 Agent 的完整对话：它自己的会话文件（还在跑的就是它的 transcript）。 */
+    suspend fun subagentConversation(subagent: AgentSubagent): List<AgentMessage> =
+        withContext(Dispatchers.IO) {
+            val messages = subagentStore.conversation(subagent, activePath)
+            PiHistoryMapper.map(messages)
+        }
 
     /**
      * The model chip's menu: the profile the player picks answers from now on. The key stays with
@@ -341,6 +377,8 @@ class AgentConversationState @Inject constructor(
             activePath = sessionStore.activePath()
             refreshSessions()
         }
+        // 子 Agent 可能刚跑完：清单跟着更新
+        if (event is AgentEvent.Notification || event is AgentEvent.TurnDone) refreshSubagents()
         publish()
     }
 
