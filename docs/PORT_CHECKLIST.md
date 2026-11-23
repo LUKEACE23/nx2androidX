@@ -8,7 +8,7 @@ Left out because they have an official Android release: Unpacking (ported here a
 
 "Profile here": `nxnative/dm/games/<title ID>/` has the game's profile from nxnative, synced from upstream (see [UPSTREAM_PROFILES.md](UPSTREAM_PROFILES.md)): the profile is here, the game is not necessarily ported to Android yet. A game without an `android.tsv` can still be tried as an experimental port (`porter build --experimental`). "60 fps with X" is upstream's note: they run that update at 60 fps (30 on the Switch).
 
-**67 / 114 ported**
+**69 / 116 ported**
 
 **Credit.** A ported game names the person who brought it up (`ported by @handle`), taken from the commit that added its profile. The ports from before this was written down are credited to the author of the commit that introduced them.
 
@@ -72,6 +72,7 @@ Left out because they have an official Android release: Unpacking (ported here a
 - [ ] Monster Train 2 · `010051701FB46000` · profile here · 60 fps with 1.1.1 · only the first Monster Train is on mobile
 - [x] NEO: The World Ends with You · `010043B013C5C000` · ported by @shirai91
 - [x] NieR:Automata The End of YoRHa Edition · `010056B015FE8000` · profile here · boots with 1.0.3; save-loaded map and geometry corrected; broader gameplay checks pending; [test record](NIER_AUTOMATA_ANDROID_PORT.md)
+- [x] NOBUNAGA'S AMBITION: Shinsei · `01007AB012872000` · ported by @mijuu
 - [x] OCTOPATH TRAVELER · `010057D006492000` · profile here
 - [x] Octopath Traveler 0 · `01005270232F2000`
 - [x] Octopath Traveler 0 (Chinese release) · `01001300232F4000` · ported by @zFitness
@@ -108,6 +109,7 @@ Left out because they have an official Android release: Unpacking (ported here a
 - [ ] Super Mario Party Jamboree · `0100965017338000` · profile here
 - [ ] Super Smash Bros. Ultimate · `01006A800016E000` · profile here · offline
 - [ ] Taiko Risshiden V DX · `0100346017304000` · profile here · Japanese · played by touch
+- [x] Tales of Berseria Remastered · `01003FD01F22E000` · ported by @C1oudust
 - [x] Tales of Eternia Remastered · `010006E0230AC000` · ported by @shirai91
 - [ ] The Great Ace Attorney Chronicles · `010036E00FB20000` · profile here
 - [x] The Legend of Zelda: Breath of the Wild · `01007EF00011E000` · profile here · 60 fps with 1.9.0 · Galaxy S25 Ultra / Turnip; tested in the opening and on the Great Plateau

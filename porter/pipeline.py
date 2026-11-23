@@ -746,7 +746,7 @@ class Port:
         why = self.oodle_why or ('' if ue_cached else self.ue_why)
         # The game's own decoder runs the game's own code (it boots the game's modules): the patches the profile registers for the tested build are needed there, and the rewriter applies
         # them by build ID only. A dump of another build runs without them and the decoder crashes in the game's initialization, so the port stops here, before it starts.
-        if why and self.lost:
+        if why and getattr(self, 'lost', None):
             vers = ', '.join(b.get('display', v) for v, b in self.g.builds().items() if 'main' in b)
             raise BuildError(f"{self.app_name}: this dump is not the build the game profile registers, and the game's own decoder (its shaders are Oodle-compressed) needs the patches of "
                              f"the tested build: {'; '.join(self.lost)}. Port the version the profile registers ({vers}), or register the patches for this build "

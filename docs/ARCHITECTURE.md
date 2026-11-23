@@ -117,6 +117,14 @@ checked before pointer formation. These checks do not change the decoder choice
 or timestamp/queue policy. The manual [AVC probe](../probes/avc_frame_layout.md)
 checks synthetic planes and padding; physical-device qualification is separate.
 
+Stopping a started guest AudioOut returns all pending buffers in queue order,
+including any partly played buffer, and wakes the guest's release event even if
+the pending queue is empty. Capacity covers all buffers accepted and yet to be
+reclaimed. A stop on an already stopped output preserves buffers queued for its
+next start. The front end's suspend path still hands playback to the silent sink.
+Backend state is atomic because the device callback and silent sink read it
+without the lock that serializes lifecycle changes.
+
 The shader translator's existing native-perspective compensation rule accepts either outer operand order in `(input * FragCoord.w) * (1 / FragCoord.w)`. Both alpha depth and material variants must reach the same native interpolated input; leaving the multiply/divide round trip in only one variant can change alpha coverage and retain old HDR colour. The FP32, input-load, FragCoord.w and constant-one guards remain in place.
 
 Opaque NVN sampler objects keep all sampler parameters after an eight-byte header, within the smallest public object's storage. Engines may hash the bytes after that header before calling `SamplerCompare`. Putting filtering or wrap parameters in the skipped header makes different sampler states collide, defeats cache reuse and can exhaust the game's descriptor pool. In Odyssey, duplicate entries accumulated during extended play and repeated scene loads, exhausted the sampler pool and returned sampler ID 0, producing ground grid artifacts. The builder, initializer, comparison, getters and both graphics backends share the same parameter structure; this layout rule does not change filtering defaults.
@@ -167,6 +175,13 @@ A profile that was tested with Mesa's Turnip says so with `vulkan_driver turnip`
 
 The command replay is one translation unit, `gfx_vk_exec.c`, kept in one file a section (`gfx_vk_exec_<section>.inc`: state, render_cond, passes, formats, pipelines, descriptors, draws, xfb, copies, walker) so that changes to different sections do not meet in one file. Test harnesses read it with `tests/csrc.py` `unit()`, which puts the sections back in place.
 
+Graphics pipeline creation checks vertex-buffer support for each final Vulkan
+attribute format, including integer remaps and formats from prewarm records.
+Unsupported core formats are reported once per format across replay and prewarm
+workers; out-of-range formats are still reported without indexing the diagnostic
+array. Every unsupported pipeline is cached as failed, so draws that need it are
+skipped before Vulkan can receive an invalid pipeline.
+
 ## Frame pacing
 
 How a game's frames are paced is decided in one module, `nxnative/dm/host/dm_pacing.c`: the frame-rate target (`game.tsv` `fps_target`, `DM_FPS_TARGET`), the 30 fps ceiling (`fps_ceiling`, `DM_FPS_CEILING`), the frame step's hold (`fps_hold`, `DM_FPS_HOLD`), presents on the display's ticks (`present_interval`, `DM_PRESENT_INTERVAL`), the Android governor (`DM_ADAPTIVE_FPS`, `DM_FPS_PIN`, `DM_ADAPT_UP_PCT`), the window's rate vote (`DM_VK_WINDOW_GAME_RATE`) and GPU turbo (`DM_GPU_TURBO`). The mechanisms stay where they run (the frame step in `loader.c` and `nvn_fstep.h`, the 60 fps writes in `hle_fpslock.c`, the present interval in `hle_nvn.c`, presents and the rate vote in `gfx_vk_present.c`, the governor in `perf_android.c`) and ask it. At start-up the log has the whole policy in one line (`pacing: target 60 fps (game profile fps_target), ceiling 0, hold on ...`). A profile chooses its policy with one `android.tsv` row, `pacing <preset>` (below). Test harnesses that cut the governor out of `perf_android.c` compile the real `dm_pacing.c` with it (`tests/csrc.py` `pacing_files`).
@@ -194,6 +209,14 @@ A profile is offered for Android when it has an `android.tsv`; the profiles with
 | `overlay` | `<tablet\|phone> <control> <x> <y>`: moves one on-screen control of that layout (`dm/android/overlay_default.tsv`) to x, y as fractions of the window, compiled into `android_profile.h` |
 
 Per-build knowledge stays where upstream keeps it: the rewriter's cuts in `patches.py` / `dm/tools/sdk_patches.py`, keyed by build ID.
+
+The rewrite warns when an external (including provisional) profile contains a
+`patches.py` that the rewriter will not load. The warning also appears on cache
+reuse. Registered `dm/games/*/patches.py` files and explicitly supplied
+`DM_PATCHES_EXTRA` files retain their existing behavior; external files are not
+executed automatically. The standalone rewriter's `DM_PATCHES_EXTRA` accepts
+`CUTS` only; the Android porter replaces it with its generated FPSLocker cuts.
+The warning directs porter users to register their build-specific patches.
 
 ## Cheats
 
@@ -327,6 +350,9 @@ Captured compute code can be headerless: `shader_vk.py` uses the same control-se
 Capture coverage is scene-dependent: a first-room check does not cover other maps, and a missing compute shader can leave later rendering inputs unwritten even when every draw has a program. Before promoting a shader bundle, pull the current device captures rather than reusing an earlier snapshot, check that every valid captured key is included, and exercise the affected map transition. Keep the previous bundle for rollback until that scene is verified.
 
 What the port refuses: a game whose `main` renders with Vulkan (the Android host replays NVN and OpenGL ES only so far; a game that draws with OpenGL hands its calls to the device's own GLES driver, `gl_android.c`), and one whose shaders need a step that boots the game in the Mac host (legacy Unreal paks, version 4 — Dragon Quest XI S — and PlatinumGames' PKZ archives). Game Freak's Oodle archives (Pokémon Legends) and Unreal's shader code archives (Octopath Traveler 0, FINAL FANTASY RESONANCE) are not refused: their decoder runs on the Android device the port already uses, or on the phone itself when the porter runs there (`porter/pipeline.py` `device_oodle`, `local_oodle`). The shaders a game compiles at run time with its own GLSLC are not refused either: the game compiles them in a headless host — here on the phone when the porter runs there (`local_glslc`), on the Android device when the porter runs on a desktop (`device_glslc`) — the way it runs the game's own decoder for the Oodle entries (`porter/pipeline.py`, `dm/host/hle_glslc.c`).
+**Oodle on the device.** Shaders that only the game's own Oodle decodes are decoded with that code on the Android device: the host built as an executable (`build.py --exe`) and the rewritten modules go to `/data/local/tmp/nx2a-oodle` once a port, each job file is decoded there (`dm/host/hle_oodle.c` `DM_OODLE_JOB`), and the folder is removed afterwards (`pipeline.device_oodle_job`). So the port needs adb and the device even when it does not install. Game Freak's GFPAKs and Trinity packs go as one job before the split (`device_oodle`). The returned result is indexed by file offset and length, then copied into the split's decoded archives in chunks of at most 1 MiB, without retaining whole payloads or concatenated archives in Python memory. Short headers, record lengths and payloads fail the stage before decoded archives are written. The temporary result is removed after copying and closing it. An IoStore shader library selects the Unreal decode stage even without a version 11 pak. Unreal Engine's shader code archives (version 11 paks, Unreal Engine 5's IoStore shader libraries) go in rounds (`device_ue`): `uepak.job` runs with a decoder that answers from what is decoded so far and notes the rest, the noted streams go to the device as one job, and the next round runs, until a round notes nothing (FINAL FANTASY RESONANCE: one round of 5,919 shader groups, 74,244 shaders in under a minute); the archives land in `<version dir>/ue_shaders` with the NSP script's stamp, where the split reads them, as the Mac's `decode_ue_shaders` leaves them.
+
+The split reads version 1 shader libraries directly from Unreal version 8 paks, including both the one-byte and four-byte compression method layouts. The library holds stored or zlib-compressed shaders. A library in a stored, zlib, or gzip pak entry can be split on the computer without a decoder device. The split reads only shader libraries out of these paks (issue #425). It follows numeric patch priority, and a delete record hides only lower-priority entries so a library can move between chunks in the same patch. Version 4 keeps its existing host-native shader labels, including the backslashes in Windows profile tables.
 
 **Versions.** The newest version in the folder is packed. A version the profile was not brought up on is packed from a derived profile (upstream's `derive_profile`, in `profile-derived/`), without that version's per-build fixes. When another build is packed (GitHub issue #26):
 - a profile that declares virtual address memory (a `sys_resource` row, not 0) gets 8 GB more `mem_alias` and `mem_reserve` in its derived copy (`pipeline.alias_headroom`): the address regions such a game reserves depend on its build (Donkey Kong Country Returns HD's base game reached +7.0 GB of alias region, where its tested update stays under +2.75 GB), the tested build's high-water mark does not bind another one, and the heap and the device's memory stay as they are;
