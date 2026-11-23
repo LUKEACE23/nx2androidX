@@ -4,11 +4,11 @@ Games with no official Android version, from the games nxnative tested on Mac or
 
 The tree also holds upstream's profiles synced in bulk (89 games, not ported yet, not listed here): [UPSTREAM_PROFILES.md](UPSTREAM_PROFILES.md).
 
-Left out because they have an official Android release: Unpacking (ported here anyway), Balatro, Raging Loop, Baba Is You, BALL x PIT, Blasphemous, FINAL FANTASY CRYSTAL CHRONICLES Remastered Edition, Ghost Trick: Phantom Detective, Sea of Stars, Stardew Valley, and Absolum (Android on 2026-11-05).
+Left out because they have an official Android release: Unpacking (ported here anyway), Balatro, Raging Loop, Baba Is You, BALL x PIT, Blasphemous, FINAL FANTASY CRYSTAL CHRONICLES Remastered Edition, Ghost Trick: Phantom Detective, Sea of Stars, Stardew Valley, and Absolum (Android on 2026-11-05), and Layton's Mystery Journey DX+ (ported here anyway).
 
 "Profile here": `nxnative/dm/games/<title ID>/` has the game's profile from nxnative, synced from upstream (see [UPSTREAM_PROFILES.md](UPSTREAM_PROFILES.md)): the profile is here, the game is not necessarily ported to Android yet. A game without an `android.tsv` can still be tried as an experimental port (`porter build --experimental`). "60 fps with X" is upstream's note: they run that update at 60 fps (30 on the Switch).
 
-**69 / 116 ported**
+**74 / 121 ported**
 
 **Credit.** A ported game names the person who brought it up (`ported by @handle`), taken from the commit that added its profile. The ports from before this was written down are credited to the author of the commit that introduced them.
 
@@ -20,6 +20,7 @@ Left out because they have an official Android release: Unpacking (ported here a
 - [ ] AI: THE SOMNIUM FILES - nirvanA Initiative · `0100713016CCC000` · profile here
 - [x] Animal Crossing: New Horizons · `01006F8002326000`
 - [ ] ANIMAL WELL · `010020D01AD24000` · profile here
+- [x] Apollo Justice: Ace Attorney Trilogy · `010020D01B890000` ported by @armyja
 - [ ] ASTRAL CHAIN · `01007300020FA000` · profile here · 60 fps target with 1.0.1
 - [ ] Bastion · `010038600B27E000` · profile here · iPhone only
 - [ ] Batman: Arkham Knight · `0100ACD0163D0000` · profile here
@@ -91,11 +92,13 @@ Left out because they have an official Android release: Unpacking (ported here a
 - [x] Pokémon Scarlet · `0100A3D008C5C000`
 - [x] Pokémon Shield · `01008DB008C2C000` · ported by @rospec14
 - [x] Pokémon Sword · `0100ABF008968000` · ported by @rospec14
+- [x] Pokémon Violet · `01008F6008C5E000` ported by @rospec14
 - [ ] Portal · `01007BB017812000` · profile here · Android only on NVIDIA Shield TV
 - [ ] Return of the Obra Dinn · `010032E00E6E2000` · profile here
 - [x] Rhythm Heaven Groove · `0100D9F01D474000`
 - [ ] ROMANCE OF THE THREE KINGDOMS 8 REMAKE · `0100C2A01A730000` · profile here · controller only
 - [x] ROMANCE OF THE THREE KINGDOMS XIV (with the Diplomacy and Strategy Expansion Pack) · `0100CD4012DCA000` · 30 fps, as on the Switch · ported by @shirai91
+- [x] Rune Factory 3 Special · `0100E000191B4000` · experimental · 60 fps, about 51% GPU on the Adreno 740 · ported by @rospec14
 - [ ] SHIN MEGAMI TENSEI V: Vengeance · `010069C01AB82000` · profile here · 60 fps with 1.0.3
 - [x] Silver Pines · `0100D5B026844000` · v65536 (1.0.1); tested on the Xiaomi 23117RK66C (Android 16) · ported by @zfitness
 - [x] South Park™: The Stick Of Truth™ · `010043600B6A6000` · needs a Vulkan 1.3 driver or imageless framebuffers with render pass 2 (Turnip packed on the Adreno 640)
@@ -107,11 +110,13 @@ Left out because they have an official Android release: Unpacking (ported here a
 - [ ] Super Mario Galaxy 2 · `0100FD8022DAA000` · profile here
 - [x] Super Mario Odyssey · `0100000000010000` · ported by @shirai91
 - [ ] Super Mario Party Jamboree · `0100965017338000` · profile here
+- [x] Super Robot Wars 30 · `0100ECB0129BE000` ported by @mijuu
 - [ ] Super Smash Bros. Ultimate · `01006A800016E000` · profile here · offline
 - [ ] Taiko Risshiden V DX · `0100346017304000` · profile here · Japanese · played by touch
 - [x] Tales of Berseria Remastered · `01003FD01F22E000` · ported by @C1oudust
 - [x] Tales of Eternia Remastered · `010006E0230AC000` · ported by @shirai91
 - [ ] The Great Ace Attorney Chronicles · `010036E00FB20000` · profile here
+- [x] The Great Ace Attorney Chronicles (Chinese release) · `0100D7F00FAAA000` · profile here · ported by @qzj112223
 - [x] The Legend of Zelda: Breath of the Wild · `01007EF00011E000` · profile here · 60 fps with 1.9.0 · Galaxy S25 Ultra / Turnip; tested in the opening and on the Great Plateau
 - [x] The Legend of Zelda: Echoes of Wisdom · `01008CF01BAAC000` · Retroid Pocket 6 / PurpleVK; playable with minor transparency artifacts around rifts
 - [x] The Legend of Zelda: Link's Awakening · `01006BB00C6F0000` · Lenovo TB323FU; dynamic 30/60 fps by default (optional stable-60fps NOPs commented out in `patches.py` to avoid slow-motion/judder on weaker chips); needs `--firmware` (without it, crashes at startup because the fallback font lacks `U+25A1`); startup `main+0x1c180` OOB read fixed in `patches.py`; area loads can hitch
