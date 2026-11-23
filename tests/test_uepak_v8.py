@@ -140,6 +140,22 @@ class UnrealV8(unittest.TestCase):
                     self.assertEqual(len(control), 0x880)
                     self.assertEqual(len(code), 0x70)
 
+    def test_a_version_8_library_that_is_not_version_1_is_a_red_line(self):
+        # The split runs in forked children: a library that does not read as one must say so in one line, not die with a traceback
+        spec = importlib.util.spec_from_file_location('shader_split_v8_bad_library', SPLIT)
+        split = importlib.util.module_from_spec(spec)
+        with mock.patch.dict(os.environ, {'DM_GAME': '0100000000010000'}):
+            spec.loader.exec_module(split)
+        with tempfile.TemporaryDirectory() as tmp:
+            pak = Path(tmp) / 'Game-Switch.pak'
+            pak_fixture(pak, struct.pack('<I', 2) + bytes(16), 4, version=8)   # the library's version is 2, not 1
+            pack = uepak.Pak(pak)
+            with pack.f, mock.patch.dict(split._PAKS, {str(pak): pack}):
+                with self.assertRaises(SystemExit) as stopped:
+                    split.ue_legacy_shaders(str(pak), pak.name, [ARCHIVE], [])
+        self.assertIn('[RED]', str(stopped.exception))
+        self.assertIn('version 1 shader library', str(stopped.exception))
+
     def test_archive_v1_checks_version_ranges_and_zlib_size(self):
         record = shader()
         valid = archive_v1(record)

@@ -1373,7 +1373,10 @@ def ue_legacy_shaders(path, rel, names, out):
         d = pk.read(name, decode=oodle)
         normpath = os.path.normpath if pk.version == 4 else posixpath.normpath
         label = re.sub(r"^(\.\./)+", "", normpath(pk.mount + name))
-        if pk.version == 8: out.extend(ue_shaders(d, f'/{rel}#{label}', version=1))
+        if pk.version == 8:
+            # A version 8 pak holds a version 1 shader library (UE 4.22): the library says so, and a file that does not is a red line, not a traceback out of a forked child
+            try: out.extend(ue_shaders(d, f'/{rel}#{label}', version=1))
+            except ValueError as e: red(f'{label}: {e}: an Unreal version 8 pak holds a version 1 shader library, and this file does not read as one')
         else: ue_inline_shaders(d, f'/{rel}#{label}', out)
 
 ZLIB_HEAD = re.compile(b'\x78[\x01\x5e\x9c\xda]')
