@@ -435,16 +435,17 @@ internal fun MessageRow(
     onCopy: ((AgentMessage) -> Unit)? = null,
     subagents: List<AgentSubagent> = emptyList(),
 ) {
-    if (message.role == AgentRole.USER) UserBubbleText(message.text, message.pending)
-    else AssistantBlock(message, streaming, markdownState, onToolsClick, onCopy, subagents)
+    if (message.role == AgentRole.USER) {
+        UserBubbleText(message.text, message.pending, onCopy?.let { cb -> { cb(message) } })
+    } else AssistantBlock(message, streaming, markdownState, onToolsClick, onCopy, subagents)
 }
 
-/** What the copy button puts on the clipboard: the answer's own markdown, fences and all. */
+/** What the copy button puts on the clipboard: the message's own text — the answer's markdown, fences and all. */
 internal fun copyPayloadOf(message: AgentMessage): String = message.text
 
 /** The player's bubble: the soft navy wash with the hairline, 13sp — the size the answers match. */
 @Composable
-private fun UserBubbleText(text: String, interrupted: Boolean = false) {
+private fun UserBubbleText(text: String, interrupted: Boolean = false, onCopy: (() -> Unit)? = null) {
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             Text(
@@ -458,14 +459,32 @@ private fun UserBubbleText(text: String, interrupted: Boolean = false) {
                     .padding(horizontal = 14.dp, vertical = 10.dp),
             )
         }
-        // 这一轮断在 App 没了的时候：标在问题这一行（这一轮没有留下回答）
-        if (interrupted) {
-            Text(
-                stringResource(R.string.agent_interrupted),
-                style = MaterialTheme.typography.labelSmall,
-                color = AgentPalette.Ink2,
-                modifier = Modifier.padding(top = 4.dp, end = 4.dp),
-            )
+        // 页脚：右边是复制（回答那条同一个样式），左边是这一轮断在 App 没了时的标记
+        if (interrupted || onCopy != null) {
+            Row(
+                Modifier.fillMaxWidth().padding(top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End,
+            ) {
+                if (interrupted) {
+                    Text(
+                        stringResource(R.string.agent_interrupted),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AgentPalette.Ink2,
+                        modifier = Modifier.padding(end = 4.dp),
+                    )
+                }
+                if (onCopy != null) {
+                    IconButton(onClick = onCopy, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            Icons.Outlined.ContentCopy,
+                            stringResource(R.string.agent_copy_message),
+                            Modifier.size(15.dp),
+                            tint = AgentPalette.Ink2,
+                        )
+                    }
+                }
+            }
         }
     }
 }

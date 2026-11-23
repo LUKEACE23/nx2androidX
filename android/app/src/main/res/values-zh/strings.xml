@@ -789,6 +789,7 @@
     <string name="agent_chip_game_fps">帧数有点低</string>
     <string name="agent_chip_game_build">这个包怎么跑</string>
     <string name="agent_copy">复制这条回答</string>
+    <string name="agent_copy_message">复制这条消息</string>
         <string name="agent_tokens_count">%1$s tokens</string>
     <string name="agent_copied">已复制</string>
     <string name="agent_panel_collapse">收起助手</string>

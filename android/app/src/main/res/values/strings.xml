@@ -790,6 +790,7 @@
     <string name="agent_chip_game_fps">Low fps</string>
     <string name="agent_chip_game_build">How to run it</string>
     <string name="agent_copy">Copy the answer</string>
+    <string name="agent_copy_message">Copy the message</string>
         <string name="agent_tokens_count">%1$s tokens</string>
     <string name="agent_copied">Copied</string>
     <string name="agent_panel_collapse">Collapse the assistant</string>
