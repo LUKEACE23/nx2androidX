@@ -319,6 +319,11 @@ NVN(nvnTextureBuilderSetPackagedTextureLayout, void, NVNtextureBuilder *b, const
     TB(b)->has_layout = l != NULL; if (l) memcpy(TB(b)->layout, l->layout, 8);
     TB(b)->d.pkg_block_h = l ? l->layout[0] + 1 : 0;
 }
+NVN(nvnTextureBuilderSetGLTextureName, void, NVNtextureBuilder *b, uint32_t name) {
+    (void)name;
+    if (!TB(b)->d.format) TB(b)->d.format = (NVNformat)0x25;
+}
+
 NVN(nvnTextureBuilderGetFlags, NVNtextureFlags, const NVNtextureBuilder *b) { return (NVNtextureFlags)((const tex_builder_t *)b)->d.flags; }
 static uint64_t g_layout_logged;
 static void log_layout(const tex_builder_t *b, const nvn_texlayout *L) {
@@ -727,6 +732,18 @@ NVN(nvnProgramSetShaders, NVNboolean, NVNprogram *p, int n, const NVNshaderData 
 NVN(nvnSyncInitialize, NVNboolean, NVNsync *s, NVNdevice *d) { (void)d; *(sync_t *)s = (sync_t){MAGIC('S', 'Y', 'N', 'C'), 0, 0}; return 1; }
 NVN(nvnSyncFinalize, void, NVNsync *s) { ((sync_t *)s)->magic = 0; }
 NVN(nvnSyncSetDebugLabel, void, NVNsync *s, const char *l) { (void)s; (void)l; }
+NVN_NOPROTO(nvnSyncCreateGLSync, NVNboolean, NVNsync *s, NVNdevice *d, void **glSync) {
+    (void)d;
+    if (s) *(sync_t *)s = (sync_t){MAGIC('S', 'Y', 'N', 'C'), 0, 1};
+    if (glSync) *glSync = (void *)0x1;
+    return 1;
+}
+NVN_NOPROTO(nvnSyncInitializeFromFencedGLSync, NVNboolean, NVNsync *s, NVNdevice *d, const void *glSync, int flags) {
+    (void)d; (void)glSync; (void)flags;
+    if (s) *(sync_t *)s = (sync_t){MAGIC('S', 'Y', 'N', 'C'), 0, 1};
+    return 1;
+}
+
 // Fence = "all commands previously submitted to the queue have completed": record the fence value of the most recent submit
 static uint64_t nvn_fence_now(void); static int nvn_fence_wait(uint64_t f, uint64_t timeout_ns);
 static uint64_t g_frame;
