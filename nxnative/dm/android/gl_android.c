@@ -302,7 +302,7 @@ EGLB(eglQuerySurface, EGLBoolean, EGLDisplay d, EGLSurface s, EGLint attr, EGLin
 EGLB(eglMakeCurrent, EGLBoolean, EGLDisplay d, EGLSurface dr, EGLSurface rd, EGLContext c) {
   (void)d; REAL(EGLBoolean, eglMakeCurrent, EGLDisplay, EGLSurface, EGLSurface, EGLContext); egl_init();
   if (c && (!dr || !rd)) {
-    static EGLSurface dummy;
+    static __thread EGLSurface dummy;
     if (!dummy) dummy = pbuffer(1, 1);
     if (!dr) dr = dummy;
     if (!rd) rd = dummy;
