@@ -63,8 +63,8 @@ for f in files:
     if not m: continue
     if f.endswith(('.c', '.h', '.m', '.cs', '.sh')) or (f.endswith('.py') and m.group(2) != 'patches.py'): bad.append(f)
 check('profiles hold data only (code only as patches.py)', not bad, ', '.join(bad))
-# a game folder holds only the files the tools read: the page is README.md (ANDROID.md is its old name, d12d4d49); no test output (smoke.tsv), notes or subfolders
-# this line's tree also holds the tables the iOS line's profiles brought in with the bulk sync (seedds/nxnative, 2026-11-16): the notes and the wanted lists
+# a game folder holds only the files the tools read: the page is README.md (ANDROID.md is its old name, d12d4d49); no notes or subfolders
+# this line's tree also holds the tables the iOS line's profiles brought in with the bulk sync (seedds/nxnative, 2026-11-16): the notes, the wanted lists and the smoke-test output (smoke.tsv)
 GAME_FILES = {'README.md', 'android.tsv', 'game.tsv', 'patches.py', 'fps_locks.tsv', 'ue_malloc.tsv',
               'bf_want.tsv', 'pso_manifest.tsv', 'pso_pairs.tsv', 'shader_facts.tsv', 'shader_facts_manual.tsv', 'shader_map.tsv',
               'shader_map.tsv.conflicts.tsv', 'shader_pairs.tsv', 'android_shader_handles.tsv', 'vk_capture.tsv', 'gl_capture.tsv',

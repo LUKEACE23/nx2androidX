@@ -210,6 +210,14 @@ A profile is offered for Android when it has an `android.tsv`; the profiles with
 
 Per-build knowledge stays where upstream keeps it: the rewriter's cuts in `patches.py` / `dm/tools/sdk_patches.py`, keyed by build ID.
 
+The rewrite warns when an external (including provisional) profile contains a
+`patches.py` that the rewriter will not load. The warning also appears on cache
+reuse. Registered `dm/games/*/patches.py` files and explicitly supplied
+`DM_PATCHES_EXTRA` files retain their existing behavior; external files are not
+executed automatically. The standalone rewriter's `DM_PATCHES_EXTRA` accepts
+`CUTS` only; the Android porter replaces it with its generated FPSLocker cuts.
+The warning directs porter users to register their build-specific patches.
+
 ## Cheats
 
 The host runs the Atmosphère-format cheat codes (the dmnt cheat VM of Atmosphère 1.12.1) that the cheat sites share: the file of a build is named by the first 16 hex digits of main's build ID, and the host loads the file of the build it runs (`dm/host/hle_cheats.c`).
@@ -228,14 +236,6 @@ The resolution patches are skipped: the app has its own render scale (the drawer
 The player turns the cheats on in the game's drawer (the "Cheats" tab); the app then points the host at the folder (`DM_CHEATS`) and the host loads the file of the build it runs. The host runs the enabled cheats once per game frame (at the game's own present, `hle_nvn.c`), and it remembers each cheat's switch in `<build ID>.enabled` beside the file.
 
 A cheat may write the game's own code (a community cheat that patches an instruction). The host seals the code pages read+execute after loading them, so the write path opens the write bit on the pages it needs, writes, and flushes the instruction cache - the execution bit never goes off, because a thread that is executing there would fault and take the game with it. Two places stay off limits: the host's own pages (the key page, the patch area with its stubs) and the words the rewriter changed or hooked (`sites.tsv` / `cuts.tsv` / `obs.tsv`, read into the module's table: the observation gates are in a table of their own, the rewriter keeps their sites out of `sites.tsv`): writing there would break the game's own code in a way nobody can undo, so such a cheat is refused and turned off with the reason. Everything else follows the reference: a failed access is ignored and retried (a pointer the game has not set yet), the registers reset once per pass, and one cheat that cannot run does not stop the others.
-
-The rewrite warns when an external (including provisional) profile contains a
-`patches.py` that the rewriter will not load. The warning also appears on cache
-reuse. Registered `dm/games/*/patches.py` files and explicitly supplied
-`DM_PATCHES_EXTRA` files retain their existing behavior; external files are not
-executed automatically. The standalone rewriter's `DM_PATCHES_EXTRA` accepts
-`CUTS` only; the Android porter replaces it with its generated FPSLocker cuts.
-The warning directs porter users to register their build-specific patches.
 
 ## The port
 

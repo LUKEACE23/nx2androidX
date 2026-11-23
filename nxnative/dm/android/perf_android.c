@@ -248,7 +248,7 @@ static int fps_cap_step(void) {
     return s;
 }
 static int64_t g_period_now;   // the period dm_present_period_adapt last returned (the game's, or the adaptive step's when longer), ns
-double dm_perf_period_ms(void) { int64_t p = __atomic_load_n(&g_period_now, __ATOMIC_RELAXED); return p > 0 ? (double)p / 1e6 : 0; }   // the frame-time graph's target (gfx_vk_present.c); 0: not known yet
+double dm_perf_period_ms(void) { int64_t p = __atomic_load_n(&g_period_now, __ATOMIC_RELAXED); return p > 0 ? (double)p / 1e6 : 0; }   // the frame-time graph's target (gfx_vk_present.c); 0: not known yet (no caller on this line: the app's performance HUD reads the host's frame counters instead)
 static uint64_t period_adapt(uint64_t period);
 uint64_t dm_present_period_adapt(uint64_t period) { uint64_t r = period_adapt(period); if (r) __atomic_store_n(&g_period_now, (int64_t)r, __ATOMIC_RELAXED); return r; }
 static uint64_t period_adapt(uint64_t period) {
