@@ -28,7 +28,7 @@ On the phone they live at `$NX2A_REPO/tools/` (`NX2A_REPO` is the app's `files/t
 | `log_triage.py` | a run's log: the crash's signature, the last errors, and which log holds the backtrace |
 | `builds.py` | the build history: what was built, how it went, where the failing one went wrong |
 | `card.py` | what is on a game card, and what the porter makes of it (a card rebuilt with the update inside) |
-| `card_split.py` | cut a card into one NSP per title (the base game, its update, its DLCs), flat in the folder the player named |
+| `card_split.py` | cut a card into one NSP per title (the base game, its update, its DLCs), flat in a folder next to the card itself (`<card name>-<title ID>/`, unless the player names another folder) |
 | `fetch.py` | fetch a URL: the certificate is checked, a dropped handshake is retried, the failure is in plain words |
 | `shot.py` | catch a frame, turn it into a PNG, and say what is in it (is it black, is it moving) |
 | `upstream_diff.py` | what the phone's porter and engine differ from the upstream's |
@@ -40,13 +40,14 @@ On the phone they live at `$NX2A_REPO/tools/` (`NX2A_REPO` is the app's `files/t
 1. Write it in this folder. `nx2a_common.py` has the shared parts (the paths, the table, the
    error, the `--json` flag).
 2. Add a test in `tests/` (the repository's own: `python3 -m unittest discover tests`).
-3. Add it to the table above and to the assistant's working agreement (the seed text in
-   `android/app/src/main/java/com/nx/android/agent/runtime/AgentWorkspace.kt`), so the assistant
-   knows it exists.
+3. Add it to the table above and to the assistant's working agreement
+   (`android/app/src/main/assets/nx2a/AGENTS.md` - the seed text the app plants on the
+   phone), so the assistant knows it exists.
 
 When a task needs a whole procedure and not just a command, write it as a skill: a `SKILL.md` the
 engine loads when the task matches (the engine reads the ones in `$HOME/.agents/skills/`; ours are
-seeded by `AgentSkills.kt`, and the card-unpack playbook is the example).
+seeded from the App's assets - `android/app/src/main/assets/nx2a/agent/dot-agents/skills/`, and
+the card-unpack playbook is the example).
 
 The payload picks this folder up as it is (`packaging/android-apk/build_assets.py`): nothing else
 has to be registered.

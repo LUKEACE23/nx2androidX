@@ -6,13 +6,16 @@ update's and the DLCs'. Every title's files end with its content meta NCA, whose
 title - so with prod.keys' header key the dump can be cut into one NSP per title, each of which the
 porter reads on its own.
 
-    python3 $NX2A_REPO/tools/card_split.py "Game.xci" "/storage/emulated/0/Download/Game-0100000000008000"
+    python3 $NX2A_REPO/tools/card_split.py "/storage/emulated/0/Download/Game.xci"
 
-The NSPs are written flat into the folder the player named, one per title:
+The NSPs are written flat into a folder next to the card, one per title:
 <title ID>_<what>.nsp, where the what is base, update or dlc (a title ID's low 12 bits say what it
 is: 0 is the base game, 0x800 the update; a DLC lives one 0x1000 above the base game's own high
 part). A card whose titles are numbered differently gets 'other'. The source is left alone and
 nothing else is written.
+
+The folder is the card's own, <card name>-<title ID>/, unless the player names another one: the
+card is where the player put the game, so the game goes where the card is.
 
 A compressed dump (NSZ, XCZ) cannot be split this way - its NCAs are still compressed. Decompress it
 first (the porter does that during a build).
@@ -66,6 +69,17 @@ def free_bytes(folder):
     return shutil.disk_usage(path).free
 
 
+def default_out(card, groups):
+    """Where the NSPs go when the player named no folder: next to the card, in a folder of its own.
+
+    The card is where the player put the game, so the game goes where the card is - and the title ID
+    keeps two cards in the same folder apart. The base game's own title ID names the folder; a card
+    without a base game falls back to the first title in it.
+    """
+    title = next((t for t, _ in groups if (t & 0xFFF) == 0), groups[0][0])
+    return card.parent / f'{card.stem}-{title:016X}'
+
+
 def write_nsp(dumps, card, out, group):
     """One title's files → an NSP at out (written to out.partial, then renamed)."""
     names = [name for name, _, _ in group]
@@ -93,15 +107,15 @@ def write_nsp(dumps, card, out, group):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0],
-                                     epilog='example: card_split.py "Game.xci" "/storage/emulated/0/Download/Game-0100000000008000"')
+                                     epilog='example: card_split.py "/storage/emulated/0/Download/Game.xci"')
     parser.add_argument('card', metavar='CARD', help='the card dump (an XCI or an NSP)')
-    parser.add_argument('out', metavar='OUT', help='the folder the NSPs are written into (it is created if it is not there)')
+    parser.add_argument('out', metavar='OUT', nargs='?', default='',
+                        help="the folder the NSPs are written into (it is created if it is not there; default: a folder next to the card, <card name>-<title ID>)")
     parser.add_argument('--keys', default='', help="prod.keys: with it the titles can be read from the NCA headers (default: the player's own prod.keys)")
     parser.add_argument('--json', action='store_true', help='print the result as JSON instead of a table')
     args = parser.parse_args()
 
     card = Path(args.card)
-    out = Path(args.out)
     if not card.is_file():
         fail(f'no card at {card}')
 
@@ -129,6 +143,7 @@ def main():
     if not groups:
         fail(f'{card.name} holds no title that can be read (its content meta NCAs name no title)')
 
+    out = Path(args.out) if args.out else default_out(card, groups)
     out.mkdir(parents=True, exist_ok=True)
     need = 0
     for title, group in groups:

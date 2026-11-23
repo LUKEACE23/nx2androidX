@@ -333,6 +333,16 @@ class CardSplit(unittest.TestCase):
         self.assertEqual(out_json['titles'][0]['kind'], 'base')
         self.assertTrue(out_json['titles'][0]['bytes'] > 0)
 
+    @unittest.skipUnless(importlib.util.find_spec('Crypto'), 'no pycryptodome')
+    def test_the_nsps_land_next_to_the_card(self):
+        card = self.card()
+        result = run('card_split.py', card, '--keys', self.keys())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = card.parent / f'Card-{self.BASE:016X}'
+        names = sorted(p.name for p in out.iterdir())
+        self.assertEqual(names, [f'{self.BASE:016X}_base.nsp', f'{self.BASE + 0x800:016X}_update.nsp',
+                                 f'{self.BASE + 0x1001:016X}_dlc.nsp'])
+
     def test_a_file_that_is_not_a_dump_is_an_error(self):
         path = Path(tempfile.mkdtemp(prefix='nx2a_split_')) / 'x.nsp'
         path.write_bytes(b'not a dump')
