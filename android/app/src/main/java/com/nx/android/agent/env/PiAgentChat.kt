@@ -491,7 +491,7 @@ class PiAgentChat @Inject constructor(
                 if (parsed.seen > turn.ledger.context) {
                     turn.ledger.context = parsed.seen
                     parsed.events.add(
-                        0, AgentEvent.UsageUpdated(sessionTokens + turn.ledger.context, sessionWindow),
+                        0, AgentEvent.UsageUpdated(occupancy(turn.ledger.context), sessionWindow),
                     )
                 }
                 if (parsed.output > 0L) turn.ledger.output += parsed.output
@@ -505,7 +505,7 @@ class PiAgentChat @Inject constructor(
                 if (parsed.seen > backgroundLedger.context) {
                     backgroundLedger.context = parsed.seen
                     parsed.events.add(
-                        0, AgentEvent.UsageUpdated(sessionTokens + backgroundLedger.context, sessionWindow),
+                        0, AgentEvent.UsageUpdated(occupancy(backgroundLedger.context), sessionWindow),
                     )
                 }
                 if (parsed.output > 0L) backgroundLedger.output += parsed.output
@@ -558,6 +558,16 @@ class PiAgentChat @Inject constructor(
         /** 整轮那一条生成的 token。 */
         var endOutput = 0L
     }
+
+    /**
+     * 会话占了多少上下文：同一个口径的两个读数，取大的那个。
+     *
+     * [sessionTokens] 是读历史时引擎报的占用，这一轮自己看到的 [seen]（input + cacheRead +
+     * output）本来就把整段对话算在里面了——两个数相加是把会话数了两遍（读过历史再提问，
+     * 面板头部显示的是真实占用的两倍）。取大的那个：占用只涨不跌（引擎压缩旧轮次时会掉，
+     * 但那不值得在面板上抖一下）。
+     */
+    private fun occupancy(seen: Long): Long = maxOf(sessionTokens, seen)
 
     /** 总线上一行 -> App 看得懂的事。解析只做一次：轮内轮外共用这一份。 */
     private fun parse(obj: JSONObject): Parsed {
