@@ -76,7 +76,16 @@ static void *watchdog_main(void *arg) {
 // a bare pc, and the reporter had to find the library and the offset from /proc/<pid>/maps by hand. Also used by the thread dump (hle_thread.c)
 int crash_addr_str(char *b, size_t n, uint64_t a) {
     module_t *m = module_of((void *)a); Dl_info di, me;
-    if (m) return snprintf(b, n, "%s+%#llx", m->name, a - (uint64_t)m->base);
+        if (m) {
+        uint64_t off = a - (uint64_t)m->base, best = 0; const char *snm = NULL;
+        for (unsigned i = 1; i < m->nsym; i++) {
+            const Elf64_Sym *s = &m->symtab[i];
+            if (s->st_shndx && s->st_value <= off && s->st_value >= best) { best = s->st_value; snm = m->strtab + s->st_name; }
+        }
+        if (snm && *snm) return snprintf(b, n, "%s+%#llx(%s+%#llx)", m->name, off, snm, off - best);
+        return snprintf(b, n, "%s+%#llx", m->name, off);
+    }
+
     if (!dladdr((void *)a, &di) || !di.dli_fname) return snprintf(b, n, "%#llx", a);
     if (di.dli_sname && dladdr((void *)crash_addr_str, &me) && me.dli_fbase == di.dli_fbase) return snprintf(b, n, "%s+%#lx", di.dli_sname, (unsigned long)(a - (uint64_t)di.dli_saddr));
     const char *f = strrchr(di.dli_fname, '/'); f = f ? f + 1 : di.dli_fname;
