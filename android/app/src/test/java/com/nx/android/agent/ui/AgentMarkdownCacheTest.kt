@@ -1,11 +1,15 @@
 package com.nx.android.agent.ui
 
+import com.mikepenz.markdown.model.State
+import com.mikepenz.markdown.model.parseMarkdown
 import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentRole
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -76,6 +80,61 @@ class AgentMarkdownCacheTest {
         // 再备一遍：还是那一份，解析不重跑
         cache.ensureAll(listOf(message), streamingId = null)
         assertEquals(first, cache.ready.value[3L])
+    }
+
+    /**
+     * 换一段对话：旧的 AST 一条都不留。
+     *
+     * 消息的 id 是每一段对话自己从头数的——新对话的第 2 条消息会撞上旧对话第 2 条的钥匙，
+     * 于是旧答案被当成新答案渲染。清空之后缓存是空的，新回答自己排版。
+     */
+    @Test
+    fun `a new conversation starts with an empty cache`() = runBlocking {
+        val cache = cache()
+        cache.ensureAll(listOf(AgentMessage(2L, AgentRole.ASSISTANT, "上一段对话的答案")), streamingId = null)
+        withTimeout(10_000) { cache.ready.first { it.containsKey(2L) } }
+
+        cache.clear()
+
+        assertTrue(cache.ready.value.isEmpty())
+    }
+
+    @Test
+    fun `the cache fills again after a clear`() = runBlocking {
+        val cache = cache()
+        cache.ensureAll(listOf(AgentMessage(2L, AgentRole.ASSISTANT, "上一段对话的答案")), streamingId = null)
+        withTimeout(10_000) { cache.ready.first { it.containsKey(2L) } }
+        cache.clear()
+
+        cache.ensureAll(listOf(AgentMessage(2L, AgentRole.ASSISTANT, "新对话的答案")), streamingId = null)
+
+        withTimeout(10_000) { cache.ready.first { it.containsKey(2L) } }
+        assertTrue(cache.ready.value.containsKey(2L))
+    }
+
+    /**
+     * 清空前起跑的那次解析，落地时不认：旧对话的答案不许趁乱回来。
+     */
+    @Test
+    fun `a parse that lands after the clear does not come back`() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val cache = AgentMarkdownCache(scope) { text ->
+            gate.await()   // 解析卡在这里，等测试放它走
+            (parseMarkdown(text) as? State.Success)?.let { PreparsedMarkdownState(it) }
+        }
+        try {
+            cache.ensure(2L, "上一段对话的答案")
+            // 解析已经起了（在等门闩），这时候换对话
+            cache.clear()
+            gate.complete(Unit)
+
+            // 给它一点时间落地：落下来的那条不该再出现
+            delay(500)
+            assertTrue(cache.ready.value.isEmpty())
+        } finally {
+            scope.cancel()
+        }
     }
 }
 

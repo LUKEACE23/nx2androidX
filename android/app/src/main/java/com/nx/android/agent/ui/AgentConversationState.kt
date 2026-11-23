@@ -273,6 +273,8 @@ class AgentConversationState @Inject constructor(
         if (conversation.running) return
         chat.reset()
         conversation.load(emptyList())
+        // 消息的 id 从头数了：旧对话排好的 AST 一条都不留（不然新回答会渲染成旧回答）
+        markdownCache.clear()
         activePath = null
         activeTitle = ""
         subagents = emptyList()
@@ -294,6 +296,8 @@ class AgentConversationState @Inject constructor(
             loading = false
             result.onSuccess { history ->
                 conversation.load(history.messages)
+                // 换了一段对话：消息的 id 从头数了，旧 AST 一条都不留（不然新回答会渲染成旧回答）
+                markdownCache.clear()
                 usageTokens = history.contextTokens
                 usageWindow = history.contextWindow
                 activePath = history.sessionFile.ifBlank { null }
