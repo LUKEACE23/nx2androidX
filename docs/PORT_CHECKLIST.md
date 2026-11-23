@@ -95,7 +95,7 @@ the author of the commit that introduced them.
 - [x] Kirby and the Forgotten Land · `01004D300C5AE000` · playable · update 1.1.0 · 30 fps (as on Switch) · tested on the AYN Thor (Adreno 740) with a Turnip Vulkan driver · ported by @DPR
 - [ ] Kirby Star Allies · `01007E3006DDA000` · 4.0.0a
 - [x] Kirby's Return to Dream Land Deluxe · `01006B601380E000` · playable · 60 fps · tested on the AYN Thor (Adreno 740) with a Turnip Vulkan driver · needs your console's firmware for its fonts (`--firmware`) · ported by @DPR
-- [x] Layton's Mystery Journey: Katrielle and the Millionaires' Conspiracy DX+ · `0100FDB00AA80000` · playable · v65536 iQOO 9 V2171A (Snapdragon 8 Gen 1, Adreno 730, Android 15)
+- [x] Layton's Mystery Journey: Katrielle and the Millionaires' Conspiracy DX+ · `0100FDB00AA80000` · playable · v65536 iQOO 9 V2171A (Snapdragon 8 Gen 1, Adreno 730, Android 15) · ported by @Bokyer
 - [x] Lonely Mountains: Downhill · `0100A0C00E0DE000` · playable · base game 1.0.5 · 60 fps on Retroid Pocket 6 with PurpleVK · **work in progress**: brief transition glitch and occasional black/white flashes · ported by @alexsg91
 - [ ] Luigi's Mansion 3 · `0100DCA0064A6000` · 1.4.0 · 60 fps
 - [ ] Mario & Luigi: Brothership · `01006D0017F7A000` · 1.0.0 · 60 fps
