@@ -13,6 +13,7 @@ import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
 import com.nx.android.agent.runtime.AgentEngineStore
+import com.nx.android.agent.runtime.AgentExtensions
 import com.nx.android.agent.runtime.AgentSessionStore
 import com.nx.android.agent.runtime.AgentSettingsStore
 import com.nx.android.agent.runtime.AgentWorkspace
@@ -418,6 +419,10 @@ class PiAgentChat @Inject constructor(
             piHome.mkdirs()
             File(piHome, "models.json").writeText(json)
         }
+
+        // the extensions the installed package carries are pointed at before the engine starts:
+        // it reads its settings when it comes up, not later
+        AgentExtensions.enable(engine.home, engine.runtimeDir, engine.installedExtensions())
 
         val pb = ProcessBuilder(
             listOf(

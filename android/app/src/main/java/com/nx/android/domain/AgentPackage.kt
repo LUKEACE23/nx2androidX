@@ -42,6 +42,8 @@ data class AgentPackageManifest(
     val sha256: String,
     val minAppVersion: String,
     val piVersion: String,
+    /** The extensions the package carries (the folder names under its own `extensions/`). */
+    val extensions: List<String> = emptyList(),
 ) {
 
     /**
@@ -68,7 +70,16 @@ data class AgentPackageManifest(
                 sha256 = sha.lowercase(),
                 minAppVersion = o.optString("minAppVersion").trim(),
                 piVersion = o.optString("piVersion").trim(),
+                extensions = extensionsOf(o),
             )
+        }
+
+        /** The extensions the manifest lists; an older package lists none. */
+        private fun extensionsOf(o: JSONObject): List<String> {
+            val array = o.optJSONArray("extensions") ?: return emptyList()
+            return (0 until array.length()).mapNotNull { i ->
+                array.optString(i).trim().takeIf { it.isNotEmpty() }
+            }
         }
     }
 }

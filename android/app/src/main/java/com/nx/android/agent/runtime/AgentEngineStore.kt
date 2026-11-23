@@ -40,4 +40,12 @@ class AgentEngineStore @Inject constructor(
         val text = manifest.takeIf { it.isFile }?.readText().orEmpty()
         return runCatching { JSONObject(text).optString("version").trim() }.getOrDefault("")
     }
+
+    /** The extensions the installed package carries (empty when it carries none). */
+    fun installedExtensions(): List<String> {
+        val text = manifest.takeIf { it.isFile }?.readText().orEmpty()
+        return runCatching { JSONObject(text).optJSONArray("extensions") }.getOrNull()?.let { array ->
+            (0 until array.length()).mapNotNull { i -> array.optString(i).trim().takeIf { it.isNotEmpty() } }
+        } ?: emptyList()
+    }
 }

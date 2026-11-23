@@ -84,6 +84,9 @@ class AgentEngineInstaller @Inject constructor(
             Log.i(TAG, "the engine package is in: $it")
             // the engine runs in the guest: its interpreter has to point at this phone's loader
             env.patchInterpreter(File(paths.agentRuntime, AgentLayout.BINARY))
+            // the extensions the package carries are loaded by the engine: it needs to be told
+            // where they are (they sit beside it, not in the place it looks in by itself)
+            AgentExtensions.enable(paths.agent, paths.agentRuntime, it.extensions)
         }
         return result
     }
