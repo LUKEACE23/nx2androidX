@@ -227,6 +227,57 @@ GLW(glClipControl, void, GLenum origin, GLenum depth) {
 GLW(glFrameTerminatorGREMEDY, void, void) {}
 GLW(glStringMarkerGREMEDY, void, GLsizei n, const void *s) { (void)n; (void)s; }
 
+// Safe buffer mapping wrappers: sanitize 32-bit flags, alias desktop glMapBuffer/OES, and never return NULL to nnSdk
+static __thread void *g_map_fallback;
+static __thread size_t g_map_fallback_sz;
+static __thread GLenum g_map_fallback_target;
+static __thread GLintptr g_map_fallback_off;
+static __thread GLsizeiptr g_map_fallback_len;
+
+GLW(glMapBufferRange, void *, GLenum target, GLintptr off, GLsizeiptr len, GLbitfield access) {
+    REAL(void *, glMapBufferRange, GLenum, GLintptr, GLsizeiptr, GLbitfield);
+    target &= 0xffffffffu;
+    access &= 0xffffffffu;
+    if (!access || access == 0x88B9 /* GL_WRITE_ONLY */) access = 0x0002 /* GL_MAP_WRITE_BIT */;
+    if (access == 0x88BA /* GL_READ_WRITE */) access = 0x0001 | 0x0002;
+    void *p = r_glMapBufferRange ? r_glMapBufferRange(target, off, len, access) : NULL;
+    if (!p && len > 0) {
+        RED1("glMapBufferRange(%#x, %ld, %ld, %#x) returned NULL: using CPU staging fallback", target, (long)off, (long)len, access);
+        if (g_map_fallback_sz < (size_t)len) { free(g_map_fallback); g_map_fallback = malloc((size_t)len); g_map_fallback_sz = (size_t)len; }
+        g_map_fallback_target = target; g_map_fallback_off = off; g_map_fallback_len = len;
+        return g_map_fallback;
+    }
+    return p;
+}
+GLW(glMapBuffer, void *, GLenum target, GLenum access) {
+    REAL(void, glGetBufferParameteriv, GLenum, GLenum, GLint *);
+    target &= 0xffffffffu; access &= 0xffffffffu;
+    GLint sz = 0;
+    if (r_glGetBufferParameteriv) r_glGetBufferParameteriv(target, 0x8764 /* GL_BUFFER_SIZE */, &sz);
+    GLbitfield bits = (access == 0x88B8 /* GL_READ_ONLY */) ? 0x0001 : (access == 0x88BA /* GL_READ_WRITE */) ? 0x0003 : 0x0002;
+    return w_glMapBufferRange(target, 0, sz > 0 ? sz : 4096, bits);
+}
+GLW(glMapBufferOES, void *, GLenum target, GLenum access) { return w_glMapBuffer(target, access); }
+GLW(glUnmapBuffer, GLboolean, GLenum target) {
+    REAL(GLboolean, glUnmapBuffer, GLenum);
+    REAL(void, glBufferSubData, GLenum, GLintptr, GLsizeiptr, const void *);
+    target &= 0xffffffffu;
+    if (g_map_fallback && g_map_fallback_target == target) {
+        if (r_glBufferSubData && g_map_fallback_len > 0) r_glBufferSubData(target, g_map_fallback_off, g_map_fallback_len, g_map_fallback);
+        g_map_fallback_target = 0; g_map_fallback_len = 0;
+        return 1;
+    }
+    return r_glUnmapBuffer ? r_glUnmapBuffer(target) : 1;
+}
+GLW(glUnmapBufferOES, GLboolean, GLenum target) { return w_glUnmapBuffer(target); }
+GLW(glFlushMappedBufferRange, void, GLenum target, GLintptr off, GLsizeiptr len) {
+    REAL(void, glFlushMappedBufferRange, GLenum, GLintptr, GLsizeiptr);
+    target &= 0xffffffffu;
+    if (g_map_fallback && g_map_fallback_target == target) return;
+    if (r_glFlushMappedBufferRange) r_glFlushMappedBufferRange(target, off, len);
+
+}
+
 // ---------- EGL ----------
 // Android's EGL objects are handed to the game as they are; the window surface is a pbuffer, and the frames reach the screen through Vulkan (below)
 typedef struct { AHardwareBuffer *ahb; void *img; GLuint tex, fbo; vkimg_t *vk; uint64_t ticket; } slot_t;
@@ -384,6 +435,8 @@ EGLB(eglGetProcAddress, void *, const char *name) {
     else if (!strncmp(name, "gl", 2)) {
         for (const glw_ent *e = __start_swglw; e < __stop_swglw; e++) if (!strcmp(e->name, name)) { fn = e->fn; break; }
         if (!fn) { void *d = dev_sym(name); if (d) fn = tramp(d); }
+                if (!fn) GLOG("[RED] eglGetProcAddress missing GL symbol: %s", name);
+
     }
     pthread_mutex_lock(&mu); asked++; if (fn) found++;
     if (asked % 200 == 0) GLOG("eglGetProcAddress: %d names asked, %d found (last %s)", asked, found, name);
