@@ -82,3 +82,23 @@ def size_text(value):
     if value < 1024 ** 2: return f'{value / 1024:.1f} KB'
     if value < 1024 ** 3: return f'{value / 1024 ** 2:.1f} MB'
     return f'{value / 1024 ** 3:.2f} GB'
+
+
+def title_kind(title, base_high=None):
+    """What a title ID is: the base game, an update, a DLC or something else.
+
+    A title ID's low 12 bits say what it is: 0 is the base game, 0x800 the update. A DLC lives one
+    0x1000 above the base game's own high part (its low bits count the DLCs), so it is only a DLC
+    next to the base game it belongs to - which is why the base game's high part (base_high) is
+    needed to tell one.
+    """
+    low = title & 0xFFF
+    if low == 0: return 'base'
+    if low == 0x800: return 'update'
+    if base_high is not None and (title & ~0xFFF) == base_high + 0x1000: return 'dlc'
+    return 'other'
+
+
+def base_high_of(titles):
+    """The high part of the base game's title ID among these titles (None when there is no base)."""
+    return next((title & ~0xFFF for title in titles if title & 0xFFF == 0), None)

@@ -3,6 +3,7 @@
 The tools are scripts in phone_tools/ that the assistant runs on the phone; here they are run the
 same way (as a program, with its arguments), against folders built for the test.
 """
+import importlib.util
 import json
 import os
 import struct
@@ -213,7 +214,7 @@ class Card(unittest.TestCase):
         sys.path.insert(0, str(ROOT))
         from porter import dumps
         files = [(f'{t:016x}{i:016x}.tik', bytes(16)) for i, t in enumerate(titles)]
-        data = (dumps._pfs0_header([n for n, _ in files], [len(d) for _, d in files])
+        data = (dumps.pfs0_header([n for n, _ in files], [len(d) for _, d in files])
                 + b''.join(d for _, d in files))
         path = Path(tempfile.mkdtemp(prefix='nx2a_card_')) / name
         path.write_bytes(data)
@@ -234,6 +235,118 @@ class Card(unittest.TestCase):
         path.write_bytes(b'not a dump')
         result = run('card.py', path)
         self.assertEqual(result.returncode, 2)
+        self.assertNotIn('Traceback', result.stderr)
+
+    def test_the_dlc_is_told_apart(self):
+        """A DLC sits one 0x1000 above the base game's high part - it has to be read as a DLC."""
+        base = 0x0100000000AAA000
+        path = self.dump('Merged.nsp', [base, base + 0x800, base + 0x1001])
+        result = run('card.py', path)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('DLC', result.stdout)
+        self.assertIn('update', result.stdout)
+
+
+class CardSplit(unittest.TestCase):
+    """A card cut into one NSP per title: the base game, its update, its DLCs."""
+
+    BASE = 0x0100000000010000
+    KEY = bytes(range(32))
+
+    def keys(self):
+        """A prod.keys that carries the header key the fixture's NCA headers are encrypted with."""
+        path = Path(tempfile.mkdtemp(prefix='nx2a_keys_')) / 'prod.keys'
+        path.write_text(f'header_key = {self.KEY.hex()}\n')
+        return path
+
+    def sector(self, title, content_type):
+        """The NCA header sector: the magic, the content type and the title ID, as the header holds them."""
+        plain = bytearray(0x200)
+        plain[0:4] = b'NCA3'
+        plain[5] = content_type
+        struct.pack_into('<Q', plain, 0x10, title)
+        return bytes(plain)
+
+    def nca(self, title, content_type):
+        """An NCA file: its first sector plain, its second one (the header) encrypted with the header key."""
+        from Crypto.Cipher import AES
+        data = AES.new(self.KEY[:16], AES.MODE_ECB)
+        tweak = AES.new(self.KEY[16:], AES.MODE_ECB)
+        plain = self.sector(title, content_type)
+        t = int.from_bytes(tweak.encrypt((1).to_bytes(16, 'big')), 'little')
+        mask = (1 << 128) - 1
+        encrypted = b''
+        for i in range(0, len(plain), 16):
+            tb = t.to_bytes(16, 'little')
+            block = plain[i:i + 16]
+            mixed = bytes(a ^ b for a, b in zip(block, tb))
+            encrypted += bytes(a ^ b for a, b in zip(data.encrypt(mixed), tb))
+            t = (t << 1 & mask) ^ (0x87 if t >> 127 else 0)
+        return b'\0' * 0x200 + encrypted
+
+    def card(self):
+        """A card dump holding three titles: the base game, its update and a DLC."""
+        sys.path.insert(0, str(ROOT))
+        from porter import dumps
+        titles = [(self.BASE, 'program'), (self.BASE, 'meta'),
+                  (self.BASE + 0x800, 'program'), (self.BASE + 0x800, 'meta'),
+                  (self.BASE + 0x1001, 'program'), (self.BASE + 0x1001, 'meta')]
+        files = [(f'{i:016x}{i:016x}.nca', self.nca(title, 1 if what == 'meta' else 0))
+                 for i, (title, what) in enumerate(titles)]
+        data = (dumps.pfs0_header([n for n, _ in files], [len(d) for _, d in files])
+                + b''.join(d for _, d in files))
+        path = Path(tempfile.mkdtemp(prefix='nx2a_split_')) / 'Card.nsp'
+        path.write_bytes(data)
+        return path
+
+    @unittest.skipUnless(importlib.util.find_spec('Crypto'), 'no pycryptodome')
+    def test_every_title_becomes_its_own_nsp(self):
+        card = self.card()
+        out = Path(tempfile.mkdtemp(prefix='nx2a_split_out_'))
+        result = run('card_split.py', card, out, '--keys', self.keys())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        names = sorted(p.name for p in out.iterdir())
+        self.assertEqual(names, [f'{self.BASE:016X}_base.nsp', f'{self.BASE + 0x800:016X}_update.nsp',
+                                 f'{self.BASE + 0x1001:016X}_dlc.nsp'])
+
+    @unittest.skipUnless(importlib.util.find_spec('Crypto'), 'no pycryptodome')
+    def test_an_nsp_holds_the_files_of_its_title(self):
+        sys.path.insert(0, str(ROOT))
+        from porter import dumps
+        card = self.card()
+        out = Path(tempfile.mkdtemp(prefix='nx2a_split_out_'))
+        result = run('card_split.py', card, out, '--keys', self.keys())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        nsp = out / f'{self.BASE:016X}_base.nsp'
+        names = [name for name, _, _ in dumps.entries(nsp)]
+        self.assertEqual(len(names), 2)          # the base game's program NCA and its content meta NCA
+        self.assertTrue(all(name.endswith('.nca') for name in names))
+
+    @unittest.skipUnless(importlib.util.find_spec('Crypto'), 'no pycryptodome')
+    def test_the_result_is_json(self):
+        card = self.card()
+        out = Path(tempfile.mkdtemp(prefix='nx2a_split_out_'))
+        result = run('card_split.py', card, out, '--keys', self.keys(), '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out_json = json.loads(result.stdout)
+        self.assertEqual(len(out_json['titles']), 3)
+        self.assertEqual(out_json['titles'][0]['kind'], 'base')
+        self.assertTrue(out_json['titles'][0]['bytes'] > 0)
+
+    def test_a_file_that_is_not_a_dump_is_an_error(self):
+        path = Path(tempfile.mkdtemp(prefix='nx2a_split_')) / 'x.nsp'
+        path.write_bytes(b'not a dump')
+        result = run('card_split.py', path, tempfile.mkdtemp(prefix='nx2a_split_out_'), '--keys', self.keys())
+        self.assertEqual(result.returncode, 2)
+        self.assertNotIn('Traceback', result.stderr)
+
+    def test_a_missing_keys_file_is_an_error(self):
+        path = Path(tempfile.mkdtemp(prefix='nx2a_split_')) / 'x.nsp'
+        path.write_bytes(b'not a dump')
+        missing = Path(tempfile.mkdtemp(prefix='nx2a_keys_')) / 'prod.keys'
+        result = run('card_split.py', path, tempfile.mkdtemp(prefix='nx2a_split_out_'), '--keys', missing)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('prod.keys', result.stderr)
         self.assertNotIn('Traceback', result.stderr)
 
 

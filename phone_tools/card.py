@@ -25,7 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from nx2a_common import emit, fail, table  # noqa: E402
+from nx2a_common import base_high_of, emit, fail, table, title_kind  # noqa: E402
 
 TICKET = re.compile(r'^([0-9A-Fa-f]{16})[0-9A-Fa-f]{16}\.tik$')
 
@@ -57,13 +57,9 @@ def ticket_titles(entries):
     return found
 
 
-def role(title):
+def role(title, base_high=None):
     """What a title ID is: the base game, an update or a DLC."""
-    low = title & 0xFFF
-    if low == 0: return 'base game'
-    if low == 0x800: return 'update'
-    if low >= 0x1000: return 'DLC'
-    return 'other'
+    return {'base': 'base game', 'update': 'update', 'dlc': 'DLC', 'other': 'other'}[title_kind(title, base_high)]
 
 
 def application(title):
@@ -152,8 +148,9 @@ def main():
 
     versions = registered_versions(args.profile) if args.profile else []
     rows = []
+    base_high = base_high_of(titles)
     for title in sorted(titles):
-        what = role(title)
+        what = role(title, base_high)
         rows.append((f'{title:016X}', what, len(titles[title]['meta']), len(titles[title]['tickets']),
                      'yes' if title in metas else 'no'))
 
@@ -175,8 +172,8 @@ def main():
         if holds and versions == ['v0']:
             text += ('\n  → the profile registers no update, so this card is taken as v0: the port will be the old version.\n'
                      '    What to do: register the update in the profile (its build row), or use a card that holds the\n'
-                     '    base game alone. The card cannot be split by title on the phone: telling an update\'s files\n'
-                     '    from the base game\'s needs the content meta, which only the extractor reads.')
+                     '    base game alone. The card can also be cut into one NSP per title on the phone: card_split.py\n'
+                     '    does it (the content meta NCAs say which title each file belongs to).')
 
     emit(args, {'card': str(path), 'files': len(entries), 'titles': {f'{t:016X}': v for t, v in titles.items()},
                 'holds_update': holds, 'registered': versions}, text)
