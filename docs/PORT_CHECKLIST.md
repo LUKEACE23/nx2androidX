@@ -8,7 +8,7 @@ Left out because they have an official Android release: Unpacking (ported here a
 
 "Profile here": `nxnative/dm/games/<title ID>/` has the game's profile from nxnative, synced from upstream (see [UPSTREAM_PROFILES.md](UPSTREAM_PROFILES.md)): the profile is here, the game is not necessarily ported to Android yet. A game without an `android.tsv` can still be tried as an experimental port (`porter build --experimental`). "60 fps with X" is upstream's note: they run that update at 60 fps (30 on the Switch).
 
-**68 / 116 ported**
+**69 / 116 ported**
 
 **Credit.** A ported game names the person who brought it up (`ported by @handle`), taken from the commit that added its profile. The ports from before this was written down are credited to the author of the commit that introduced them.
 
