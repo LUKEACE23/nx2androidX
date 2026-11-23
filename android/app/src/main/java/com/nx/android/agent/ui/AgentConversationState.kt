@@ -9,7 +9,11 @@ import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentSubagent
+import com.nx.android.agent.AgentSubagentCall
 import com.nx.android.agent.AgentTextBatch
+import com.nx.android.agent.CASE_DIR_FACT
+import com.nx.android.agent.CONFIRM_WORDS
+import com.nx.android.data.Gamespec
 import com.nx.android.agent.env.PiHistoryMapper
 import com.nx.android.agent.env.PiRunner
 import com.nx.android.agent.env.PiSessionCatalog
@@ -24,9 +28,11 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import java.io.File
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -75,6 +81,13 @@ data class AgentUiState(
 
     /** The sub-agents this chat spawned: the runs that finished and the ones still going. */
     val subagents: List<AgentSubagent> = emptyList(),
+
+    /**
+     * 那局档案里待确认的方案：子 Agent 诊断完写下的那一条。
+     *
+     * 有它，面板才给玩家那个「按方案修复」的按钮——玩家点一下才算确认。
+     */
+    val pendingPlan: Gamespec.Plan? = null,
 )
 
 /**
@@ -122,12 +135,87 @@ class AgentConversationState @Inject constructor(
     @Volatile private var piRunning = false
     @Volatile private var piResult: String? = null
     @Volatile private var subagents: List<AgentSubagent> = emptyList()
+
+    /** 玩家上一次发问时的页面上下文：确认「按方案修复」要用它（那一局是谁、档案在哪） */
+    @Volatile private var lastContext: AgentPageContext? = null
+
+    /** 那局档案里待确认的方案（读档案，不写它） */
+    @Volatile private var pendingPlan: Gamespec.Plan? = null
+
+    /**
+     * 玩家已经确认过的那一条（按标题记着）。
+     *
+     * 子 Agent 修完才改档案里的状态，那要好几分钟。这段时间里按钮要是自己回来，
+     * 玩家会以为刚才那一下没生效，又点一次——于是同一份确认发了好几遍。
+     * 同一条不再问第二次；换了别的那条（新问题）才再问。
+     */
+    @Volatile private var confirmedPlan: String? = null
+
+    /** 玩家点了确认但那一轮还在跑：记下来，等它结束再送出去 */
+    @Volatile private var queuedConfirm: Boolean = false
+
+    /** 子 Agent 在跑的时候，面板要看得见它在干啥：两秒读一次它的 transcript */
+    private var subagentWatch: Job? = null
+
     private var turn: Job? = null
 
     /** 历史读过了没有：抽屉每次打开都会问一遍，读过就不再劳师动众。 */
     @Volatile private var historyLoaded = false
 
     init {
+        publish()
+        watchBackground()
+    }
+
+    /**
+     * 轮外的那一段：引擎在两轮之间说话（后台子 Agent 跑完了，主 Agent 接着讲）。
+     *
+     * 它到的时候玩家没有在问——但那正是玩家等着看的东西（子 Agent 的结论、方案写好了
+     * 没有），所以它自己是一条消息，实时地长出来。
+     */
+    private fun watchBackground() {
+        scope.launch {
+            val batch = AgentTextBatch()
+            chat.backgroundEvents.collect { event ->
+                when (event) {
+                    is AgentEvent.TextDelta -> {
+                        // 跟回答一样攒着走：逐字重排太慢
+                        batch.add(event.text)
+                        if (batch.due()) flushBackground(batch)
+                    }
+                    is AgentEvent.UsageUpdated -> {
+                        usageTokens = event.contextTokens
+                        usageWindow = event.contextWindow
+                        publish()
+                    }
+                    is AgentEvent.Notification -> {
+                        flushBackground(batch)
+                        conversation.followUp(event)
+                        // 子 Agent 刚跑完：清单跟上，方案可能刚写进档案
+                        refreshSubagents()
+                        refreshPendingPlan()
+                        publish()
+                    }
+                    is AgentEvent.Failed -> {
+                        flushBackground(batch)
+                        conversation.apply(event)
+                        publish()
+                    }
+                    else -> {
+                        flushBackground(batch)
+                        conversation.followUp(event)
+                        publish()
+                    }
+                }
+            }
+        }
+    }
+
+    /** 轮外那一段的缓冲也走了：它落在那条消息里。 */
+    private fun flushBackground(batch: AgentTextBatch) {
+        val text = batch.take()
+        if (text.isEmpty()) return
+        conversation.followUp(AgentEvent.TextDelta(text))
         publish()
     }
 
@@ -155,6 +243,7 @@ class AgentConversationState @Inject constructor(
             activeProfileId = activeProfileId,
             streamingId = conversation.streamingId,
             subagents = subagents,
+            pendingPlan = pendingPlan,
         )
         // markdown 的 AST 在这里备：读到的历史一落地就开始解析，首开抽屉时高度已经是最终值。
         markdownCache.ensureAll(conversation.messages, conversation.streamingId)
@@ -249,6 +338,65 @@ class AgentConversationState @Inject constructor(
         }
     }
 
+    /**
+     * 子 Agent 在跑的时候，面板要看得见它在干啥：两秒读一次它的 transcript。
+     *
+     * 轮到结束、也没有在跑的，就停下来——不空转。
+     */
+    private fun watchSubagents() {
+        if (subagentWatch?.isActive == true) return
+        subagentWatch = scope.launch {
+            while (true) {
+                delay(2000)
+                val listed = withContext(Dispatchers.IO) {
+                    subagentStore.list(activePath, subagentCalls())
+                }
+                subagents = listed
+                publish()
+                if (listed.none { it.running } && !conversation.running) break
+            }
+        }
+    }
+
+    /** 这一轮派生过的子 Agent 调用（工具调用带的那条准确联系） */
+    private fun subagentCalls(): List<AgentSubagentCall> = conversation.messages.flatMap { message ->
+        message.tools.mapNotNull { it.subagent }
+    }
+
+    /**
+     * 读那局档案里待确认的方案：档案在页面上下文里写着它在哪儿。
+     *
+     * 只读——方案是子 Agent 写的，app 不碰它。
+     */
+    private fun refreshPendingPlan() {
+        val context = lastContext
+        val dir = context?.facts?.get(CASE_DIR_FACT)?.let { File(it) }
+        val plan = if (dir != null) Gamespec.pendingPlan(dir) else null
+        // 玩家确认过的那一条不再问一次
+        pendingPlan = Gamespec.offerPlan(plan, confirmedPlan)
+        publish()
+    }
+
+    /**
+     * 玩家点了「按方案修复」：把确认送去主会话。
+     *
+     * 任务里写明玩家已确认——攻关子 Agent 读到这句话才动代码。
+     * 那一轮还在跑的话先记着，等它结束再送出去。
+     */
+    fun confirmPlan() {
+        val plan = pendingPlan ?: return
+        val context = lastContext
+        // 方案还在档案里（子 Agent 修完才改状态）：按钮先收起来，别让玩家点两次
+        pendingPlan = null
+        confirmedPlan = plan.headline
+        publish()
+        if (conversation.running) {
+            queuedConfirm = true
+            return
+        }
+        send(CONFIRM_WORDS, context)
+    }
+
     /** 子 Agent 的完整对话：它自己的会话文件（还在跑的就是它的 transcript）。 */
     suspend fun subagentConversation(subagent: AgentSubagent): List<AgentMessage> =
         withContext(Dispatchers.IO) {
@@ -302,11 +450,21 @@ class AgentConversationState @Inject constructor(
         if (words.isEmpty() || conversation.running) return
         conversation.dismissFailure()
         draft = ""
+        // 这一问是在哪一局上问的：确认「按方案修复」要带着它
+        if (context != null) {
+            val before = lastContext?.subject?.id
+            lastContext = context
+            // 换了一局：上一局确认过的那一条不算数（这一局还没问过）
+            if (before != null && before != context.subject?.id) confirmedPlan = null
+        }
         conversation.say(words)
         conversation.begin()
         publish()
+        // 子 Agent 可能这一轮就跑起来：看着它
+        watchSubagents()
         turn = turnScope.launch {
             val batch = AgentTextBatch()
+            val thoughts = AgentTextBatch()
             try {
                 chat.send(words, context).collect { event ->
                     when (event) {
@@ -316,6 +474,11 @@ class AgentConversationState @Inject constructor(
                             batch.add(event.text)
                             if (batch.due()) flush(batch)
                         }
+                        is AgentEvent.ThinkingDelta -> {
+                            // 思考过程也一样攒着走：它长得比回答还快，逐字重排更慢
+                            thoughts.add(event.text)
+                            if (thoughts.due()) flushThoughts(thoughts)
+                        }
                         is AgentEvent.UsageUpdated -> {
                             usageTokens = event.contextTokens
                             usageWindow = event.contextWindow
@@ -323,6 +486,7 @@ class AgentConversationState @Inject constructor(
                         }
                         else -> {
                             flush(batch)
+                            flushThoughts(thoughts)
                             apply(event)
                         }
                     }
@@ -334,11 +498,18 @@ class AgentConversationState @Inject constructor(
                 // 反过来（先 Failed 后 flush）会造出一条"幽灵回答"——空壳删掉之后
                 // flush 又新建了一条。
                 flush(batch)
+                flushThoughts(thoughts)
                 apply(AgentEvent.Failed(AgentFailure.LOOP_ERROR))   // nothing the failure codes cover
             } finally {
                 flush(batch)
+                flushThoughts(thoughts)
                 conversation.end()
                 publish()
+                // 玩家在上一轮还在跑的时候点了确认：这一轮结束了，把它送出去
+                if (queuedConfirm) {
+                    queuedConfirm = false
+                    send(CONFIRM_WORDS, lastContext)
+                }
             }
         }
     }
@@ -378,7 +549,11 @@ class AgentConversationState @Inject constructor(
             refreshSessions()
         }
         // 子 Agent 可能刚跑完：清单跟着更新
-        if (event is AgentEvent.Notification || event is AgentEvent.TurnDone) refreshSubagents()
+        if (event is AgentEvent.Notification || event is AgentEvent.TurnDone) {
+            refreshSubagents()
+            // 方案可能刚写进档案：读一下，玩家才看得见那个按钮
+            refreshPendingPlan()
+        }
         publish()
     }
 
@@ -387,6 +562,14 @@ class AgentConversationState @Inject constructor(
         val text = batch.take()
         if (text.isEmpty()) return
         conversation.appendText(text)
+        publish()
+    }
+
+    /** 思考过程的缓冲也走了：它落在这一轮的回答里（折起来的那一段）。 */
+    private fun flushThoughts(batch: AgentTextBatch) {
+        val text = batch.take()
+        if (text.isEmpty()) return
+        conversation.appendThinking(text)
         publish()
     }
 }

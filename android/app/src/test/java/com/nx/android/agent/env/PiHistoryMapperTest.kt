@@ -49,7 +49,7 @@ class PiHistoryMapperTest {
         val out = PiHistoryMapper.map(
             listOf(
                 system(),
-                user("[本机状态] 库是空的\n玩家说：为啥闪退"),
+                user("[device] the library is empty\nplayer says:为啥闪退"),
                 assistant(thinking(), text("看日志"), output = 128L),
             ),
         )
@@ -68,10 +68,22 @@ class PiHistoryMapperTest {
     }
 
     @Test
+    fun `the thinking lands in its own fold`() {
+        val out = PiHistoryMapper.map(
+            listOf(
+                user("为啥闪退"),
+                assistant(thinking(), text("看日志"), stop = "stop"),
+            ),
+        )
+        assertEquals("看日志", out[1].text)      // 正文里没有思考
+        assertEquals("先想想", out[1].thinking)   // 思考在自己那一格里
+    }
+
+    @Test
     fun `a tool turn folds its calls into the answer`() {
         val out = PiHistoryMapper.map(
             listOf(
-                user("玩家说：查一下"),
+                user("player says:查一下"),
                 assistant(thinking(), toolCall("c1"), toolCall("c2"), stop = "toolUse", output = 60L),
                 toolResult("c1", "3 files"),
                 toolResult("c2", "boom", error = true),
@@ -91,7 +103,7 @@ class PiHistoryMapperTest {
     @Test
     fun `an aborted turn is a finished turn`() {
         val out = PiHistoryMapper.map(
-            listOf(user("玩家说：讲个故事"), assistant(text("从前有座山，"), stop = "aborted", output = 4550L)),
+            listOf(user("player says:讲个故事"), assistant(text("从前有座山，"), stop = "aborted", output = 4550L)),
         )
         assertFalse(out[0].pending)          // 玩家自己的收尾，不算中断
         assertEquals("从前有座山，", out[1].text)
@@ -100,7 +112,7 @@ class PiHistoryMapperTest {
 
     @Test
     fun `a turn killed before anything is marked interrupted`() {
-        val out = PiHistoryMapper.map(listOf(system(), user("玩家说：讲个故事")))
+        val out = PiHistoryMapper.map(listOf(system(), user("player says:讲个故事")))
         assertEquals(1, out.size)
         assertTrue(out[0].pending)
         assertNull(out[0].tools.toList().firstOrNull { it.state == AgentToolState.RUNNING })
@@ -110,7 +122,7 @@ class PiHistoryMapperTest {
     fun `a turn killed between tool calls is marked interrupted`() {
         val out = PiHistoryMapper.map(
             listOf(
-                user("玩家说：查一下"),
+                user("player says:查一下"),
                 assistant(toolCall("c1"), stop = "toolUse"),
                 toolResult("c1", "3 files"),
                 // 引擎在这里没了：没有收尾的 assistant
@@ -125,8 +137,8 @@ class PiHistoryMapperTest {
     fun `many turns keep their order and never share ids`() {
         val out = PiHistoryMapper.map(
             listOf(
-                user("玩家说：一"), assistant(text("答一")),
-                user("玩家说：二"), assistant(text("答二")),
+                user("player says:一"), assistant(text("答一")),
+                user("player says:二"), assistant(text("答二")),
             ),
         )
         assertEquals(4, out.size)
@@ -143,7 +155,7 @@ class PiHistoryMapperTest {
     @Test
     fun `assistant messages before any question are skipped`() {
         val out = PiHistoryMapper.map(
-            listOf(system(), assistant(text("没有问题的自言自语")), user("玩家说：来了"), assistant(text("答"))),
+            listOf(system(), assistant(text("没有问题的自言自语")), user("player says:来了"), assistant(text("答"))),
         )
         assertEquals(2, out.size)
         assertEquals("答", out[1].text)
@@ -159,7 +171,7 @@ class PiHistoryMapperTest {
                 "<usage><total_tokens>10</total_tokens><duration_ms>500</duration_ms></usage>" +
                 "</task-notification>")
         }
-        val out = PiHistoryMapper.map(listOf(user("玩家说：派个活"), assistant(text("派了")), notice))
+        val out = PiHistoryMapper.map(listOf(user("player says:派个活"), assistant(text("派了")), notice))
         assertEquals(2, out.size)
         assertEquals(1, out[1].notifications.size)
         val card = out[1].notifications.first()
@@ -175,7 +187,7 @@ class PiHistoryMapperTest {
             put("customType", "something-else")
             put("content", "not a notice")
         }
-        val out = PiHistoryMapper.map(listOf(user("玩家说：派个活"), assistant(text("派了")), other))
+        val out = PiHistoryMapper.map(listOf(user("player says:派个活"), assistant(text("派了")), other))
         assertEquals(2, out.size)
         assertTrue(out[1].notifications.isEmpty())
     }
@@ -194,7 +206,7 @@ class PiHistoryMapperTest {
                     .put("subagent_type", "general-purpose"),
             )
         }
-        val out = PiHistoryMapper.map(listOf(user("玩家说：派个活"), assistant(call, stop = "toolUse")))
+        val out = PiHistoryMapper.map(listOf(user("player says:派个活"), assistant(call, stop = "toolUse")))
         val card = out[1].tools.first()
         assertNotNull(card.subagent)
         assertEquals("general-purpose", card.subagent!!.type)

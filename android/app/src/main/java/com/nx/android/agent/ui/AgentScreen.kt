@@ -224,6 +224,16 @@ fun AgentScreen(
                             subagents = state.subagents,
                         )
                     }
+                    // 攻关方案等着玩家点一下：确认之前，什么都不改
+                    state.pendingPlan?.let { plan ->
+                        item(key = "plan-confirm") {
+                            PlanConfirmCard(
+                                plan = plan,
+                                onConfirm = { conversation.confirmPlan() },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
                 }
                 AgentInputBar(
                     text = state.draft,
@@ -500,6 +510,10 @@ private fun AssistantBlock(
     subagents: List<AgentSubagent> = emptyList(),
 ) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // 思考过程：模型自己想的那一段，折起来放在最前面（玩家想看就点开）
+        if (message.thinking.isNotBlank()) {
+            ThinkingBlock(message.thinking, message.tokens, message.id)
+        }
         // 子 Agent 的运行有自己的卡片：类型、任务、状态——折成一行就看不见了
         val subagentCards = message.tools.filter { it.subagent != null }
         val otherTools = message.tools.filter { it.subagent == null }
@@ -661,6 +675,72 @@ private fun ToolSummary(
                     }
                 }
             }
+        }
+        Spacer(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(AgentPalette.Hairline),
+        )
+    }
+}
+
+/**
+ * The fold for the model's own thinking: a quiet row that opens into the reasoning.
+ *
+ * It sits above the tools because that is the order the model works in: it thinks, then it calls
+ * tools, then it answers. Collapsed by default — the reasoning is long and the answer is what the
+ * player came for; the fold is there for the times the reasoning is the point.
+ *
+ * The number is what the thinking cost: the tokens the model generated for this turn (the engine
+ * counts the thinking and the answer together — it does not split them).
+ */
+@Composable
+private fun ThinkingBlock(thinking: String, tokens: Long, messageId: Long) {
+    var expanded by remember(messageId) { mutableStateOf(false) }
+    val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "agent-thinking-arrow")
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp, horizontal = 11.dp)
+                .clickable { expanded = !expanded },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                stringResource(R.string.agent_thinking_fold),
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                ),
+                color = AgentPalette.Ink2,
+                modifier = Modifier.weight(1f),
+            )
+            if (tokens > 0) {
+                Text(
+                    stringResource(R.string.agent_thinking_tokens, formatTokens(tokens)),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                    ),
+                    color = AgentPalette.Ink2,
+                )
+            }
+            Icon(
+                Icons.Filled.KeyboardArrowDown,
+                null,
+                Modifier.size(16.dp).rotate(rotation),
+                tint = AgentPalette.Ink2,
+            )
+        }
+        AnimatedVisibility(expanded) {
+            Text(
+                thinking,
+                style = MaterialTheme.typography.bodySmall.copy(color = AgentPalette.Ink2),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 11.dp)
+                    .padding(bottom = 8.dp),
+            )
         }
         Spacer(
             Modifier

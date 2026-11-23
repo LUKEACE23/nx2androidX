@@ -84,7 +84,9 @@ import com.nx.android.core.ui.nav.OnNavKey
 import com.nx.android.core.ui.theme.GlassSheet
 import com.nx.android.core.ui.theme.NxPalette
 import com.nx.android.core.ui.theme.NxTheme
+import com.nx.android.core.storage.AppPaths
 import com.nx.android.data.AppLocale
+import com.nx.android.data.Gamespec
 import com.nx.android.data.PadPlayers
 import com.nx.android.data.PrefsStore
 import com.nx.android.data.StorageVolumes
@@ -97,6 +99,7 @@ import dev.chrisbanes.haze.rememberHazeState
 import com.nx.android.domain.GameIdentity
 import com.nx.android.domain.drivers.DriverRepository
 import com.nx.android.domain.environment.EnvironmentSetup
+import com.nx.android.agent.gameContext
 import com.nx.android.agent.ui.AgentScreen
 import com.nx.android.feature.builds.BuildsRoute
 import com.nx.android.feature.builds.BuildsViewModel
@@ -228,6 +231,8 @@ fun AppRoot(
     onAgentFull: (Boolean) -> Unit = {},
     crash: CrashReport? = null,
     onCrashHandled: () -> Unit = {},
+    /** 导出一局的攻关档案（库页选中的那局） */
+    onExportGamespec: ((String) -> Unit)? = null,
 ) {
     NxTheme {
         // 界面语言：整棵树读同一份资源，玩家在设置里换语言时这里跟着换
@@ -285,6 +290,7 @@ fun AppRoot(
                                 onEnvCheck = { envCheckOpen = true },
                         crash = crash,
                         onCrashHandled = onCrashHandled,
+                        onExportGamespec = onExportGamespec,
                     )
                 }
             val volumes = remember(ctx, locale.mode) { StorageVolumes.list(ctx, locale) }
@@ -500,6 +506,8 @@ fun MainScreen(
     onEnvCheck: () -> Unit,
     crash: CrashReport? = null,
     onCrashHandled: () -> Unit = {},
+    /** 导出一局的攻关档案（库页选中的那局） */
+    onExportGamespec: ((String) -> Unit)? = null,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(startTab) }
     // 设置是一整页，盖住顶栏与下面的页面：从顶栏的设置图标进来，关掉才回到底下的页面
@@ -720,6 +728,19 @@ fun MainScreen(
             Tab.BUILDS -> listOf(R.string.agent_chip_build_fail, R.string.agent_chip_build_log, R.string.agent_chip_build_why)
             else -> listOf(R.string.agent_chip_save_backup, R.string.agent_chip_env)
         }
+        // 库页高亮的那张卡：助手据此知道玩家此刻在看哪一局（刚闪退回到库页时正是这一刻）。
+        // 卡没选时没有上下文——助手不该猜玩家在看哪一局。
+        val hero = lib.visible().getOrNull(lib.heroIndex)
+        val libraryContext = remember(hero) {
+            hero?.let { entry ->
+                gameContext(
+                    entry.titleId,
+                    entry.label,
+                    Gamespec.dir(AppPaths(padCtx).nxHome, entry.titleId),
+                    page = "library",
+                )
+            }
+        }
         // The drawer stays in the tree and slides out of the screen when it closes: the scroll
         // position, the laid-out markdown and the half-typed words are still there when it comes back.
         // Before the first open there is nothing to keep, so it is not composed at all — the cold
@@ -740,6 +761,12 @@ fun MainScreen(
                     agentPanelOpen = false
                     settingsSection = SettingsSection.AGENT
                     settingsOpen = true
+                },
+                // 库页选中的那局：助手据此知道玩家此刻在看哪一局（刚闪退回到库页时正是这一刻）
+                pageContext = libraryContext,
+                // 导出选中的那局的档案
+                onExportGamespec = onExportGamespec?.let { export ->
+                    libraryContext?.subject?.id?.let { tid -> { export(tid) } }
                 },
             )
         }

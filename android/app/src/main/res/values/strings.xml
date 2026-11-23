@@ -710,6 +710,16 @@
     <string name="agent_subagents_gone">That record is gone.</string>
     <string name="agent_subagents_back">Back</string>
     <string name="agent_subagents_tool_uses">tool uses</string>
+    <string name="agent_gamespec_export">Export the case file</string>
+    <string name="agent_thinking_fold">thinking</string>
+    <string name="agent_plan_waiting">the plan is waiting for you</string>
+    <string name="agent_plan_cause">cause</string>
+    <string name="agent_plan_fix">proposed fix</string>
+    <string name="agent_plan_confirm">Fix it as planned</string>
+    <string name="agent_plan_hint">nothing is changed until you tap this</string>
+    <string name="agent_thinking_tokens">%1$s tok</string>
+    <string name="agent_gamespec_exported">Exported: %1$s</string>
+    <string name="agent_gamespec_export_failed">The case file could not be exported: %1$s</string>
     <string name="agent_setup_title">Model settings</string>
     <string name="agent_setup_prompt">Configure a model and the chat begins.</string>
     <string name="agent_setup_intro">Bring your own key: the assistant talks to one OpenAI-compatible endpoint of your choice. The key is stored on this phone only and never leaves it.</string>

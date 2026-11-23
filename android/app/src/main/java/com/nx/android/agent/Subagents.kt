@@ -28,6 +28,8 @@ data class AgentSubagent(
     val prompt: String? = null,
     /** What it generated on its own. */
     val tokens: Long = 0L,
+    /** While it runs: the step it is at right now ("bash · log_triage.py"). */
+    val step: String? = null,
 ) {
     /** It is still working. */
     val running: Boolean get() = status == "running"

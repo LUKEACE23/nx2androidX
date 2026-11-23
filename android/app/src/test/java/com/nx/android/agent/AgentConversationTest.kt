@@ -97,6 +97,30 @@ class AgentConversationTest {
     }
 
     @Test
+    fun `the thinking lands in its own fold, not in the answer`() {
+        val c = AgentConversation()
+        c.begin()
+        c.apply(AgentEvent.ThinkingDelta("先看看日志"))
+        c.apply(AgentEvent.TextDelta("看日志"))
+        c.apply(AgentEvent.ThinkingDelta("再翻翻上一轮"))
+        c.end()
+
+        assertEquals(1, c.messages.size)
+        assertEquals("看日志", c.messages[0].text)
+        assertEquals("先看看日志再翻翻上一轮", c.messages[0].thinking)
+    }
+
+    @Test
+    fun `a turn that only thought is still a message`() {
+        val c = AgentConversation()
+        c.begin()
+        c.apply(AgentEvent.ThinkingDelta("我在想"))
+        c.apply(AgentEvent.Failed(AgentFailure.NETWORK))
+        assertEquals(1, c.messages.size)
+        assertEquals("我在想", c.messages[0].thinking)
+    }
+
+    @Test
     fun `a failure after some words keeps them`() {
         val c = AgentConversation()
         c.begin()
@@ -203,5 +227,41 @@ class AgentConversationTest {
         assertEquals(1, c.messages.size)
         assertEquals("", c.messages.first().text)
         assertEquals(1, c.messages.first().notifications.size)
+    }
+
+    @Test
+    fun `the follow-up is its own message, not part of the answer before it`() {
+        val c = AgentConversation()
+        c.say("为啥闪退")
+        c.begin()
+        c.apply(AgentEvent.TextDelta("派了子 Agent"))
+        c.apply(AgentEvent.TurnDone("派了子 Agent"))
+        // 轮外：子 Agent 跑完了，主 Agent 自己写下的那段话
+        c.followUp(AgentEvent.TextDelta("查清了："))
+        c.followUp(AgentEvent.TextDelta("跨 chunk 拷贝被丢弃。"))
+        c.followUp(AgentEvent.FollowUp("查清了：跨 chunk 拷贝被丢弃。", tokens = 42L))
+
+        assertEquals(3, c.messages.size)
+        assertEquals("派了子 Agent", c.messages[1].text)
+        assertEquals("查清了：跨 chunk 拷贝被丢弃。", c.messages[2].text)
+        assertEquals(42L, c.messages[2].tokens)
+    }
+
+    @Test
+    fun `the follow-up's notice joins the follow-up`() {
+        val c = AgentConversation()
+        c.followUp(AgentEvent.Notification(AgentNotification("t1", "Done", "Agent done")))
+        c.followUp(AgentEvent.TextDelta("查清了"))
+        assertEquals(1, c.messages.size)
+        assertEquals("查清了", c.messages[0].text)
+        assertEquals(1, c.messages[0].notifications.size)
+    }
+
+    @Test
+    fun `a follow-up that never streamed still lands as a message`() {
+        val c = AgentConversation()
+        c.followUp(AgentEvent.FollowUp("查清了：跨 chunk 拷贝被丢弃。"))
+        assertEquals(1, c.messages.size)
+        assertEquals("查清了：跨 chunk 拷贝被丢弃。", c.messages[0].text)
     }
 }

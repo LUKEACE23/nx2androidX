@@ -70,6 +70,27 @@ object AgentLayout {
     }
 
     /** A text's SHA-256, as hex. */
-    private fun digest(text: String): String =
+    fun digest(text: String): String =
         MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
+
+    /**
+     * The mark beside a file we wrote: the digest of the text we wrote.
+     *
+     * The file is ours while that digest still matches it; the moment the player changes it, it is
+     * theirs. Beside the agreement it is what keeps a changed seed flowing to the phone.
+     */
+    fun seedMark(file: File): File = File(file.parentFile, "${file.name}.seed")
+
+    /** Is this file still the one we wrote (and the player has not touched since)? */
+    fun isOurs(file: File, text: String): Boolean {
+        val mark = seedMark(file)
+        return mark.isFile && mark.readText().trim() == digest(text)
+    }
+
+    /** Write the text and the mark beside it. */
+    fun writeSeeded(file: File, text: String) {
+        file.parentFile?.mkdirs()
+        file.writeText(text)
+        runCatching { seedMark(file).writeText(digest(text)) }
+    }
 }

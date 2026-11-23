@@ -16,7 +16,7 @@ import org.json.JSONObject
  * 归拢成面板的形状：
  *
  * - system 跳过（注入的引导，不渲染）
- * - thinking 跳过（推理过程不是回答）
+ * - thinking 收进这一轮的另一格（折起来的那一段：模型自己想的过程，不是回答）
  * - assistant 的 text 部件拼成回答正文，toolCall 部件开一张工具卡
  * - toolResult 按 toolCallId 对回卡片：isError 定成败，首段文字当结果摘要
  * - custom 的子 Agent 完成通知 → 一张通知卡片（别的 custom 消息照旧忽略）
@@ -31,7 +31,7 @@ object PiHistoryMapper {
     private val TERMINAL = setOf("stop", "aborted")
 
     /** 注入块与玩家原话的分界。 */
-    private const val PLAYER_SAYS = "玩家说："
+    private const val PLAYER_SAYS = "player says:"
 
     fun map(messages: List<JSONObject>): List<AgentMessage> {
         val out = mutableListOf<AgentMessage>()
@@ -41,6 +41,7 @@ object PiHistoryMapper {
         var question: String? = null
         var cards = mutableListOf<AgentToolCard>()
         var text = StringBuilder()
+        var thinking = StringBuilder()
         var tokens = 0L
         var terminated = false
         val notices = mutableListOf<AgentNotification>()
@@ -48,15 +49,16 @@ object PiHistoryMapper {
         fun closeTurn() {
             val words = question ?: return
             out += AgentMessage(nextId++, AgentRole.USER, words, pending = !terminated)
-            if (text.isNotEmpty() || cards.isNotEmpty() || notices.isNotEmpty()) {
+            if (text.isNotEmpty() || cards.isNotEmpty() || notices.isNotEmpty() || thinking.isNotEmpty()) {
                 out += AgentMessage(
                     nextId++, AgentRole.ASSISTANT, text.toString(),
-                    tools = cards.toList(), tokens = tokens,
+                    tools = cards.toList(), thinking = thinking.toString(), tokens = tokens,
                     notifications = notices.toList(),
                 )
             }
             cards = mutableListOf()
             text = StringBuilder()
+            thinking = StringBuilder()
             tokens = 0L
             terminated = false
             notices.clear()
@@ -78,6 +80,8 @@ object PiHistoryMapper {
                         val p = parts.optJSONObject(i) ?: continue
                         when (p.optString("type")) {
                             "text" -> text.append(p.optString("text"))
+                            // 思考过程：折起来的那一段（模型自己想的过程，不是回答）
+                            "thinking" -> thinking.append(p.optString("thinking", p.optString("text")))
                             "toolCall" -> {
                                 val call = AgentSubagentCallParser.of(
                                     p.optString("name"),
@@ -142,7 +146,7 @@ object PiHistoryMapper {
             joined.append(m.optString("content"))
         }
         val words = joined.toString()
-        return if (words.contains(PLAYER_SAYS)) words.substringAfterLast(PLAYER_SAYS) else words
+        return if (words.contains(PLAYER_SAYS)) words.substringAfterLast(PLAYER_SAYS).trim() else words
     }
 
     /** 结果摘要：首个文本部件。 */

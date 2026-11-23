@@ -112,6 +112,33 @@ object SubagentTranscripts {
         return out
     }
 
+    /**
+     * 一个正在跑的子 Agent 当前这一步：它最后调的那个工具。
+     *
+     * 面板上要看得见它在干啥——「正在跑 log_triage.py」比「正在跑」有信息。
+     */
+    fun lastStep(messages: List<JSONObject>): String? {
+        for (index in messages.indices.reversed()) {
+            val parts = messages[index].optJSONArray("content") ?: continue
+            for (i in parts.length() - 1 downTo 0) {
+                val part = parts.optJSONObject(i) ?: continue
+                if (part.optString("type") != "toolCall") continue
+                val name = part.optString("name").ifBlank { "tool" }
+                val args = part.optJSONObject("arguments")
+                val hint = when (name) {
+                    "bash" -> args?.optString("command")?.trim()?.lineSequence()?.firstOrNull()
+                        ?.trim()?.take(40).orEmpty()
+                    "read", "edit", "write" -> args?.optString("path")?.trim()
+                        ?.substringAfterLast('/')?.take(40).orEmpty()
+                    "grep" -> args?.optString("pattern")?.take(40).orEmpty()
+                    else -> ""
+                }
+                return if (hint.isBlank()) name else "$name · $hint"
+            }
+        }
+        return null
+    }
+
     /** The words of one message, whichever shape its content has. */
     fun textOf(message: JSONObject): String {
         val content = message.opt("content")

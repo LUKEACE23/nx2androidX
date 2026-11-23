@@ -62,6 +62,7 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.nx.android.NxApp
 import com.nx.android.R
+import com.nx.android.core.storage.AppPaths
 import com.nx.android.core.ui.ProvideAppLocale
 import com.nx.android.core.ui.theme.NxPalette
 import com.nx.android.core.ui.theme.NxTheme
@@ -71,6 +72,7 @@ import com.nx.android.data.CheatRepo
 import com.nx.android.data.CheatSettings
 import com.nx.android.data.FrameGenSettings
 import com.nx.android.data.GameLog
+import com.nx.android.data.Gamespec
 import com.nx.android.data.LosslessDll
 import com.nx.android.data.MotionKnobs
 import com.nx.android.data.MotionSettings
@@ -78,6 +80,7 @@ import com.nx.android.data.PadPlayers
 import com.nx.android.data.PrefsStore
 import com.nx.android.data.RatePin
 import com.nx.android.data.RateSettings
+import com.nx.android.data.SaveShare
 import com.nx.android.data.RuntimeCompiler
 import com.nx.android.data.RuntimeLibraries
 import com.nx.android.data.RuntimeStorage
@@ -91,6 +94,9 @@ import com.nx.android.game.hud.HudField
 import com.nx.android.game.hud.HudOverlay
 import com.nx.android.game.input.PadEditor
 import com.nx.android.game.input.PadView
+import com.nx.android.agent.AgentPageContext
+import com.nx.android.agent.gameContext
+import com.nx.android.agent.runtime.GamespecExporter
 import com.nx.android.agent.ui.AgentConversationState
 import com.nx.android.agent.ui.AgentDrawerHost
 import com.nx.android.agent.ui.AgentEdgeBadge
@@ -173,6 +179,10 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     @Inject lateinit var compiler: RuntimeCompiler
     @Inject lateinit var runtimeStorage: RuntimeStorage
+    /** 攻关档案的导出：打包器在环境里跑 */
+    @Inject lateinit var exporter: GamespecExporter
+    /** 玩家的 nx2android 文件夹：攻关档案（gamespec/）落在里面 */
+    @Inject lateinit var paths: AppPaths
     /** 助手的会话：整个 App 一份——首页的抽屉与这里的抽屉看的都是它 */
     @Inject lateinit var agentConversation: AgentConversationState
 
@@ -196,6 +206,12 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var packName: String = ""
     /** 这次进来是要重建运行库的（游戏闪退后玩家点的「重新构建」）：目录里那份对不上也不将就，重编一次 */
     private var forceRebuild = false
+
+    /** 玩家在处理哪一局：助手据此知道这局的 title ID 与攻关档案在哪 */
+    private val agentContext: AgentPageContext?
+        get() = packTitleId?.let { tid ->
+            gameContext(tid, packName, Gamespec.dir(paths.nxHome, tid))
+        }
 
     /** the game UI (surface, pad, drawer) is in the view tree: the native calls and the input paths are live */
     private var gameUiReady = false
@@ -464,6 +480,13 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                 } else {
                     preparePhase = PreparePhase.FAILED
                     prepareReason = outcome.reason
+                    // 起不来也是这局的事：记进那局的档案
+                    Gamespec.appendEvent(
+                        paths.nxHome,
+                        packTitleId.orEmpty(),
+                        Gamespec.LAUNCH_FAILED,
+                        outcome.reason,
+                    )
                 }
             }
         }
@@ -541,6 +564,13 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
         }
         try { writer?.close() } catch (e: Exception) {}
+        // 重建是这局的事：记进那局的档案（玩家问「刚才为什么重编了一遍」时查得到）
+        Gamespec.appendEvent(
+            paths.nxHome,
+            packTitleId.orEmpty(),
+            Gamespec.REBUILD,
+            if (result.success) "运行库重建完成" else "运行库重建失败：${result.reason}",
+        )
         if (!result.success) return PrepareOutcome(reason = result.reason)
         return null
     }
@@ -555,6 +585,12 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             preparePhase = PreparePhase.FAILED
             prepareReason = locale.str(R.string.game_cannot_load_host, t.message)
             showLoading()
+            Gamespec.appendEvent(
+                paths.nxHome,
+                packTitleId.orEmpty(),
+                Gamespec.LAUNCH_FAILED,
+                prepareReason,
+            )
             return
         }
         installGameUi()
@@ -1034,6 +1070,9 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onCollapse = { closeAgentDrawer() },
                     onExpand = {},
                     onOpenSettings = {},
+                    // 玩家在处理哪一局：助手据此知道这局的攻关档案在哪
+                    pageContext = agentContext,
+                    onExportGamespec = { packTitleId?.let { exportGamespec(it) } },
                 )
             }
             // 布局编辑器：App 自己的面板，画在游戏画面上（游戏先等着）
@@ -1186,12 +1225,28 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         }.getOrDefault("")
     }
 
+    /**
+     * 导出这局的攻关档案：在环境里跑打包器，把 zip 放进下载目录，再交给系统分享。
+     *
+     * 玩家拿去提 issue 用的是这个包。档案本身不动——导出是快照，导出完了还能继续往里记。
+     */
+    private fun exportGamespec(titleId: String) {
+        lifecycleScope.launch {
+            val result = exporter.export(this@GameActivity, titleId)
+            result.onSuccess { target ->
+                toast(locale.str(R.string.agent_gamespec_exported, target.name))
+                startActivity(SaveShare.intent(this@GameActivity, target))
+            }.onFailure {
+                toast(locale.str(R.string.agent_gamespec_export_failed, it.message.orEmpty()))
+            }
+        }
+    }
+
     /** The phone's language changed (configChanges holds it): the app's words are read again */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         locale.configurationChanged()
-    }
-    override fun onPause() { super.onPause(); if (gameUiReady) Native.lifecycle(0) }
+    }    override fun onPause() { super.onPause(); if (gameUiReady) Native.lifecycle(0) }
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) immersive()

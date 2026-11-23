@@ -122,6 +122,8 @@ object SubagentRuns {
                     ?: transcript.prompt.lineSequence().firstOrNull()?.trim().orEmpty(),
                 status = "running",
                 startedAt = transcript.spawnedAt,
+                // 它当前这一步：面板上要看得见它在干啥
+                step = SubagentTranscripts.lastStep(transcript.messages),
             )
         }
         return (done.values + running).sortedBy { it.startedAt }

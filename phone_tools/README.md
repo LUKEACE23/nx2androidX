@@ -32,6 +32,8 @@ On the phone they live at `$NX2A_REPO/tools/` (`NX2A_REPO` is the app's `files/t
 | `fetch.py` | fetch a URL: the certificate is checked, a dropped handshake is retried, the failure is in plain words |
 | `shot.py` | catch a frame, turn it into a PNG, and say what is in it (is it black, is it moving) |
 | `upstream_diff.py` | what the phone's porter and engine differ from the upstream's |
+| `upstream_pr.py` | the upstream's PRs and issues on GitHub that mention the symptom (the fix may already exist) |
+| `gamespec_pack.py` | a game's case file, packed into a zip the player can hand to the upstream (the document, the files that were changed, the manifest) |
 
 ## Adding a tool
 

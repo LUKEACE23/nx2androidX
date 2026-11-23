@@ -12,9 +12,15 @@ internal const val CONTEXT_CHARS = 800
  * old apk file name in a download folder once had it answer "0.3.0-alpha06" while the installed
  * app was 0.4.0. The line is written before the budget is spent on the library, so a long library
  * can never cut it off.
+ *
+ * The player's language rides along: the model works in English and translates for the player, so
+ * it has to know which language the player reads.
  */
-internal fun deviceState(version: String, library: String, budget: Int): String {
-    val head = "App 版本：$version"
+internal fun deviceState(version: String, library: String, budget: Int, language: String = ""): String {
+    val head = buildString {
+        append("app version: ").append(version)
+        if (language.isNotBlank()) append("\nplayer language: ").append(language)
+    }
     val room = (budget - head.length - 1).coerceAtLeast(0)
     return "$head\n${library.take(room)}"
 }
@@ -29,14 +35,14 @@ internal fun composeTurn(userText: String, memory: String, context: AgentPageCon
     val hasContext = context != null
     if (!hasDevice && !hasMemory && !hasContext) return userText
     val sb = StringBuilder()
-    if (hasDevice) sb.append("[本机状态] ").append(deviceState.trim()).append('\n')
-    if (hasMemory) sb.append("[助手记忆] ").append(memory.trim()).append('\n')
+    if (hasDevice) sb.append("[device] ").append(deviceState.trim()).append('\n')
+    if (hasMemory) sb.append("[memory] ").append(memory.trim()).append('\n')
     if (hasContext) {
-        val block = StringBuilder("[页面上下文] ")
-        if (context.subject != null) block.append("正在处理：${context.subject.title}。")
-        for ((k, v) in context.facts) block.append("$k：$v。")
-        if (block.length > CONTEXT_CHARS) { block.setLength(CONTEXT_CHARS); block.append("…已截断") }
+        val block = StringBuilder("[page context] ")
+        if (context.subject != null) block.append("working on: ${context.subject.title}. ")
+        for ((k, v) in context.facts) block.append("$k: $v. ")
+        if (block.length > CONTEXT_CHARS) { block.setLength(CONTEXT_CHARS); block.append("...truncated") }
         sb.append(block).append('\n')
     }
-    return sb.append("玩家说：").append(userText).toString()
+    return sb.append("player says: ").append(userText).toString()
 }

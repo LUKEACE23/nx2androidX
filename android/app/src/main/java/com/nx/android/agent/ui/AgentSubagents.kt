@@ -48,6 +48,8 @@ import com.nx.android.agent.AgentNotification
 import com.nx.android.agent.AgentSubagent
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
+import com.nx.android.core.ui.components.CapsuleButton
+import com.nx.android.data.Gamespec
 import kotlinx.coroutines.delay
 
 /**
@@ -115,6 +117,18 @@ internal fun AgentRunCard(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+        // 还在跑：它当前这一步（面板上要看得见它在干啥，不只是「在跑」）
+        if (card.state == AgentToolState.RUNNING) {
+            record?.step?.takeIf { it.isNotBlank() }?.let { step ->
+                Text(
+                    step,
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                    color = AgentPalette.Quick,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         // 结果的预览：跑完的那次，它自己的答案；还在跑的就是工具回的那段
         val preview = record?.result?.takeIf { it.isNotBlank() } ?: card.resultSummary
@@ -212,6 +226,84 @@ internal fun AgentNotificationCard(notification: AgentNotification) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+/**
+ * The gate: the case file's plan is waiting for the player.
+ *
+ * The sub-agent diagnosed and wrote the plan; nothing is changed until the player taps. The card
+ * says what the plan is (the problem, the cause, what the fix would be) so the tap is informed.
+ */
+@Composable
+internal fun PlanConfirmCard(
+    plan: Gamespec.Plan,
+    onConfirm: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(AgentPalette.Panel)
+            .border(1.dp, AgentPalette.Hairline)
+            .padding(horizontal = 14.dp, vertical = 11.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            stringResource(R.string.agent_plan_waiting),
+            style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
+            color = AgentPalette.Quick,
+        )
+        if (plan.headline.isNotBlank()) {
+            Text(
+                plan.headline,
+                style = MaterialTheme.typography.bodyMedium,
+                color = AgentPalette.Ink,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (plan.cause.isNotBlank()) {
+            PlanLine(stringResource(R.string.agent_plan_cause), plan.cause)
+        }
+        if (plan.fix.isNotBlank()) {
+            PlanLine(stringResource(R.string.agent_plan_fix), plan.fix)
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CapsuleButton(
+                stringResource(R.string.agent_plan_confirm),
+                onConfirm,
+                Modifier,
+            )
+            Text(
+                stringResource(R.string.agent_plan_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = AgentPalette.Ink2,
+            )
+        }
+    }
+}
+
+/** One line of the plan: the label in mono, the words under it. */
+@Composable
+private fun PlanLine(label: String, text: String) {
+    Column {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+            color = AgentPalette.Ink2,
+        )
+        Text(
+            text,
+            style = MaterialTheme.typography.bodySmall,
+            color = AgentPalette.Ink,
+            maxLines = 4,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

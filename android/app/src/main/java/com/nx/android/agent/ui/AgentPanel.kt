@@ -51,6 +51,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.AddComment
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
@@ -91,6 +92,7 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nx.android.R
 import com.nx.android.agent.AgentMessage
+import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentPresets
 import com.nx.android.agent.AgentRole
 import dev.chrisbanes.haze.HazeInput
@@ -137,6 +139,10 @@ fun AgentDrawerHost(
     onCollapse: () -> Unit,
     onExpand: () -> Unit,
     onOpenSettings: () -> Unit = {},
+    /** 玩家此刻在处理什么（游戏页给 title ID 与攻关档案的位置）；没有就是没有 */
+    pageContext: AgentPageContext? = null,
+    /** 导出这局的攻关档案（只有游戏页给得起这个动作） */
+    onExportGamespec: (() -> Unit)? = null,
 ) {
     // 0 = 抽屉在原位，1 = 抽屉整个滑到屏幕右边之外
     val slide = remember { Animatable(1f) }
@@ -177,6 +183,8 @@ fun AgentDrawerHost(
                 onCollapse = onCollapse,
                 onExpand = onExpand,
                 onOpenSettings = onOpenSettings,
+                pageContext = pageContext,
+                onExportGamespec = onExportGamespec,
                 modifier = Modifier.offset { IntOffset((slide.value * widthPx).roundToInt(), 0) },
             )
         }
@@ -199,6 +207,10 @@ fun AgentPanel(
     onCollapse: () -> Unit,
     onExpand: () -> Unit,
     onOpenSettings: () -> Unit = {},
+    /** 玩家此刻在处理什么（游戏页给 title ID 与攻关档案的位置）；没有就是没有 */
+    pageContext: AgentPageContext? = null,
+    /** 导出这局的攻关档案（只有游戏页给得起这个动作） */
+    onExportGamespec: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val state by conversation.uiState.collectAsStateWithLifecycle()
@@ -330,6 +342,16 @@ fun AgentPanel(
                             onCopy = onCopy,
                             subagents = state.subagents,
                         )
+                    }
+                    // 攻关方案等着玩家点一下：确认之前，什么都不改
+                    state.pendingPlan?.let { plan ->
+                        item(key = "plan-confirm") {
+                            PlanConfirmCard(
+                                plan = plan,
+                                onConfirm = { conversation.confirmPlan() },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
                 }
                 if (state.running) {
@@ -523,6 +545,29 @@ fun AgentPanel(
                             )
                         }
                     }
+                    // 导出这局的攻关档案：只有游戏页给得起这个动作（那里才知道是哪一局）
+                    if (onExportGamespec != null) {
+                        GlassChip(
+                            modifier = Modifier.fillMaxWidth().height(32.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp),
+                            onClick = { onExportGamespec() },
+                        ) {
+                            Icon(
+                                Icons.Filled.IosShare,
+                                null,
+                                Modifier.size(13.dp),
+                                tint = AgentPalette.Ink2,
+                            )
+                            Text(
+                                stringResource(R.string.agent_gamespec_export),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = AgentPalette.Ink,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
                     // quick asks: they follow the page context and stay while the agent works.
                     // 只有还没开聊的新会话才给它们——开了聊就不打扰了。
                     if (state.messages.isEmpty()) {
@@ -541,7 +586,7 @@ fun AgentPanel(
                             )
                             chips.forEach { res ->
                                 val words = stringResource(res)
-                                QuickCard(words) { conversation.send(words) }
+                                QuickCard(words) { conversation.send(words, pageContext) }
                             }
                         }
                     } else {

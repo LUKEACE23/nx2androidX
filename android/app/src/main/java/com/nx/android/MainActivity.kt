@@ -22,6 +22,7 @@ import com.nx.android.appstate.LibraryOperationCoordinator
 import com.nx.android.appstate.UpdateState
 import com.nx.android.appstate.porting.PortCompletionCoordinator
 import com.nx.android.data.firmware.FirmwareRepository
+import com.nx.android.agent.runtime.GamespecExporter
 import com.nx.android.domain.drivers.DriverRepository
 import com.nx.android.domain.environment.EnvironmentSetup
 import com.nx.android.game.GameActivity
@@ -52,9 +53,11 @@ import com.nx.android.data.AppLocale
 import com.nx.android.data.AppLog
 import com.nx.android.data.AppVersion
 import com.nx.android.data.CheatRepo
+import com.nx.android.data.Gamespec
 import com.nx.android.data.LogBundle
 import com.nx.android.data.Player
 import com.nx.android.data.PrefsStore
+import com.nx.android.data.SaveShare
 import com.nx.android.data.porting.BuildSessionRepository
 import com.nx.android.core.storage.AppPaths
 import androidx.core.content.FileProvider
@@ -129,6 +132,8 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var update: UpdateState
     @Inject lateinit var agentEngine: AgentEngineStore
     @Inject lateinit var agentSetup: AgentSetup
+    /** 攻关档案的导出：打包器在环境里跑 */
+    @Inject lateinit var exporter: GamespecExporter
     /** 助手的会话：整个 App 一份——首页的抽屉、竖屏的聊天页与游戏里的抽屉看的都是它 */
     @Inject lateinit var agentConversation: AgentConversationState
 
@@ -190,7 +195,8 @@ class MainActivity : ComponentActivity() {
                 launchTab, launchBuildId, padController, agentSetup, agentConversation,
                 padCenterOpen = padCenterOpen, onPadCenter = { padCenterOpen = it },
                 agentFullOpen = agentFullOpen, onAgentFull = { agentFullOpen = it },
-                crash = crash, onCrashHandled = { crash = null })
+                crash = crash, onCrashHandled = { crash = null },
+                onExportGamespec = { titleId -> exportGamespec(titleId) })
         }
         // The chat page is portrait: while it is open the screen turns; closed, the sensor landscape lock
         // returns. orientation sits in the manifest's configChanges, so this only re-lays the tree out —
@@ -460,16 +466,23 @@ class MainActivity : ComponentActivity() {
             // 崩溃检测也问账本：processAlive() 是账本给全 app 的同步出口（账本之外没有第二处进程判断）
             if (started > 0 && !player.processAlive(this)) {
                 val manager = getSystemService(ActivityManager::class.java)
-                val crashed = runCatching {
-                    manager.getHistoricalProcessExitReasons(packageName, 0, 16).any {
+                val exits = runCatching {
+                    manager.getHistoricalProcessExitReasons(packageName, 0, 16).filter {
                         it.processName.endsWith(Player.PROCESS_SUFFIX) && it.timestamp >= started &&
                             isCrash(it.reason, it.status)
                     }
-                }.getOrDefault(false)
-                if (crashed) {
+                }.getOrDefault(emptyList())
+                if (exits.isNotEmpty()) {
                     prefs.put(PrefsStore.PLAYER_LAST_START, null)
                     // 闪退的不是 toast 能说清的：弹框把三条路摆出来——重新构建、重新移植、反馈
                     crash = CrashReport(player.currentTitleId(), player.currentName())
+                    // 这局的档案记一笔：出事时只有 app 在场，玩家的「它又崩了」得有地方落
+                    Gamespec.appendEvent(
+                        paths.nxHome,
+                        player.currentTitleId(),
+                        Gamespec.EXIT,
+                        "进程异常退出（${exits.first().reason}）",
+                    )
                 }
             }
         }
@@ -673,6 +686,24 @@ class MainActivity : ComponentActivity() {
     fun versionName(): String = AppVersion.of(this).ifEmpty { "?" }
 
     fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
+
+    /**
+     * 导出一局的攻关档案：打包器在环境里跑，zip 放进下载目录，再交给系统分享。
+     *
+     * 档案本身不动——导出是快照，导出完了还能继续往里记。
+     */
+    private fun exportGamespec(titleId: String) {
+        lifecycleScope.launch {
+            exporter.export(this@MainActivity, titleId)
+                .onSuccess { target ->
+                    toast(locale.str(R.string.agent_gamespec_exported, target.name))
+                    startActivity(SaveShare.intent(this@MainActivity, target))
+                }
+                .onFailure {
+                    toast(locale.str(R.string.agent_gamespec_export_failed, it.message.orEmpty()))
+                }
+        }
+    }
 
     /**
      * The log bundle's folder in the cache: the FileProvider serves it (res/xml/file_paths.xml), and the

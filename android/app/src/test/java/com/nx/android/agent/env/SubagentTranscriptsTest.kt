@@ -1,8 +1,10 @@
 package com.nx.android.agent.env
 
 import java.io.File
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -116,4 +118,33 @@ class SubagentTranscriptsTest {
         assertEquals("user", messages[0].optString("role"))
         assertEquals("assistant", messages[1].optString("role"))
     }
+
+    @Test
+    fun `the step a running agent is at is its last tool call`() {
+        val message = JSONObject().put("role", "assistant").put("content", JSONArray().put(
+            JSONObject().put("type", "toolCall").put("name", "bash")
+                .put("arguments", JSONObject().put("command", "python3 tools/log_triage.py --port x")),
+        ))
+        val step = SubagentTranscripts.lastStep(listOf(message))
+        assertTrue(step != null)
+        assertTrue(step!!.startsWith("bash"))
+        assertTrue(step.contains("log_triage.py"))
+    }
+
+    @Test
+    fun `a reading agent says which file it reads`() {
+        val message = JSONObject().put("role", "assistant").put("content", JSONArray().put(
+            JSONObject().put("type", "toolCall").put("name", "read")
+                .put("arguments", JSONObject().put("path", "/data/tool/nxnative/dm/android/gfx_vk_core.c")),
+        ))
+        val step = SubagentTranscripts.lastStep(listOf(message))
+        assertTrue(step != null)
+        assertTrue(step!!.contains("gfx_vk_core.c"))
+    }
+
+    @Test
+    fun `an agent that has not called anything yet has no step`() {
+        assertNull(SubagentTranscripts.lastStep(emptyList()))
+    }
+
 }

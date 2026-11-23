@@ -9,6 +9,9 @@ import org.junit.Test
 /**
  * The page context's ride into the model turn: the block is bounded, the player's words come last, and
  * without a context the message is just the words. Pure functions, JVM-fast.
+ *
+ * The injected blocks are English: the model works in English, and what the player reads is
+ * translated at the end.
  */
 class AgentContextRenderTest {
 
@@ -25,10 +28,10 @@ class AgentContextRenderTest {
     @Test
     fun `with a context the block rides ahead of the words`() {
         val composed = composeTurn("为啥闪退", "", context)
-        assertTrue(composed.startsWith("[页面上下文]"))
+        assertTrue(composed.startsWith("[page context]"))
         assertTrue(composed.contains("游戏X"))
         assertTrue(composed.contains("E-SHADER-010"))
-        assertTrue(composed.endsWith("玩家说：为啥闪退"))
+        assertTrue(composed.endsWith("player says: 为啥闪退"))
     }
 
     @Test
@@ -39,9 +42,9 @@ class AgentContextRenderTest {
     @Test
     fun `memory rides ahead of everything`() {
         val composed = composeTurn("试试", "某设备上某游戏的修法", context)
-        assertTrue(composed.startsWith("[助手记忆] 某设备上某游戏的修法"))
-        assertTrue(composed.indexOf("[助手记忆]") < composed.indexOf("[页面上下文]"))
-        assertTrue(composed.endsWith("玩家说：试试"))
+        assertTrue(composed.startsWith("[memory] 某设备上某游戏的修法"))
+        assertTrue(composed.indexOf("[memory]") < composed.indexOf("[page context]"))
+        assertTrue(composed.endsWith("player says: 试试"))
     }
 
     @Test
@@ -53,18 +56,18 @@ class AgentContextRenderTest {
             ),
         )
         val composed = composeTurn("怎么了", "", chatty)
-        assertTrue(composed.length <= 800 + "…（上下文超预算，已截断）".length + "怎么了".length + 20)
-        assertTrue(composed.contains("已截断"))
+        assertTrue(composed.length <= 800 + "...truncated".length + "怎么了".length + 20)
+        assertTrue(composed.contains("truncated"))
         // the player's words survive the cut: they come after the block
-        assertTrue(composed.contains("玩家说：怎么了"))
+        assertTrue(composed.contains("player says: 怎么了"))
     }
 
     @Test
     fun `a subject-less page still renders its facts`() {
         val bare = AgentPageContext(page = "settings", subject = null, facts = linkedMapOf("环境" to "就绪"))
         val composed = composeTurn("检查环境", "", bare)
-        assertFalse(composed.contains("正在处理"))
-        assertTrue(composed.contains("环境：就绪"))
-        assertTrue(composed.endsWith("玩家说：检查环境"))
+        assertFalse(composed.contains("working on"))
+        assertTrue(composed.contains("环境: 就绪"))
+        assertTrue(composed.endsWith("player says: 检查环境"))
     }
 }

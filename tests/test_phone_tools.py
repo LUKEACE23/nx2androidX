@@ -361,6 +361,128 @@ class UpstreamDiff(unittest.TestCase):
         self.assertEqual(different, ['porter/b.py'])
 
 
+class UpstreamPr(unittest.TestCase):
+    """The upstream's PRs: the fix may already exist, and GitHub may not answer at all."""
+
+    def test_the_search_url_asks_for_pull_requests(self):
+        import upstream_pr
+        url = upstream_pr.search_url('shirai91/nx2android', 'cross chunk copy', include_issues=False)
+        self.assertIn('repo:shirai91%2Fnx2android', url)
+        self.assertIn('is:pr', url)
+
+    def test_the_search_url_can_ask_for_issues(self):
+        import upstream_pr
+        url = upstream_pr.search_url('seedds/nxnative', 'vk_buf_at', include_issues=True)
+        self.assertIn('is:issue', url)
+
+    def test_the_hits_are_shortlisted(self):
+        import upstream_pr
+        answer = {'items': [
+            {'number': 179, 'title': 'cross-chunk buffer copies', 'state': 'closed',
+             'pull_request': {'merged_at': '2026-01-02T00:00:00Z'},
+             'html_url': 'https://github.com/shirai91/nx2android/pull/179',
+             'created_at': '2026-01-01T00:00:00Z', 'body': 'fixes the copy'},
+            {'number': 20, 'title': 'something else', 'state': 'open',
+             'html_url': 'https://github.com/shirai91/nx2android/pull/20',
+             'created_at': '2026-01-01T00:00:00Z', 'body': ''},
+        ]}
+        hits = upstream_pr.results_of(answer)
+        self.assertEqual(2, len(hits))
+        self.assertTrue(hits[0]['merged'])
+        self.assertEqual(179, hits[0]['number'])
+        self.assertFalse(hits[1]['merged'])
+
+    def test_a_search_that_does_not_answer_is_one_line(self):
+        # 网络不通不是崩溃：工具说清了就停，调用方继续走自己的诊断
+        import upstream_pr
+
+        def broken(url):
+            raise upstream_pr.FetchError('network', 'the host name could not be resolved', 2)
+
+        original = upstream_pr.ask
+        upstream_pr.ask = broken
+        try:
+            results, unreachable = upstream_pr.collect(('shirai91/nx2android',), 'x', False)
+        finally:
+            upstream_pr.ask = original
+        self.assertEqual([], results)
+        self.assertEqual(1, len(unreachable))
+        self.assertEqual('network', unreachable[0]['kind'])
+
+
+class GamespecPack(unittest.TestCase):
+    """The case file of one game, packed into a zip the player hands to the upstream."""
+
+    GAME = '0100A3501946E000'
+
+    def case(self, files=None, manifest=None, spec=True):
+        """A case file: the document, the manifest and the files it lists."""
+        home = Path(tempfile.mkdtemp(prefix='nx2a_gamespec_'))
+        case = home / 'gamespec' / self.GAME
+        (case / 'files').mkdir(parents=True)
+        if spec:
+            (case / 'spec.md').write_text('# 攻关档案\n\n## 现状\n卡在着色器解码。\n')
+        for path, text in (files or {}).items():
+            target = case / 'files' / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text)
+        (case / 'fix.md').write_text('\n'.join(manifest if manifest is not None else list((files or {}).keys())))
+        return home, case
+
+    def pack(self, home, *args):
+        return run('gamespec_pack.py', '--game', self.GAME, *args, env={'NX2A_HOME': str(home)})
+
+    def test_the_case_file_is_packed(self):
+        home, case = self.case(files={
+            'nxnative/dm/android/gfx_vk_present.c': '// fixed\n',
+            'porter/pipeline.py': '# fixed\n',
+        })
+        result = self.pack(home, '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = json.loads(result.stdout)
+        self.assertTrue(out['zip'].endswith('.zip'))
+
+        import zipfile
+        with zipfile.ZipFile(out['zip']) as zf:
+            names = zf.namelist()
+            self.assertIn('spec.md', names)
+            self.assertIn('fix.md', names)
+            self.assertIn('files/nxnative/dm/android/gfx_vk_present.c', names)
+            self.assertIn('files/porter/pipeline.py', names)
+            self.assertEqual(zf.read('files/porter/pipeline.py'), b'# fixed\n')
+
+    def test_a_game_file_in_the_manifest_is_refused(self):
+        home, case = self.case(files={'game.nsp': 'x'}, manifest=['game.nsp'])
+        result = self.pack(home)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('游戏文件', result.stderr)
+        self.assertFalse((case.parent / f'{self.GAME}-gamespec.zip').exists())
+
+    def test_a_key_in_the_manifest_is_refused(self):
+        home, case = self.case(files={'prod.keys': 'x'}, manifest=['prod.keys'])
+        result = self.pack(home)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('密钥', result.stderr)
+
+    def test_a_path_out_of_the_tree_is_refused(self):
+        home, case = self.case(files={}, manifest=['../secrets.txt'])
+        result = self.pack(home)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('往上走', result.stderr)
+
+    def test_a_listed_file_that_is_missing_is_refused(self):
+        home, case = self.case(files={}, manifest=['porter/pipeline.py'])
+        result = self.pack(home)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('files/', result.stderr)
+
+    def test_a_game_without_a_case_file_says_so(self):
+        home = Path(tempfile.mkdtemp(prefix='nx2a_gamespec_'))
+        result = self.pack(home)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('没有攻关档案', result.stderr)
+
+
 class ToolHousekeeping(unittest.TestCase):
     def test_every_tool_has_a_help_and_a_json_flag(self):
         for tool in sorted(TOOLS.glob('*.py')):

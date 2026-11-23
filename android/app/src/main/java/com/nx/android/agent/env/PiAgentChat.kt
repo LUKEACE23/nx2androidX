@@ -13,6 +13,8 @@ import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentSubagentCallParser
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
+import com.nx.android.agent.runtime.AgentAgents
+import com.nx.android.data.AppLocale
 import com.nx.android.agent.runtime.AgentEngineStore
 import com.nx.android.agent.runtime.AgentExtensions
 import com.nx.android.agent.runtime.AgentSessionStore
@@ -27,10 +29,16 @@ import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
@@ -56,14 +64,27 @@ class PiAgentChat @Inject constructor(
     private val sessionStore: AgentSessionStore,
     private val catalog: PiSessionCatalog,
     private val engine: AgentEngineStore,
+    private val locale: AppLocale,
 ) : AgentChat {
+
+    /**
+     * 玩家读的是哪种语言：模型用英文干活，给玩家看的那句话按这个语言写。
+     *
+     * 玩家没选语言就是手机的——那也是 App 界面上正显示着的那种语言。
+     */
+    private fun playerLanguage(): String {
+        val picked = locale.locale?.language
+        return picked ?: java.util.Locale.getDefault().language.ifBlank { "en" }
+    }
 
     private companion object {
         const val TAG = "nx2a-agent-pi"
         const val DEVICE_STATE_CHARS = 600
-
         /** 中止之后等引擎说它闲下来的上限：引擎回话之前，尾巴事件都还在路上。 */
         const val ABORT_ACK_TIMEOUT_MS = 3_000L
+
+        /** 等分诊器把总线上的残留归位：它做完了才开新的一轮。 */
+        const val BARRIER_TIMEOUT_MS = 2_000L
 
         /** 一条 RPC 命令等回话的上限。 */
         const val RPC_TIMEOUT_MS = 8_000L
@@ -73,7 +94,7 @@ class PiAgentChat @Inject constructor(
     }
 
     @Volatile private var process: Process? = null
-    @Volatile private var lineBus: Channel<String>? = null
+    @Volatile private var lineBus: Channel<BusItem>? = null
     @Volatile private var rpcBus: Channel<String>? = null
     @Volatile private var builtFor: String? = null
 
@@ -97,11 +118,81 @@ class PiAgentChat @Inject constructor(
     /** pi's own session jsonl (from get_state) — the anchor the active pointer holds. */
     private var piSessionFile: String? = null
 
+    /**
+     * 轮外的事件：子 Agent 跑完的通知、主 Agent 在轮外写下的下文、上下文占用。
+     *
+     * 引擎在两轮之间也会说话（后台子 Agent 完成后，它把通知注入会话，主 Agent 随即
+     * 写一段总结）——这些事件到的时候没有轮在跑，App 照样得看得见。
+     */
+    private val background = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 64)
+
+    /** 中止的回话：等它的人在这里拿。 */
+    @Volatile private var abortAck: CompletableDeferred<Unit>? = null
+
+    /** 分诊协程：引擎总线的唯一消费者。 */
+    private var demuxer: Job? = null
+
+    /** 这一轮：轮内的事件进它的口，轮外的走后台流。 */
+    @Volatile private var activeTurn: TurnState? = null
+
+    /**
+     * 分诊与发问之间的握手锁。
+     *
+     * 引擎一轮只跑一个；App 那一轮是「提示写出去之后的第一个引擎轮次」——
+     * 这件事要跟分诊器商量好，不能各说各的。
+     */
+    private val routeLock = Any()
+
+    /** 引擎这一轮正在跑。 */
+    @Volatile private var engineTurnActive = false
+
+    /** 引擎轮次的计数：每收尾一次加一（轮次从 0 数起）。 */
+    @Volatile private var engineSettleCount = 0L
+
+    /** 引擎正在跑的这一轮，是 App 的那一轮吗。 */
+    @Volatile private var engineTurnIsApp = false
+
+    /** App 那一轮排在第几个引擎轮次（-1 = 没有待着的）。 */
+    @Volatile private var appTurnIndex = -1L
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** 总线上的一件东西：引擎的一行，或者一道栅栏（等分诊器把前面的行都处理完）。 */
+    private sealed interface BusItem {
+        data class Line(val text: String) : BusItem
+        data class Barrier(val ack: CompletableDeferred<Unit>) : BusItem
+    }
+
+    /** 总线上的事件：要么是给 App 的，要么是「这一轮收尾了」。 */
+    private sealed interface EngineEvent {
+        data class For(val event: AgentEvent) : EngineEvent
+        data class Settled(val tokens: Long) : EngineEvent
+    }
+
+    /** 一轮的状态：这一轮的事件口、这一轮的回答与账。 */
+    private class TurnState {
+        val events = Channel<EngineEvent>(Channel.UNLIMITED)
+        val ledger = TurnLedger()
+        val answer = StringBuilder()
+        @Volatile var settled = false
+    }
+
+    /** 分诊器的账：这一轮占用了多少上下文、生成了多少 token。 */
+    private class TurnLedger {
+        var context: Long = 0L
+        var output: Long = 0L
+        var endOutput: Long = 0L
+        fun reset() { context = 0L; output = 0L; endOutput = 0L }
+        val tokens: Long get() = if (output > 0L) output else endOutput
+    }
+
     init {
         workspace.ensure()
     }
 
     override val messages: List<AgentMessage> get() = loadedMessages
+
+    override val backgroundEvents: Flow<AgentEvent> get() = background
 
     /** A hard reset is the new-session semantic: a fresh engine session, empty history, process stays. */
     override fun reset() {
@@ -115,6 +206,7 @@ class PiAgentChat @Inject constructor(
      */
     override fun abort() {
         abortPending = true   // 先把「有中止在途」记上：下一轮开始前要等引擎的回话
+        abortAck = CompletableDeferred()
         Thread({
             writeCommand(JSONObject().put("type", "clear_queue"))
             writeCommand(JSONObject().put("type", "abort"))
@@ -229,10 +321,9 @@ class PiAgentChat @Inject constructor(
             send(AgentEvent.Failed(classify(e))); return@channelFlow
         }
         // 中止在途：等引擎说它闲下来了，这一轮的尾巴才收干净
-        awaitIdle(bus)
-        // earlier turns' leftovers (prompt echoes, stray events) must not read as this turn's
-        // 先清残留再问状态：引擎回话是毫秒级的，问完再清会把回话一起吃掉
-        while (true) { bus.tryReceive().getOrNull() ?: break }
+        awaitIdle()
+        // 总线上还压着的行先归位：那是轮外的事（上一轮的后话），不能算成这一轮的
+        drain(bus)
         // the state ride-along: the model's context window + pi's own session file, for free
         withContext(Dispatchers.IO) {
             writeCommand(JSONObject().put("id", "state-$$").put("type", "get_state"))
@@ -246,15 +337,17 @@ class PiAgentChat @Inject constructor(
                 BuildConfig.VERSION_NAME,
                 tools.libraryStatus(),
                 DEVICE_STATE_CHARS,
+                playerLanguage(),
             ),
         )
 
-        var settled = false
-        var turnContext = 0L
-        // 这一轮生成的 token：每条消息结束时报一次（带工具的轮次有不止一条）
-        var turnOutput = 0L
-        var turnEndOutput = 0L
-        val answer = StringBuilder()
+        val turn = TurnState()
+        synchronized(routeLock) {
+            // 这一轮排在第几个引擎轮次：引擎正忙着就排它后面，空着就是下一个
+            appTurnIndex = engineSettleCount + if (engineTurnActive) 1L else 0L
+            activeTurn = turn
+        }
+        var died = false
         try {
             withContext(Dispatchers.IO) {
                 writeCommand(
@@ -264,126 +357,31 @@ class PiAgentChat @Inject constructor(
                         .put("message", composed),
                 )
             }
-            for (line in bus) {
-                val obj = runCatching { JSONObject(line) }.getOrNull() ?: continue
-                when (obj.optString("type")) {
-                    "response" -> if (obj.optString("command") == "get_state") {
-                        val data = obj.optJSONObject("data")
-                        data?.optJSONObject("model")?.optLong("contextWindow")?.takeIf { it > 0 }?.let {
-                            sessionWindow = it
-                        }
-                        data?.optString("sessionFile")?.takeIf { it.isNotBlank() }?.let {
-                            piSessionFile = it
-                        }
-                    } else if (!obj.optBoolean("success", true)) {
-                        Log.d(TAG, "command failed: ${obj.optString("error").take(200)}")
-                        send(AgentEvent.Failed(classify(RuntimeException(obj.optString("error")))))
-                        settled = true
-                    }
-
-                    "message_update" -> {
-                        obj.optJSONObject("usage")?.let { usage ->
-                            // the latest call saw the whole conversation: its input + produced output
-                            // IS the current context occupancy — monotonic, never a zero snapshot
-                            val seen = usage.optLong("input") + usage.optLong("cacheRead") +
-                                usage.optLong("output")
-                            if (seen > turnContext) {
-                                turnContext = seen
-                                send(AgentEvent.UsageUpdated(sessionTokens + turnContext, sessionWindow))
-                            }
-                        }
-                        val ev = obj.optJSONObject("assistantMessageEvent") ?: continue
-                        if (ev.optString("type") == "text_delta") {
-                            val delta = ev.optString("delta", "")
-                            if (delta.isNotEmpty()) {
-                                answer.append(delta)
-                                send(AgentEvent.TextDelta(delta))
-                            }
-                        }
-                    }
-
-                    "tool_execution_start" -> {
-                        val name = obj.optString("toolName")
-                        val args = obj.optJSONObject("args")
-                        val call = AgentSubagentCallParser.of(name, args)
-                        send(
-                            AgentEvent.ToolStarted(
-                                AgentToolCard(
-                                    id = obj.optString("toolCallId"),
-                                    name = name,
-                                    argsSummary = if (call != null) {
-                                        call.description.ifBlank { call.type }
-                                    } else {
-                                        args?.toString()?.take(60) ?: ""
-                                    },
-                                    state = AgentToolState.RUNNING,
-                                    subagent = call,
-                                ),
-                            ),
-                        )
-                    }
-
-                    "tool_execution_end" -> {
-                        val resultText = obj.optJSONObject("result")
-                            ?.optJSONArray("content")?.optJSONObject(0)?.optString("text") ?: ""
-                        send(
-                            AgentEvent.ToolFinished(
-                                obj.optString("toolCallId"),
-                                if (obj.optBoolean("isError")) AgentToolState.FAILED else AgentToolState.DONE,
-                                resultText.take(80),
-                            ),
-                        )
-                    }
-
-                    "message_end" -> {
-                        val message = obj.optJSONObject("message")
-                        // 子 Agent 跑完了：引擎发来一条自己的消息，正文是那份通知
-                        if (message != null &&
-                            message.optString("role") == "custom" &&
-                            message.optString("customType") == SubagentNotifications.MESSAGE_TYPE
-                        ) {
-                            SubagentNotifications.parse(SubagentTranscripts.textOf(message))
-                                ?.let { send(AgentEvent.Notification(it)) }
-                        }
-                        message?.optJSONObject("usage")?.let { usage ->
-                            val seen = usage.optLong("input") + usage.optLong("cacheRead") +
-                                usage.optLong("output")
-                            if (seen > turnContext) {
-                                turnContext = seen
-                                send(AgentEvent.UsageUpdated(sessionTokens + turnContext, sessionWindow))
-                            }
-                            // 这一条消息生成了多少：这一轮的回答要报自己的消耗
-                            turnOutput += usage.optLong("output")
-                        }
-                    }
-
-                    "turn_end" -> obj.optJSONObject("message")?.optJSONObject("usage")?.let { usage ->
-                        val seen = usage.optLong("input") + usage.optLong("cacheRead") +
-                            usage.optLong("output")
-                        if (seen > turnContext) turnContext = seen
-                        turnEndOutput = usage.optLong("output")
-                    }
-
-                    "agent_settled" -> settled = true
+            for (ev in turn.events) {
+                when (ev) {
+                    is EngineEvent.For -> send(ev.event)
+                    is EngineEvent.Settled -> break
                 }
-                if (settled) break
             }
         } catch (e: CancellationException) {
             // 玩家按了停止：引擎自己把这一轮（含已写出的部分）收进它的会话，App 不用补
             throw e
         } catch (e: Exception) {
             Log.d(TAG, "turn failed: $e")
-            if (!settled && answer.isEmpty()) {
+            if (!turn.settled && turn.answer.isEmpty()) {
                 // the process died mid-turn: the next turn respawns it
                 kill()
                 send(AgentEvent.Failed(AgentFailure.LOOP_ERROR))
-                return@channelFlow
+                died = true
+            }
+        } finally {
+            synchronized(routeLock) {
+                if (activeTurn === turn) activeTurn = null
             }
         }
+        if (died) return@channelFlow
 
-        sessionTokens = maxOf(sessionTokens, turnContext)
-        // 这一轮自己花了多少生成量：消息级累加，引擎没报消息级 usage 时退回整轮那一条
-        val tokens = if (turnOutput > 0) turnOutput else turnEndOutput
+        sessionTokens = maxOf(sessionTokens, turn.ledger.context)
         // 轮次收尾，引擎闲下来了：问一次它现在在哪个会话文件（新会话的第一问会开新文件）。
         // 名字与指针都在这里落：新会话写上名字（玩家第一句话的前 16 字），指针指过去。
         withContext(Dispatchers.IO) {
@@ -398,7 +396,7 @@ class PiAgentChat @Inject constructor(
                 )
             }
         }
-        send(AgentEvent.TurnDone(answer.toString().trim(), tokens))
+        send(AgentEvent.TurnDone(turn.answer.toString().trim(), turn.ledger.tokens))
     }
 
     /**
@@ -406,23 +404,274 @@ class PiAgentChat @Inject constructor(
      *
      * 中止命令是引擎确认「这一轮停了、我闲了」才回话的：它回话之前，这一轮的尾巴事件
      * （最后几个字、收尾）都还在路上。不等它就开下一轮，那些尾巴会算到下一轮头上。
+     *
+     * 回话由分诊器认（总线的行只它读）：它认出来了，这边等着的人就醒了。
      */
-    private suspend fun awaitIdle(bus: Channel<String>) {
+    private suspend fun awaitIdle() {
         if (!abortPending) return
         abortPending = false
-        withTimeoutOrNull(ABORT_ACK_TIMEOUT_MS) {
-            for (line in bus) {
-                val obj = runCatching { JSONObject(line) }.getOrNull() ?: continue
-                if (obj.optString("type") == "response" && obj.optString("command") == "abort") {
-                    return@withTimeoutOrNull
+        val ack = abortAck
+        abortAck = null
+        if (ack != null) withTimeoutOrNull(ABORT_ACK_TIMEOUT_MS) { ack.await() }
+    }
+
+    /**
+     * 总线上还压着的行先归位：分诊器把它们处理完（那是轮外的事），这一轮才算真的开始。
+     *
+     * 栅栏是排进总线里的，所以它一定排在那些行后面——分诊器做完它们才轮到栅栏。
+     */
+    private suspend fun drain(bus: Channel<BusItem>) {
+        val ack = CompletableDeferred<Unit>()
+        if (!bus.trySend(BusItem.Barrier(ack)).isSuccess) return
+        withTimeoutOrNull(BARRIER_TIMEOUT_MS) { ack.await() }
+    }
+
+    /**
+     * 分诊器：引擎总线的唯一消费者。
+     *
+     * 引擎在两轮之间也会说话：后台子 Agent 跑完了，它把通知注入会话，主 Agent 随即写一段
+     * 总结。以前这些行没人读——下一轮开始时又被清掉，玩家只有重开才看得见。
+     *
+     * 现在总线的行只在这里读一次：轮内的进这一轮的口，轮外的进后台流。
+     */
+    private fun startDemuxer(bus: Channel<BusItem>) {
+        demuxer?.cancel()
+        demuxer = scope.launch {
+            val backgroundAnswer = StringBuilder()
+            val backgroundLedger = TurnLedger()
+            for (item in bus) {
+                when (item) {
+                    is BusItem.Line -> route(item.text, backgroundAnswer, backgroundLedger)
+                    is BusItem.Barrier -> {
+                        // 总线上还压着的行：轮子开之前先归位（它们是轮外的事）
+                        while (true) {
+                            val extra = bus.tryReceive().getOrNull() ?: break
+                            if (extra is BusItem.Line) {
+                                route(extra.text, backgroundAnswer, backgroundLedger)
+                            }
+                        }
+                        item.ack.complete(Unit)
+                    }
                 }
             }
         }
     }
 
+    /**
+     * 总线上一行：解析一次，然后按「轮内还是轮外」分家。
+     *
+     * 轮内的事件进这一轮的口（这一轮的回答与账都在那儿记）；轮外的进后台流——玩家在
+     * 那一刻没有问，但引擎在说话（子 Agent 跑完了，主 Agent 接着讲），那也得看得见。
+     *
+     * 谁是谁：引擎一轮只跑一个，App 那一轮是「提示写出去之后的第一个引擎轮次」。
+     * 分诊器数着引擎轮次（每收尾一次加一），App 在提示写出去的那一刻记下自己排在第几个，
+     * 两者对上了，这一轮才是 App 的。对不上就是轮外——玩家的那段话照样看得见。
+     */
+    private fun route(
+        line: String,
+        backgroundAnswer: StringBuilder,
+        backgroundLedger: TurnLedger,
+    ) {
+        val obj = runCatching { JSONObject(line) }.getOrNull() ?: return
+        // 中止的回话：等它的人在那头拿
+        if (obj.optString("type") == "response" && obj.optString("command") == "abort") {
+            abortAck?.complete(Unit)
+            return
+        }
+        val parsed = parse(obj)
+        synchronized(routeLock) {
+            // 一个引擎轮次开始了：它是 App 的那一轮吗
+            if (parsed.turnStart && !engineTurnActive) {
+                engineTurnActive = true
+                engineTurnIsApp = appTurnIndex == engineSettleCount
+                if (engineTurnIsApp) appTurnIndex = -1L
+            }
+            val turn = activeTurn
+            val appTurn = engineTurnIsApp && turn != null && !turn.settled
+            if (appTurn) {
+                if (parsed.seen > turn.ledger.context) {
+                    turn.ledger.context = parsed.seen
+                    parsed.events.add(
+                        0, AgentEvent.UsageUpdated(sessionTokens + turn.ledger.context, sessionWindow),
+                    )
+                }
+                if (parsed.output > 0L) turn.ledger.output += parsed.output
+                if (parsed.endOutput > 0L) turn.ledger.endOutput = parsed.endOutput
+                for (e in parsed.events) {
+                    if (e is AgentEvent.TextDelta) turn.answer.append(e.text)
+                    turn.events.trySend(EngineEvent.For(e))
+                }
+            } else {
+                // 轮外：主 Agent 在没有玩家提问的时候写下的下文
+                if (parsed.seen > backgroundLedger.context) {
+                    backgroundLedger.context = parsed.seen
+                    parsed.events.add(
+                        0, AgentEvent.UsageUpdated(sessionTokens + backgroundLedger.context, sessionWindow),
+                    )
+                }
+                if (parsed.output > 0L) backgroundLedger.output += parsed.output
+                if (parsed.endOutput > 0L) backgroundLedger.endOutput = parsed.endOutput
+                for (e in parsed.events) {
+                    if (e is AgentEvent.TextDelta) backgroundAnswer.append(e.text)
+                    background.tryEmit(e)
+                }
+            }
+            // 这一轮到此为止：App 的那一轮交给等它的人，轮外的收成一条消息
+            if (parsed.settled || parsed.failed) {
+                val wasAppTurn = engineTurnIsApp
+                val claim = wasAppTurn || appTurnIndex == engineSettleCount
+                if (claim) {
+                    appTurnIndex = -1L
+                    val t = activeTurn
+                    if (t != null && !t.settled) {
+                        t.settled = true
+                        t.events.trySend(EngineEvent.Settled(t.ledger.tokens))
+                    }
+                }
+                if (!wasAppTurn) {
+                    // 轮外那一轮写完了：它自己是一条消息
+                    background.tryEmit(
+                        AgentEvent.FollowUp(backgroundAnswer.toString().trim(), backgroundLedger.tokens),
+                    )
+                    backgroundAnswer.setLength(0)
+                    backgroundLedger.reset()
+                }
+                engineSettleCount++
+                engineTurnActive = false
+                engineTurnIsApp = false
+            }
+        }
+    }
+
+    /** 总线上一行解析出来的东西。 */
+    private class Parsed {
+        val events = ArrayList<AgentEvent>(2)
+        /** 这一轮到此为止。 */
+        var settled = false
+        /** 引擎报了这个命令失败：这一轮也该收尾（不然它等不到收尾的话）。 */
+        var failed = false
+        /** 这一行是一个引擎轮次里的东西（不是命令的回话）。 */
+        var turnStart = false
+        /** 这一条消息看到的上下文占用（0 = 引擎没报）。 */
+        var seen = 0L
+        /** 这一条消息生成的 token。 */
+        var output = 0L
+        /** 整轮那一条生成的 token。 */
+        var endOutput = 0L
+    }
+
+    /** 总线上一行 -> App 看得懂的事。解析只做一次：轮内轮外共用这一份。 */
+    private fun parse(obj: JSONObject): Parsed {
+        val p = Parsed()
+        when (obj.optString("type")) {
+            "response" -> if (obj.optString("command") == "get_state") {
+                val data = obj.optJSONObject("data")
+                data?.optJSONObject("model")?.optLong("contextWindow")?.takeIf { it > 0 }?.let {
+                    sessionWindow = it
+                }
+                data?.optString("sessionFile")?.takeIf { it.isNotBlank() }?.let {
+                    piSessionFile = it
+                }
+            } else if (!obj.optBoolean("success", true)) {
+                Log.d(TAG, "command failed: ${obj.optString("error").take(200)}")
+                p.failed = true
+                p.events.add(AgentEvent.Failed(classify(RuntimeException(obj.optString("error")))))
+            }
+
+            "message_update" -> {
+                p.turnStart = true
+                obj.optJSONObject("usage")?.let { usage ->
+                    // the latest call saw the whole conversation: its input + produced output
+                    // IS the current context occupancy — monotonic, never a zero snapshot
+                    p.seen = usage.optLong("input") + usage.optLong("cacheRead") +
+                        usage.optLong("output")
+                }
+                val ev = obj.optJSONObject("assistantMessageEvent") ?: return p
+                when (ev.optString("type")) {
+                    "text_delta" -> {
+                        val delta = ev.optString("delta", "")
+                        if (delta.isNotEmpty()) p.events.add(AgentEvent.TextDelta(delta))
+                    }
+                    // 思考过程：模型自己想的那一段（不是回答）。它照样流出来，
+                    // 面板把它折起来——玩家想看就看，不想看就不占地方。
+                    "thinking_delta" -> {
+                        val delta = ev.optString("delta", "")
+                        if (delta.isNotEmpty()) p.events.add(AgentEvent.ThinkingDelta(delta))
+                    }
+                }
+            }
+
+            "tool_execution_start" -> {
+                p.turnStart = true
+                val name = obj.optString("toolName")
+                val args = obj.optJSONObject("args")
+                val call = AgentSubagentCallParser.of(name, args)
+                p.events.add(
+                    AgentEvent.ToolStarted(
+                        AgentToolCard(
+                            id = obj.optString("toolCallId"),
+                            name = name,
+                            argsSummary = if (call != null) {
+                                call.description.ifBlank { call.type }
+                            } else {
+                                args?.toString()?.take(60) ?: ""
+                            },
+                            state = AgentToolState.RUNNING,
+                            subagent = call,
+                        ),
+                    ),
+                )
+            }
+
+            "tool_execution_end" -> {
+                p.turnStart = true
+                val resultText = obj.optJSONObject("result")
+                    ?.optJSONArray("content")?.optJSONObject(0)?.optString("text") ?: ""
+                p.events.add(
+                    AgentEvent.ToolFinished(
+                        obj.optString("toolCallId"),
+                        if (obj.optBoolean("isError")) AgentToolState.FAILED else AgentToolState.DONE,
+                        resultText.take(80),
+                    ),
+                )
+            }
+
+            "message_end" -> {
+                p.turnStart = true
+                val message = obj.optJSONObject("message")
+                // 子 Agent 跑完了：引擎发来一条自己的消息，正文是那份通知
+                if (message != null &&
+                    message.optString("role") == "custom" &&
+                    message.optString("customType") == SubagentNotifications.MESSAGE_TYPE
+                ) {
+                    SubagentNotifications.parse(SubagentTranscripts.textOf(message))
+                        ?.let { p.events.add(AgentEvent.Notification(it)) }
+                }
+                message?.optJSONObject("usage")?.let { usage ->
+                    p.seen = usage.optLong("input") + usage.optLong("cacheRead") +
+                        usage.optLong("output")
+                    // 这一条消息生成了多少：这一轮的回答要报自己的消耗
+                    p.output = usage.optLong("output")
+                }
+            }
+
+            "turn_end" -> {
+                p.turnStart = true
+                obj.optJSONObject("message")?.optJSONObject("usage")?.let { usage ->
+                    p.seen = usage.optLong("input") + usage.optLong("cacheRead") +
+                        usage.optLong("output")
+                    p.endOutput = usage.optLong("output")
+                }
+            }
+
+            "agent_settled" -> p.settled = true
+        }
+        return p
+    }
+
     /** The long-lived rpc process; a config change respawns it on the next turn. */
     @Synchronized
-    private fun ensureProcess(config: AgentModelConfig): Channel<String> {
+    private fun ensureProcess(config: AgentModelConfig): Channel<BusItem> {
         val fingerprint = "${config.baseUrl}|${config.modelName}|${config.apiKey.hashCode()}"
         if (process?.isAlive == true && builtFor == fingerprint) return checkNotNull(lineBus)
         kill()
@@ -445,6 +694,9 @@ class PiAgentChat @Inject constructor(
         // the extensions the installed package carries are pointed at before the engine starts:
         // it reads its settings when it comes up, not later
         AgentExtensions.enable(engine.home, engine.runtimeDir, engine.installedExtensions())
+        // the sub-agent definitions are read at startup too: the case-file one is ours
+        // (the workspace has already put it there; this is the belt to that suspenders)
+        AgentAgents.install(engine.home)
 
         val pb = ProcessBuilder(
             listOf(
@@ -465,7 +717,7 @@ class PiAgentChat @Inject constructor(
         pb.environment()[keyName] = keyValue
 
         val p = pb.start()
-        val bus = Channel<String>(capacity = Channel.UNLIMITED)
+        val bus = Channel<BusItem>(capacity = Channel.UNLIMITED)
         // 回话走自己那条通道（读历史时用），其余事件走事件总线：分开走，两边才不会
         // 互相抢对方的行（读历史与跑一轮可以同时发生）。
         val replies = Channel<String>(capacity = Channel.UNLIMITED)
@@ -477,7 +729,7 @@ class PiAgentChat @Inject constructor(
                 p.inputStream.use { stream ->
                     stream.reader(Charsets.UTF_8).buffered().useLines { lines ->
                         lines.forEach { line ->
-                            if (isRpcReply(line)) replies.trySend(line) else bus.trySend(line)
+                            if (isRpcReply(line)) replies.trySend(line) else bus.trySend(BusItem.Line(line))
                         }
                     }
                 }
@@ -501,6 +753,8 @@ class PiAgentChat @Inject constructor(
         process = p
         lineBus = bus
         builtFor = fingerprint
+        // 总线的行只它读：轮内的进这一轮的口，轮外的进后台流
+        startDemuxer(bus)
         return bus
     }
 
@@ -530,6 +784,8 @@ class PiAgentChat @Inject constructor(
             runCatching { p.outputStream.close() }   // the orderly shutdown request
             runCatching { p.destroy() }
         }
+        demuxer?.cancel()
+        demuxer = null
         lineBus?.close()
         rpcBus?.close()
         process = null
@@ -537,6 +793,14 @@ class PiAgentChat @Inject constructor(
         rpcBus = null
         builtFor = null
         abortPending = false   // 进程都没了，没有中止要等了
+        abortAck?.cancel()
+        abortAck = null
+        synchronized(routeLock) {
+            activeTurn = null
+            appTurnIndex = -1L
+            engineTurnActive = false
+            engineTurnIsApp = false
+        }
     }
 
     private fun classify(error: Exception): AgentFailure = when {

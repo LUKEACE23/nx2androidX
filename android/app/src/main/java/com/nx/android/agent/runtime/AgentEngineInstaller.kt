@@ -87,6 +87,8 @@ class AgentEngineInstaller @Inject constructor(
             // the extensions the package carries are loaded by the engine: it needs to be told
             // where they are (they sit beside it, not in the place it looks in by itself)
             AgentExtensions.enable(paths.agent, paths.agentRuntime, it.extensions)
+            // the sub-agent definitions the engine reads at startup: the case-file one is ours
+            AgentAgents.install(paths.agent)
         }
         return result
     }

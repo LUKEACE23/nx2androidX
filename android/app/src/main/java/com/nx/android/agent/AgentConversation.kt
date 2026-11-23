@@ -33,6 +33,9 @@ class AgentConversation {
     /** The assistant message the running turn's events land in. */
     private var draftId: Long? = null
 
+    /** 轮外那一段（主 Agent 自己写下的话）落在哪条消息里。 */
+    private var followUpId: Long? = null
+
     /** Another conversation answers from here on: the history is the new one. */
     fun load(history: List<AgentMessage>) {
         messages = history
@@ -40,6 +43,7 @@ class AgentConversation {
         running = false
         streamingId = null
         draftId = null
+        followUpId = null
     }
 
     /** The player's words land at once. */
@@ -57,6 +61,7 @@ class AgentConversation {
     fun apply(event: AgentEvent) {
         when (event) {
             is AgentEvent.TextDelta -> appendText(event.text)
+            is AgentEvent.ThinkingDelta -> appendThinking(event.text)
             is AgentEvent.ToolStarted -> appendTool(event.card)
             is AgentEvent.ToolFinished -> finishTool(event.id, event.state, event.resultSummary)
             is AgentEvent.TurnDone -> finishTurn(event.assistantText, event.tokens)
@@ -64,7 +69,55 @@ class AgentConversation {
             is AgentEvent.Notification -> addNotification(event.notification)
             // 上下文占用不是对话的事：那是持有者那边的账
             is AgentEvent.UsageUpdated -> Unit
+            // 轮外的那一段自己走 followUp
+            is AgentEvent.FollowUp -> Unit
         }
+    }
+
+    /**
+     * 轮外的一个事件：主 Agent 在没有玩家提问的时候写下的那段下文。
+     *
+     * 它落在自己的消息里（不混进上一轮的回答）——那段话是子 Agent 跑完之后才有的，
+     * 玩家看到的是一条新的消息。
+     */
+    fun followUp(event: AgentEvent) {
+        when (event) {
+            is AgentEvent.TextDelta -> {
+                if (event.text.isEmpty()) return
+                val id = followUpDraft().id
+                update(id) { it.copy(text = it.text + event.text) }
+            }
+            is AgentEvent.Notification -> {
+                val id = followUpDraft().id
+                update(id) { it.copy(notifications = it.notifications + event.notification) }
+            }
+            is AgentEvent.FollowUp -> {
+                val id = followUpId
+                if (id != null) {
+                    // 已经流出来的字留着；没流出来（App 刚起来）就用这一份完整的
+                    update(id) { m ->
+                        m.copy(text = if (m.text.isBlank()) event.text else m.text, tokens = event.tokens)
+                    }
+                } else if (event.text.isNotBlank()) {
+                    messages = messages + AgentMessage(
+                        nextId++, AgentRole.ASSISTANT, event.text, tokens = event.tokens,
+                    )
+                }
+                followUpId = null
+            }
+            else -> Unit
+        }
+    }
+
+    /** 轮外那一段的草稿：它的第一条消息。 */
+    private fun followUpDraft(): AgentMessage {
+        val id = followUpId
+        val last = messages.lastOrNull()
+        if (id != null && last?.id == id) return last
+        val made = AgentMessage(nextId++, AgentRole.ASSISTANT, "")
+        messages = messages + made
+        followUpId = made.id
+        return made
     }
 
     /** The streamed words join the answer being written. */
@@ -74,6 +127,14 @@ class AgentConversation {
         if (!running && draftId == null) return
         val id = draft().id
         update(id) { it.copy(text = it.text + text) }
+    }
+
+    /** 思考过程也落在这一轮的回答里：折起来的那一段。 */
+    fun appendThinking(text: String) {
+        if (text.isEmpty()) return
+        if (!running && draftId == null) return
+        val id = draft().id
+        update(id) { it.copy(thinking = it.thinking + text) }
     }
 
     /** The turn is over — the stream ended, or the player stopped it. */
@@ -155,7 +216,7 @@ class AgentConversation {
         val id = draftId
         val last = messages.lastOrNull()
         val empty = last != null && last.text.isEmpty() && last.tools.isEmpty() &&
-            last.notifications.isEmpty()
+            last.notifications.isEmpty() && last.thinking.isEmpty()
         if (id != null && last?.id == id && empty) {
             messages = messages.dropLast(1)
         }
