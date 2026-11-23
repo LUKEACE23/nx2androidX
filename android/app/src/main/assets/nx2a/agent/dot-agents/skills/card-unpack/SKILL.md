@@ -1,38 +1,68 @@
 ---
 name: card-unpack
-description: 拆卡、解包、把卡带分成本体/升级档/DLC 时用：把 XCI 或 NSP 卡带拆成每个 title 一个 NSP，放到玩家在 App 里能选到的位置。
+description: Use it to unpack a card - an XCI or an NSP cartridge dump - into one NSP per title (the base game, its update, its DLCs), written into a folder next to the card itself. Also use it when the player asks to split a card, to take the base game or the update out of it, or to get a single file to port or to test.
 ---
 
-# 拆卡：卡带 → 每个 title 一个 NSP
+# Unpacking a card: one NSP per title
 
-玩家说「拆卡」「解包」「把卡带分成本体和升级档」，或者要拿一个单独的本体/升级档去移植、去测试时，走这个流程。
+The player says "unpack this card", "split the cartridge", or wants a single base game or
+update to port or to test. Follow this.
 
-## 用工具，不要自己写脚本
+## Use the tools, do not write your own script
 
-- `python3 $NX2A_REPO/tools/card.py "<卡带>" --keys $NX2A_HOME/../prod.keys`：先看卡里有什么（有哪些 title、升级档是不是合并在里面）。只读。
-- `python3 $NX2A_REPO/tools/card_split.py "<卡带>" "<输出目录>"`：拆成每个 title 一个 NSP。prod.keys 默认读 $NX2A_HOME/../prod.keys。
+- `python3 $NX2A_REPO/tools/card.py "<card>" --keys $NX2A_HOME/../prod.keys`: what is on
+  the card (which titles, whether the update is merged in, what the porter makes of it).
+  Read-only.
+- `python3 $NX2A_REPO/tools/card_split.py "<card>"`: cut it into one NSP per title.
+  **No second argument**: the tool puts them into `<card name>-<base title ID>/` next to
+  the card. prod.keys defaults to $NX2A_HOME/../prod.keys.
 
-拆包不要自己写脚本：以前写在临时目录里的那套不在工具树里，换台手机就没了，卡带格式一变就废。
+Do not write the unpacker yourself: the script that used to live in a temporary directory
+is not in the tool tree, so it is gone on the next phone, and it dies with the next change
+of the card format.
 
-要看游戏文件本体（romfs、exefs 的内容）是另一件事，用 nx_extract；给 App 选文件不需要它。
+Reading the game files themselves (what is in romfs and exefs) is another job - that is
+nx_extract. The App does not need it to pick a file.
 
-## 输出的位置和名字（铁律）
+## Where the output goes, and what it is called (the rules)
 
-- 输出目录是 `/storage/emulated/0/Download/<游戏名>-<本体 title ID>/`，例如
-  `/storage/emulated/0/Download/火焰纹章风花雪月-010055D009F78000/`。
-  - App 的文件选择器看不到 App 私有目录（files/…、files/tmp、files/tmpwork、$TMPDIR），玩家选不到那里的文件。
-  - 私有目录只配当中间产物（scratch），用完删掉。
-- 目录里平铺，不要再套子目录：不要建「本体/升级档/DLC」子目录，玩家明确不要，一层放平。
-- 文件名由工具定：`<title ID>_base.nsp`、`<title ID>_update.nsp`、`<title ID>_dlc.nsp`（DLC 的编号在 title ID 里），别的叫 `_other.nsp`。不要自己改名。
-- 不要动玩家自己的卡带：不 move、不改名、不删它的原件。拆包读它，写到别的目录去。
+- The output folder is **next to the card**: `<the card's folder>/<card name without its
+  suffix>-<base title ID>/`.
+  - Example: the card is `/storage/emulated/0/Download/Fire Emblem.xci` and the base title
+    ID is `010055D009F78000`, so the output is
+    `/storage/emulated/0/Download/Fire Emblem-010055D009F78000/`.
+  - You do not have to work the folder out: card_split.py uses it when no output folder is
+    given. If you pass a second argument, pass that one.
+  - The title ID in the folder name is the **base game's** one: card.py's output says what
+    each title in the card is (base / update / DLC), so read it off there instead of
+    guessing. A card without a base game is named after the first title in it.
+  - Why here: the card is where the player put the game and where the file picker can reach
+    it, so the split files can be reached too. The App's file picker does not see the App's
+    private folders (files/..., files/tmp, files/tmpwork, $TMPDIR); those are good for
+    scratch work (intermediate products) and are deleted afterwards.
+  - The library merges by title ID: the split NSPs are the same game as the card, so they
+    do not add a second card to the library.
+  - When two cards sit in the same folder, the base title ID keeps them apart: never let
+    two cards share one output folder.
+- Flat inside that folder, no subfolders: no "base/update/DLC" subfolders - the player
+  asked for one level, so keep one level.
+- The tool names the files: `<title ID>_base.nsp`, `<title ID>_update.nsp`,
+  `<title ID>_dlc.nsp` (a DLC's number is in its title ID), anything else `_other.nsp`. Do
+  not rename them.
+- Do not touch the player's card: no move, no rename, no deleting the original. The split
+  reads it and writes beside it.
 
-## 空间
+## Space
 
-- 拆出来的 NSP 加起来差不多等于卡带的大小（13 GB 的卡带要 13 GB 的地方）。写之前先看：`df -h /storage/emulated/0 | tail -1`。
-- 工具自己也会算：不够就一行报错，不会写一半。
-- 不够就跟玩家说清楚，别自己删玩家的东西腾地方。
+- The split NSPs together are about the size of the card (a 13 GB card needs 13 GB of
+  room). Look before writing: `df -h "<the card's folder>" | tail -1`.
+- The tool does the arithmetic itself: if there is not enough room it says so in one line
+  and writes nothing.
+- If the room is short, say so plainly. Do not delete the player's things to make space.
 
-## 做完
+## When it is done
 
-- 告诉玩家每个 NSP 的名字、大小和它们在哪个目录。
-- 中间产物（解出来的 romfs、清单、临时目录）删掉，除非玩家要留。
+- Tell the player the name and the size of every NSP, and which folder they are in (the
+  folder is next to the card, so one sentence is enough).
+- Delete the intermediate products (the unpacked romfs, the listings, the temporary
+  folders) unless the player wants them kept.
