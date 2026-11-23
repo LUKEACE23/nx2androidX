@@ -1,6 +1,7 @@
 package com.nx.android.agent.env
 
 import android.util.Log
+import com.nx.android.BuildConfig
 import com.nx.android.agent.AgentChat
 import com.nx.android.agent.AgentEngineMissingException
 import com.nx.android.agent.AgentEvent
@@ -16,6 +17,7 @@ import com.nx.android.agent.runtime.AgentSessionStore
 import com.nx.android.agent.runtime.AgentSettingsStore
 import com.nx.android.agent.runtime.AgentWorkspace
 import com.nx.android.agent.runtime.composeTurn
+import com.nx.android.agent.runtime.deviceState
 import com.nx.android.agent.tools.AgentTools
 import com.nx.android.domain.environment.GuestProcessLauncher
 import java.io.File
@@ -238,7 +240,11 @@ class PiAgentChat @Inject constructor(
             userText,
             workspace.readMemory(),
             context,
-            deviceState = tools.libraryStatus().take(DEVICE_STATE_CHARS),
+            deviceState = deviceState(
+                BuildConfig.VERSION_NAME,
+                tools.libraryStatus(),
+                DEVICE_STATE_CHARS,
+            ),
         )
 
         var settled = false

@@ -74,7 +74,7 @@ class AgentWorkspace @Inject constructor(private val paths: AppPaths) {
         }
 
         /** The seeds we know: a file carrying one of them is ours, not the player's. */
-        private val SEEDS: Set<String> get() = setOf(SEED_AGENTS, SEED_AGENTS_V4, SEED_AGENTS_V3, SEED_AGENTS_V1, SEED_AGENTS_V2, SEED_AGENTS_V0)
+        internal val SEEDS: Set<String> get() = setOf(SEED_AGENTS, SEED_AGENTS_V5, SEED_AGENTS_V4, SEED_AGENTS_V3, SEED_AGENTS_V1, SEED_AGENTS_V2, SEED_AGENTS_V0)
 
         private val SEED_AGENTS_V0 = "你是 nx2androidX 的内置助手，用简体中文回答。"
         private val SEED_AGENTS_V1 = """
@@ -118,7 +118,12 @@ class AgentWorkspace @Inject constructor(private val paths: AppPaths) {
             - 编造读数、日志内容或玩家的确认。
         """.trimIndent()
 
-        private val SEED_AGENTS = """
+        /**
+         * The seed the phones that ran the previous build carry, frozen: the current seed is this
+         * text plus the facts below, and the phones that already have it must still recognize it as
+         * ours — a derivation would stop matching them and their agreement would never be refreshed.
+         */
+        internal val SEED_AGENTS_V5 = """
             # 助手的工作约定
 
             你是 nx2androidX（把 Switch 游戏移植到 Android 手机上运行的应用）的内置助手，用简体中文回答玩家。
@@ -205,11 +210,31 @@ class AgentWorkspace @Inject constructor(private val paths: AppPaths) {
         """.trimIndent()
 
         /**
-         * The seed before the tool catalog named the card tool's argument and the frames' folder:
-         * the text the phones that ran the previous build carry. Written as a change to the current
-         * seed, so the two cannot drift apart.
+         * The environment facts the assistant kept getting wrong: the lineage, where the installed
+         * version really lives, and what a change to the engine tree costs (a re-run of the port,
+         * not a new APK).
          */
-        private val SEED_AGENTS_V4 = SEED_AGENTS
+        private val SEED_AGENTS_FACTS = """
+            ## 谱系、版本与重编译
+            - 三层关系：引擎与游戏档案源自 seedds/nxnative；产品上游是 shirai91/nx2android（桌面工具，不出 APK）；本 fork（nx2androidX）是唯一出 APK 的地方。
+            - 想知道本线与上游差在哪：跑 tools/upstream_diff.py，不要自己下载整棵上游树逐文件比。
+            - 已装版本看注入块里的「App 版本」或 agent/runtime/manifest.json；下载目录里的安装包文件名不是已装版本。
+            - 在手机引擎树（tool/nxnative）上改了 Python 或 C 之后，重跑移植就生效：移植的宿主阶段用玩家自己的 NDK 现场编译。
+            - 重装 APK 只跟 App 自身更新有关，与引擎修复无关。
+        """.trimIndent()
+
+        /** The current seed: the frozen one plus the facts above. */
+        internal val SEED_AGENTS = SEED_AGENTS_V5.replace(
+            "## 工具（",
+            "$SEED_AGENTS_FACTS\n\n## 工具（",
+        )
+
+        /**
+         * The seed before the tool catalog named the card tool's argument and the frames' folder:
+         * the text the phones that ran the build before the previous one carry. Written as a change
+         * to the frozen seed, so the two cannot drift apart.
+         */
+        internal val SEED_AGENTS_V4 = SEED_AGENTS_V5
             .replace("（card.py <卡带文件>）", "")
             .replace("（帧目录用 --dir 给，或用 DM_VK_SHOT_DIR 指的地方）", "")
 
