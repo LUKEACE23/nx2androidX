@@ -80,7 +80,6 @@ import com.nx.android.data.PadPlayers
 import com.nx.android.data.PrefsStore
 import com.nx.android.data.RatePin
 import com.nx.android.data.RateSettings
-import com.nx.android.data.SaveShare
 import com.nx.android.data.RuntimeCompiler
 import com.nx.android.data.RuntimeLibraries
 import com.nx.android.data.RuntimeStorage
@@ -97,6 +96,7 @@ import com.nx.android.game.input.PadView
 import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.gameContext
 import com.nx.android.agent.runtime.GamespecExporter
+import com.nx.android.agent.runtime.openGamespecIssue
 import com.nx.android.agent.ui.AgentConversationState
 import com.nx.android.agent.ui.AgentDrawerHost
 import com.nx.android.agent.ui.AgentEdgeBadge
@@ -1226,16 +1226,16 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     /**
-     * 导出这局的攻关档案：在环境里跑打包器，把 zip 放进下载目录，再交给系统分享。
+     * 导出这局的攻关档案：在环境里跑打包器，把 zip 放进下载目录，再把玩家送到提 issue 的页面。
      *
-     * 玩家拿去提 issue 用的是这个包。档案本身不动——导出是快照，导出完了还能继续往里记。
+     * 玩家拿去提 issue 用的是这个包（表单里自己附上）。档案本身不动——导出是快照，导出完了还能继续往里记。
      */
     private fun exportGamespec(titleId: String) {
         lifecycleScope.launch {
             val result = exporter.export(this@GameActivity, titleId)
             result.onSuccess { target ->
                 toast(locale.str(R.string.agent_gamespec_exported, target.name))
-                startActivity(SaveShare.intent(this@GameActivity, target))
+                openGamespecIssue(this@GameActivity)
             }.onFailure {
                 toast(locale.str(R.string.agent_gamespec_export_failed, it.message.orEmpty()))
             }

@@ -23,6 +23,7 @@ import com.nx.android.appstate.UpdateState
 import com.nx.android.appstate.porting.PortCompletionCoordinator
 import com.nx.android.data.firmware.FirmwareRepository
 import com.nx.android.agent.runtime.GamespecExporter
+import com.nx.android.agent.runtime.openGamespecIssue
 import com.nx.android.domain.drivers.DriverRepository
 import com.nx.android.domain.environment.EnvironmentSetup
 import com.nx.android.game.GameActivity
@@ -57,7 +58,6 @@ import com.nx.android.data.Gamespec
 import com.nx.android.data.LogBundle
 import com.nx.android.data.Player
 import com.nx.android.data.PrefsStore
-import com.nx.android.data.SaveShare
 import com.nx.android.data.porting.BuildSessionRepository
 import com.nx.android.core.storage.AppPaths
 import androidx.core.content.FileProvider
@@ -694,7 +694,7 @@ class MainActivity : ComponentActivity() {
     fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
 
     /**
-     * 导出一局的攻关档案：打包器在环境里跑，zip 放进下载目录，再交给系统分享。
+     * 导出一局的攻关档案：打包器在环境里跑，zip 放进下载目录，再把玩家送到提 issue 的页面。
      *
      * 档案本身不动——导出是快照，导出完了还能继续往里记。
      */
@@ -703,7 +703,7 @@ class MainActivity : ComponentActivity() {
             exporter.export(this@MainActivity, titleId)
                 .onSuccess { target ->
                     toast(locale.str(R.string.agent_gamespec_exported, target.name))
-                    startActivity(SaveShare.intent(this@MainActivity, target))
+                    openGamespecIssue(this@MainActivity)
                 }
                 .onFailure {
                     toast(locale.str(R.string.agent_gamespec_export_failed, it.message.orEmpty()))

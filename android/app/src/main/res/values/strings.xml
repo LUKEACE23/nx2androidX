@@ -703,7 +703,7 @@
     <string name="agent_tool_failed">Failed</string>
     <string name="agent_tool_args">Arguments</string>
     <string name="agent_tool_result">Result</string>
-    <string name="agent_subagents_entry">Sub-agents</string>
+    <string name="agent_subagents_entry">Subtasks</string>
     <string name="agent_subagents_title">Sub-agents</string>
     <string name="agent_subagents_viewer_title">The sub-agent\'s chat</string>
     <string name="agent_subagents_empty">No sub-agent has been spawned in this chat yet.</string>
@@ -714,7 +714,8 @@
     <string name="agent_subagents_back">Back</string>
     <string name="agent_subagents_tool_uses">tool uses</string>
     <string name="agent_subagent_run">Sub-agent run</string>
-    <string name="agent_gamespec_export">Export the case file</string>
+    <string name="agent_gamespec_export">Contribute upstream</string>
+    <string name="agent_gamespec_confirm_text">Packs this case file into a zip (in Download/nx2android/gamespec/) and then opens this repo\'s issue page. Attach the zip to the form.</string>
     <string name="agent_thinking_fold">thinking</string>
     <string name="agent_plan_waiting">the plan is waiting for you</string>
     <string name="agent_plan_cause">cause</string>
@@ -735,7 +736,7 @@
     <string name="agent_case_pending_hint">the case is still being worked on</string>
     <string name="agent_thinking_tokens">%1$s tok</string>
     <string name="agent_gamespec_exported">Exported: %1$s</string>
-    <string name="agent_gamespec_export_failed">The case file could not be exported: %1$s</string>
+    <string name="agent_gamespec_export_failed">Export failed: %1$s</string>
     <string name="agent_setup_title">Model settings</string>
     <string name="agent_setup_prompt">Configure a model and the chat begins.</string>
     <string name="agent_setup_intro">Bring your own key: the assistant talks to one OpenAI-compatible endpoint of your choice. The key is stored on this phone only and never leaves it.</string>

@@ -55,6 +55,7 @@ import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -62,6 +63,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -224,6 +226,8 @@ fun AgentPanel(
     var toolsOverlay by remember { mutableStateOf<AgentMessage?>(null) }
     // the sub-agents overlay: the list of this chat's runs, and the one that is open
     var agentsOpen by remember { mutableStateOf(false) }
+    // 「贡献上游」的二次确认：导出前先问一句——玩家要拿这个包去上游提 issue
+    var exportConfirm by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val copiedWord = stringResource(R.string.agent_copied)
     val copyLabel = stringResource(R.string.agent_title)
@@ -569,12 +573,12 @@ fun AgentPanel(
                             )
                         }
                     }
-                    // 导出这局的攻关档案：只有游戏页给得起这个动作（那里才知道是哪一局）
+                    // 贡献上游：把这局的档案打成 zip 交给系统分享，玩家拿去上游提 issue
                     if (onExportGamespec != null) {
                         GlassChip(
                             modifier = Modifier.fillMaxWidth().height(32.dp),
                             contentPadding = PaddingValues(horizontal = 10.dp),
-                            onClick = { onExportGamespec() },
+                            onClick = { exportConfirm = true },
                         ) {
                             Icon(
                                 Icons.Filled.IosShare,
@@ -753,6 +757,37 @@ fun AgentPanel(
                 loadConversation = { subagent -> conversation.subagentConversation(subagent) },
                 onDismiss = { agentsOpen = false },
                 modifier = Modifier.matchParentSize(),
+            )
+        }
+        // 「贡献上游」的二次确认：包里是这一局的档案，玩家要拿着它去上游提 issue
+        if (exportConfirm) {
+            AlertDialog(
+                onDismissRequest = { exportConfirm = false },
+                title = {
+                    Text(
+                        stringResource(R.string.agent_gamespec_export),
+                        fontWeight = FontWeight.Bold,
+                    )
+                },
+                text = {
+                    Text(
+                        stringResource(R.string.agent_gamespec_confirm_text),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        exportConfirm = false
+                        onExportGamespec?.invoke()
+                    }) {
+                        Text(stringResource(R.string.common_export))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { exportConfirm = false }) {
+                        Text(stringResource(R.string.common_cancel))
+                    }
+                },
             )
         }
     }

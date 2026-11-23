@@ -702,7 +702,7 @@
     <string name="agent_tool_failed">失败</string>
     <string name="agent_tool_args">参数</string>
     <string name="agent_tool_result">结果</string>
-    <string name="agent_subagents_entry">攻关</string>
+    <string name="agent_subagents_entry">子任务</string>
     <string name="agent_subagents_title">子 Agent</string>
     <string name="agent_subagents_viewer_title">子 Agent 的对话</string>
     <string name="agent_subagents_empty">这次还没有派生过子 Agent。</string>
@@ -713,7 +713,8 @@
     <string name="agent_subagents_back">返回</string>
     <string name="agent_subagents_tool_uses">次工具</string>
     <string name="agent_subagent_run">子 Agent 运行</string>
-    <string name="agent_gamespec_export">导出攻关档案</string>
+    <string name="agent_gamespec_export">贡献上游</string>
+    <string name="agent_gamespec_confirm_text">会把这一局的档案打成一个 zip 包（放在下载目录的 nx2android/gamespec/ 里），然后打开本仓库的 issue 页面。请在表单里把这个 zip 一起附上。</string>
     <string name="agent_thinking_fold">思考</string>
     <string name="agent_plan_waiting">方案待确认</string>
     <string name="agent_plan_cause">根因</string>
@@ -734,7 +735,7 @@
     <string name="agent_case_pending_hint">这一局的攻关还在进行</string>
     <string name="agent_thinking_tokens">%1$s tok</string>
     <string name="agent_gamespec_exported">已导出：%1$s</string>
-    <string name="agent_gamespec_export_failed">导出攻关档案失败：%1$s</string>
+    <string name="agent_gamespec_export_failed">导出失败：%1$s</string>
     <string name="agent_setup_title">模型设置</string>
     <string name="agent_setup_prompt">配好一个模型就能开始对话。</string>
     <string name="agent_setup_intro">带上自己的 key：助手用它调用一个你选的 OpenAI 兼容端点。key 只存在这台手机上，不会离开它。</string>
