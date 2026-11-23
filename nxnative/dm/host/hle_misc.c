@@ -1,6 +1,14 @@
 // Miscellaneous service layer: add-on content / shop / error applet / profanity filter / server name resolution / parental controls / software keyboard.
 // On the real device each goes through IPC or a system applet; the host gives results as single-player offline. Pure-computation SDK parts (hash, util, software Opus) are not taken over, the original implementation is used directly.
 #include "hle.h"
+static void *h_safe_memcpy(void *dst, const void *src, size_t n) {
+    if (!dst || !src || !n) return dst;
+    return memcpy(dst, src, n);
+}
+HLE_FORCE("memcpy", "safe memcpy guarding against null destination pointers", void *, h_safe_memcpy, void *dst, const void *src, size_t n) {
+    return h_safe_memcpy(dst, src, n);
+}
+
 #include <dirent.h>
 
 // ---------- aoc add-on content (the DLC NSPs in the player's folder) / ec shop (excluded) ----------
