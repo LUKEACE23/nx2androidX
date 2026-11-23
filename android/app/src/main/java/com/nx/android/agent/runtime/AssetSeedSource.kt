@@ -14,7 +14,7 @@ class AssetSeedSource(private val assets: AssetManager) : AgentSeedSource {
 
     override fun files(): List<String> {
         val found = mutableListOf<String>()
-        collect(ROOT, found)
+        collect(ROOT, "", found)
         if (found.isEmpty()) {
             // the material is not in the package at all: the assistant would work without its
             // agreement, its skills and its agent definitions
@@ -31,13 +31,17 @@ class AssetSeedSource(private val assets: AssetManager) : AgentSeedSource {
         null
     }
 
-    /** Every file under a folder, recursively, named relative to the seed root. */
-    private fun collect(folder: String, into: MutableList<String>) {
+    /**
+     * Every file under a folder, recursively: the path in the assets, and the path relative to
+     * the seed root (the one the planter writes to the device).
+     */
+    private fun collect(folder: String, prefix: String, into: MutableList<String>) {
         val entries = assets.list(folder) ?: return
         for (entry in entries) {
             val path = "$folder/$entry"
+            val relative = if (prefix.isEmpty()) entry else "$prefix/$entry"
             val children = assets.list(path)
-            if (children.isNullOrEmpty()) into += path else collect(path, into)
+            if (children.isNullOrEmpty()) into += relative else collect(path, relative, into)
         }
     }
 
