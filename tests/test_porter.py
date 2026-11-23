@@ -760,6 +760,17 @@ class Misc(unittest.TestCase):
             self.assertIsNotNone(self.space_fits(p, 2**30 + 6 * 2**20 - 1))
         finally: shutil.rmtree(d, ignore_errors=True)
 
+    def test_space_counts_a_merged_dump_once(self):   # a merged dump is one file that is the base game, the update and the DLC: it counts once
+        d = Path(tempfile.mkdtemp(prefix='nx2a_test_space_'))
+        try:
+            (d / 'm.nsp').write_bytes(b'\0' * 2**20)
+            work = d / 'build'
+            fam = {'base': d / 'm.nsp', 'updates': [(65536, d / 'm.nsp')], 'dlc': [('0100000000011000', None, d / 'm.nsp')]}
+            p = self.space_port(d, fam, work)
+            self.assertIsNone(self.space_fits(p, 2**30 + 2 * 2**20))      # one file of 1 MB, twice over, plus 1 GB
+            self.assertIsNotNone(self.space_fits(p, 2**30 + 2 * 2**20 - 1))
+        finally: shutil.rmtree(d, ignore_errors=True)
+
     def test_space_in_the_app_s_mode(self):   # the app's mode asks for the game's files once over: the pack points at the build folder's own RomFS instead of copying it
         d = Path(tempfile.mkdtemp(prefix='nx2a_test_space_'))
         try:

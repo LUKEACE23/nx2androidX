@@ -13,7 +13,7 @@ with — the game is not missing on Android.
 
 These have an official Android release too, and are ported here anyway: Unpacking.
 
-**73 / 188 ported**
+**79 / 193 ported**
 
 This file is generated: `python3 docs/gen_tables.py` reads the profiles and writes it. The facts
 in a row are the profile's own — the name and the version from `game.tsv`, the status, the note
@@ -33,6 +33,7 @@ the author of the commit that introduced them.
 - [ ] AI: THE SOMNIUM FILES - nirvanA Initiative · `0100713016CCC000` · 1.0.2
 - [x] Animal Crossing: New Horizons · `01006F8002326000` · playable · update 3.0.3 · 30 fps (as on Switch) · local play over Wi-Fi with Switches that run ldn_mitm (Atmosphère 1.11.2 needs ldn_mitm 1.21.2) · ported by @shirai91
 - [ ] ANIMAL WELL · `010020D01AD24000` · 1.0.10
+- [x] Apollo Justice: Ace Attorney Trilogy · `010020D01B890000` · wip · v0 OnePlus 8 IN2010 (Snapdragon 865, Adreno 650) · ported by @armyja
 - [ ] ASTRAL CHAIN · `01007300020FA000` · 1.0.1 · 60 fps
 - [ ] Atelier Ryza: Ever Darkness & the Secret Hideout DX · `0100199023B2E000` · 1.2.0
 - [ ] Balatro · `0100CD801CE5E000` · 1.1.3
@@ -94,6 +95,7 @@ the author of the commit that introduced them.
 - [x] Kirby and the Forgotten Land · `01004D300C5AE000` · playable · update 1.1.0 · 30 fps (as on Switch) · tested on the AYN Thor (Adreno 740) with a Turnip Vulkan driver · ported by @DPR
 - [ ] Kirby Star Allies · `01007E3006DDA000` · 4.0.0a
 - [x] Kirby's Return to Dream Land Deluxe · `01006B601380E000` · playable · 60 fps · tested on the AYN Thor (Adreno 740) with a Turnip Vulkan driver · needs your console's firmware for its fonts (`--firmware`) · ported by @DPR
+- [x] Layton's Mystery Journey: Katrielle and the Millionaires' Conspiracy DX+ · `0100FDB00AA80000` · playable · v65536 iQOO 9 V2171A (Snapdragon 8 Gen 1, Adreno 730, Android 15)
 - [x] Lonely Mountains: Downhill · `0100A0C00E0DE000` · playable · base game 1.0.5 · 60 fps on Retroid Pocket 6 with PurpleVK · **work in progress**: brief transition glitch and occasional black/white flashes · ported by @alexsg91
 - [ ] Luigi's Mansion 3 · `0100DCA0064A6000` · 1.4.0 · 60 fps
 - [ ] Mario & Luigi: Brothership · `01006D0017F7A000` · 1.0.0 · 60 fps
@@ -139,7 +141,7 @@ the author of the commit that introduced them.
 - [x] Pokémon Scarlet · `0100A3D008C5C000` · experimental · update 4.0.0 · 50–60 fps (30 on Switch) · tested on the AYN Thor (Adreno 740) with a Turnip Vulkan driver · **work in progress**: tested in the opening and the South Province fields · ported by @minhoag
 - [x] Pokémon Shield · `01008DB008C2C000` · playable · update 1.3.2 · 30 fps (as on Switch; 60 runs the game twice as fast) · tested on the AYN Odin 2 (Adreno 740) with a Turnip Vulkan driver · **tested to Postwick** and in wild battles · ported by @rospec14
 - [x] Pokémon Sword · `0100ABF008968000` · playable · update 1.3.2 · 30 fps (as on Switch; 60 runs the game twice as fast) · tested on the AYN Odin 2 (Adreno 740) with a Turnip Vulkan driver · **tested to the Wild Area**, wild battles included; handheld mode draws blurred (docked is the default) · ported by @rospec14
-- [ ] Pokémon Violet · `01008F6008C5E000` · 1.0.0
+- [x] Pokémon Violet · `01008F6008C5E000` · playable · 4.0.0 AYN Odin 2 (Adreno 740, Android 13, Turnip) · ported by @rospec14
 - [ ] Portal · `01007BB017812000` · 1.0.3
 - [ ] Portal 2 · `0100ABD01785C000` · 1.0.3
 - [ ] Princess Peach: Showtime! · `01007A3009184000` · 1.0.0 · 60 fps
@@ -151,6 +153,7 @@ the author of the commit that introduced them.
 - [ ] ROMANCE OF THE THREE KINGDOMS 8 REMAKE · `0100C2A01A730000` · 1.1.3
 - [x] ROMANCE OF THE THREE KINGDOMS XIV · `0100CD4012DCA000` · playable · v786432 Xiaomi 2410DPN6CC haotian (Snapdragon 8 Elite, Adreno 830, Android 16) · ported by @shirai91
 - [ ] ROMANCE OF THE THREE KINGDOMS XIV: Diplomacy and Strategy Expansion Pack · `0100ED7012DB2000` · 1.0.10
+- [x] Rune Factory 3 Special · `0100E000191B4000` · experimental · ported by @rospec14
 - [ ] SHIN MEGAMI TENSEI V: Vengeance · `010069C01AB82000` · 1.0.3 · 60 fps
 - [ ] Sid Meier's Civilization VI · `010044500C182000` · 1.2.19
 - [ ] Sid Meier's Civilization VII · `0100C3601518C000` · 1.5.0.1
@@ -176,6 +179,7 @@ the author of the commit that introduced them.
 - [ ] Super Mario Party Jamboree · `0100965017338000` · 2.3.0
 - [ ] Super Mario RPG · `0100BC0018138000` · 1.0.1
 - [ ] Super Monkey Ball Banana Rumble · `010031F019294000` · 2.20
+- [x] Super Robot Wars 30 · `0100ECB0129BE000` · playable · v655360 Lenovo Legion Y700 TB321FU (Snapdragon 8 Gen 3, Adreno 750, Android 16) · ported by @mijuu
 - [ ] SUPER ROBOT WARS Y · `010063301BD50000` · 1.4.1
 - [ ] Super Smash Bros. Ultimate · `01006A800016E000` · 13.0.5
 - [ ] Taiko Risshiden V DX · `0100346017304000` · 1.1.1
@@ -184,6 +188,7 @@ the author of the commit that introduced them.
 - [ ] Team Sonic Racing · `010092B0091D0000` · 1.0.3
 - [ ] The Binding of Isaac: Rebirth · `01009BC00C38A000` · 1.0
 - [ ] The Great Ace Attorney Chronicles · `010036E00FB20000` · 1.0.0
+- [x] The Great Ace Attorney Chronicles · `0100D7F00FAAA000` · wip · v0 OPPO Pad OPD2101 (Snapdragon 870, Adreno 650, Android 15) · ported by @qzj112223
 - [x] The Legend of Zelda: Breath of the Wild · `01007EF00011E000` · experimental · update 1.9.0 · 60 fps in the open world and shrines; about 30 in the busiest villages, which hold 60 while the phone is cool (30 on Switch) · the profile turns on `DM_GPU_TURBO=1` (the GPU at its highest clock: the phone runs hot, 67-76 °C; `DM_GPU_TURBO=0` in env.txt turns it off) · tested on the Galaxy S25 Ultra (Adreno 830) with Turnip (Stable Turnip v2, Mesa 26.2.3) · **work in progress**: tested on the Great Plateau, in shrines, villages and teleports · ported by @StepwiseCord804
 - [x] The Legend of Zelda: Echoes of Wisdom · `01008CF01BAAC000` · playable · version 1.1.0 · playable on Retroid Pocket 6 with PurpleVK · **work in progress**: minor transparency artifacts around rifts · ported by @alexsg91
 - [x] The Legend of Zelda: Link's Awakening · `01006BB00C6F0000` · playable · update 1.1.0 · 60 fps (drops to 30 on slow frames by default; uncomment the two NOPs in `patches.py` to hold 60 on fast chips — may cause judder and slow-motion on older devices) · tested on the Lenovo TB323FU (Snapdragon 8 Elite Gen 5, Adreno 840) · needs your console's firmware for its fonts (`--firmware`): without them the game crashes at startup because the fallback font lacks `U+25A1` · a new area can hitch while it loads · ported by @flowkscai
