@@ -163,10 +163,11 @@ Then:
 
 - Set `status playable` and `tested <version> <device>` in `android.tsv`, and write what was tested in its
   comment header. The header is the record other people read first.
-- **Tick the game in [PORT_CHECKLIST.md](PORT_CHECKLIST.md)**: `- [x] <name> · `<title ID>`` with the
-  *profile here* / *upstream profile* note dropped (add the line in alphabetical order if the game is not
-  listed), and recount the `N / M ported` line. The checklist goes in the same commit as the profile: a
-  port is not done until it shows the game.
+- **The list of the games follows**: run `python3 docs/gen_tables.py`. The list in
+  [PORT_CHECKLIST.md](PORT_CHECKLIST.md) is made from the profiles: your game's line is ticked (the
+  profile has an `android.tsv` now), the `N / M ported` line is recounted, and your handle lands in
+  the line — the script reads it from the commit that added the profile. The list goes in the same
+  commit as the profile: a port is not done until it shows the game.
 - Run the tests: `python3 -m unittest discover tests`.
 - Open the pull request against `android` with the evidence: the device, the game's version, the frame
   rate, a screenshot or a log.

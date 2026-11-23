@@ -94,7 +94,7 @@ private fun sourceMatchesTarget(target: File, candidate: File): Boolean {
 @Composable
 fun BuildsRoute(viewModel: BuildsViewModel, keys: String, envReady: Boolean,
                 actions: AppActions, onRequest: (PickerRequest) -> Unit, onLog: (String) -> Unit,
-                onOpenProfiles: () -> Unit, onOpenAgent: () -> Unit = {},
+                onOpenProfiles: () -> Unit, onOpenGameList: () -> Unit, onOpenAgent: () -> Unit = {},
                 agentVisible: Boolean = true) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val locale = LocalAppLocale.current
@@ -112,15 +112,16 @@ fun BuildsRoute(viewModel: BuildsViewModel, keys: String, envReady: Boolean,
         }
     }
     BuildsScreen(viewModel.library, viewModel, uiState, keys, envReady, actions, onRequest, onLog,
-        onImportProfiles = onOpenProfiles, onOpenAgent = onOpenAgent, agentVisible = agentVisible)
+        onImportProfiles = onOpenProfiles, onOpenGameList = onOpenGameList,
+        onOpenAgent = onOpenAgent, agentVisible = agentVisible)
 }
 
 @Composable
 private fun BuildsScreen(lib: LibraryState, viewModel: BuildsViewModel, uiState: BuildsUiState,
                          keys: String, envReady: Boolean, actions: AppActions,
                          onRequest: (PickerRequest) -> Unit, onLog: (String) -> Unit,
-                         onImportProfiles: () -> Unit, onOpenAgent: () -> Unit,
-                         agentVisible: Boolean = true) {
+                         onImportProfiles: () -> Unit, onOpenGameList: () -> Unit,
+                         onOpenAgent: () -> Unit, agentVisible: Boolean = true) {
     val locale = LocalAppLocale.current
     val running = uiState.running
     val target = uiState.target?.let(::File) ?: uiState.gameFile.takeIf { running }?.let { File(it) }
@@ -173,10 +174,14 @@ private fun BuildsScreen(lib: LibraryState, viewModel: BuildsViewModel, uiState:
                             }
                         }
                     }
-                    CapsuleButton(stringResource(R.string.builds_choose_game_file), onClick = {
-                        onRequest(PickerRequest(PickerMode.FILE, GAME_FILE_EXTENSIONS, File("/storage"),
-                            locale.str(R.string.builds_choose_game_file), onPicked = { viewModel.setTarget(it) }))
-                    })
+                    // The main action and the secondary one: picking the file is what this page is for, the list is there to be read
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CapsuleButton(stringResource(R.string.builds_choose_game_file), onClick = {
+                            onRequest(PickerRequest(PickerMode.FILE, GAME_FILE_EXTENSIONS, File("/storage"),
+                                locale.str(R.string.builds_choose_game_file), onPicked = { viewModel.setTarget(it) }))
+                        }, modifier = Modifier.weight(1f))
+                        QuietButton(stringResource(R.string.builds_game_list), onClick = onOpenGameList)
+                    }
                 }
                 if (uiState.history.isNotEmpty()) History(uiState, viewModel)
             }

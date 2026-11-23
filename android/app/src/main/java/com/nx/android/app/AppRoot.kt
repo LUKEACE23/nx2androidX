@@ -102,6 +102,7 @@ import com.nx.android.domain.environment.EnvironmentSetup
 import com.nx.android.agent.gameContext
 import com.nx.android.agent.ui.AgentScreen
 import com.nx.android.feature.builds.BuildsRoute
+import com.nx.android.feature.builds.SupportedGamesOverlay
 import com.nx.android.feature.builds.BuildsViewModel
 import com.nx.android.feature.drivers.DriverRoute
 import com.nx.android.feature.environment.EnvBuildDialog
@@ -530,6 +531,9 @@ fun MainScreen(
     // 档案的处理弹窗：在线更新还是本地导入。构建页的「去导入」叫醒它。
     // 它盖住整屏，所以画在这一层（页面里画的遮罩只盖得到顶栏下面那一条缝）
     var profilesOpen by remember { mutableStateOf(false) }
+    // The list of the games the porter knows: a full cover too (the top bar is under it), and the
+    // builds page only reports the intent — a cover drawn in the page covers the strip under the top bar
+    var gameListOpen by remember { mutableStateOf(false) }
     // 手柄中心：从顶栏的手柄按钮进来，盖住整屏（跟设置页一样）。开着不开着是活动那边
     // 的一份（分发层也要知道：手柄的键该进中心还是进页面）
     val padDevices by GamepadScan.devices.collectAsStateWithLifecycle()
@@ -538,7 +542,7 @@ fun MainScreen(
     // 手柄导航归谁：谁在最上面，谁拿走手柄。
     // 手柄中心开着的时候，手柄的键进中心（活动层就不发了），外面还盖着东西的时候也一样。
     val navHost = when {
-        outerOverlayOpen || padCenterOpen || profilesOpen -> NavHost.NONE
+        outerOverlayOpen || padCenterOpen || profilesOpen || gameListOpen -> NavHost.NONE
         agentFullOpen -> NavHost.AGENT
         settingsOpen -> NavHost.SETTINGS
         faqOpen -> NavHost.FAQ
@@ -626,6 +630,8 @@ fun MainScreen(
                         onLog,
                         // 档案的弹框盖整屏，所以画在这一层：页面只报意图
                         onOpenProfiles = { profilesOpen = true },
+                        // The list of the games covers the whole screen too: it is drawn here, not in the page
+                        onOpenGameList = { gameListOpen = true },
                         onOpenAgent = { agentPanelOpen = true },
                         agentVisible = agentReady,
                     )
@@ -775,6 +781,12 @@ fun MainScreen(
                 // 修好了之后「去跑一下」：按 title ID 回到游戏页
                 onRunGame = { titleId -> actions.onRunByTitleId(titleId) },
             )
+        }
+        // The list of the games the porter knows: a full cover, drawn above the page and the top bar
+        // (the builds page reports the intent, a cover drawn in the page reaches only the strip under
+        // the top bar). Closed with the system back key, the pad's back key, or the close button.
+        if (gameListOpen) {
+            SupportedGamesOverlay(onClose = { gameListOpen = false })
         }
         // 导入的说明框：顶栏那个加号先进这里，框里的按钮再去选文件夹
         if (importPackHelp) {

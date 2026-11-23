@@ -461,7 +461,7 @@ The player's settings, the legacy path's APK signing key and the built translato
 nx2android/
   docs/ARCHITECTURE.md   this file
   docs/GETTING_STARTED.md   the development setup and the two working loops
-  docs/gen_tables.py     docs/PORT_CHECKLIST.md's ticks, made from the profiles (this line's README carries no games table; the list lives upstream)
+  docs/gen_tables.py     docs/PORT_CHECKLIST.md's list of the games, made from the profiles (this line's README carries no games table; the list lives upstream)
   porter/                port pipeline (python -m porter)
   gui/                   desktop app (python -m gui)
   devtools/              device bring-up scripts

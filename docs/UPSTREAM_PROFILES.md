@@ -9,7 +9,7 @@ A profile without an `android.tsv` is not ported. `porter build <folder> --exper
 - **Source**: [seedds/nxnative](https://github.com/seedds/nxnative), `dm/games/<title ID>/`, commit `bf1e4edd48b448bbe3f8fadab6a14ff1819ac742` (2026-11-16)
 - **Synced**: 89 directories — 87 games, plus the two sub-program directories of Super Mario 3D All-Stars (`010049900F546001`, `010049900F546002`)
 - **Left out**: the 17 Switch 2 titles (`0400…`; the porter takes NSP / NSZ / XCI, not a Switch 2 game's `.nup`), the games that have an official Android release ([PORT_CHECKLIST.md](PORT_CHECKLIST.md)), and the profiles another Android port has but upstream has not merged yet (Persona 3 Portable, Pokémon: Let's Go, Pikachu!, Frostpunk, Skyrim, the two Assassin's Creed collections, Crash Bandicoot N. Sane Trilogy, Street Fighter 30th Anniversary Collection) — a later sync picks them up if upstream merges them
-- **The sync changed nothing else**: the 63 ported games (54 playable, 2 wip, 2 boots, 5 experimental) keep their own profiles and their `android.tsv`
+- **The sync changed nothing else**: the ported games (73 now: 61 playable, 2 wip, 3 boots, 7 experimental) keep their own profiles and their `android.tsv` — [PORT_CHECKLIST.md](PORT_CHECKLIST.md) has the list
 
 Redoing it later: fetch the same paths from upstream at a newer commit, copy the directories that are new or changed, and keep the notes of this file in step.
 

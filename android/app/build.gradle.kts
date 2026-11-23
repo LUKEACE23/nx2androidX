@@ -49,7 +49,18 @@ val generatePlayerApiRevision by tasks.registering {
         target.writeText("package com.nx.android.domain;\n\npublic final class PlayerApiRevision { public static final int CURRENT = $playerApiRevision; private PlayerApiRevision() {} }\n")
     }
 }
-tasks.named("preBuild").configure { dependsOn(generatePlayerApiRevision) }
+// The list of the games the porter knows (docs/PORT_CHECKLIST.md): the build page shows it, so the
+// doc goes into the app's assets. The doc is made from the profiles (docs/gen_tables.py) and copied
+// here at build time: the app shows the list of the commit it was built from, and the repo keeps one
+// copy of the list, not two.
+val gameListAssets = layout.buildDirectory.dir("generated/gameList")
+val copyGameList by tasks.registering(Copy::class) {
+    from(rootProject.file("../docs/PORT_CHECKLIST.md"))
+    into(gameListAssets.get().asFile.resolve("docs"))
+    rename { "port_checklist.md" }
+}
+
+tasks.named("preBuild").configure { dependsOn(generatePlayerApiRevision, copyGameList) }
 
 android {
     namespace = "com.nx.android"
@@ -86,6 +97,8 @@ android {
     sourceSets {
         getByName("main") {
             java.srcDir(revisionSources.get().asFile)
+            // The list of the games the porter knows: copied into the assets by the task above
+            assets.srcDir(gameListAssets.get().asFile)
             // The payload (the environment in one archive, the driver): built by packaging/android-apk/build_assets.py.
             // -PnoPayload leaves it out: a quick build of the app itself, for a phone that already has the
             // environment unpacked (the unpacked tree is in the app's own folder, so it survives the update).
@@ -224,3 +237,9 @@ val checkArchitectureBoundaries by tasks.registering {
 }
 
 tasks.named("check") { dependsOn(checkArchitectureBoundaries) }
+
+// The assets are merged before the preBuild runs when the build is only asked for the assets: the
+// merge task waits for the copy itself, so the list is in the APK whatever the task graph looks like.
+tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
+    dependsOn(copyGameList)
+}

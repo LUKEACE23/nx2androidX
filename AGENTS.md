@@ -77,7 +77,8 @@ README 的 "For players" 一节讲桌面工具，那仍是真实存在的玩家�
   `gh release create v<base>-alphaNN --verify-tag --prerelease --notes-file <notes> --repo zFitness/nx2androidX`，**不带 zip**
 - **notes 里要有一段 `Community ports`**，点名本版本涉及的社区贡献（谁移植了哪个游戏、谁修了什么）。
   名单用 `python3 devtools/release_contributors.py` 取（上个 tag 之后合并的 PR 与作者），粘进 notes；
-  游戏级别的署名同时落在 `docs/PORT_CHECKLIST.md` 的那一行（`ported by @handle`）
+  游戏级别的署名同时落在 `docs/PORT_CHECKLIST.md` 的那一行（`ported by @handle`）——
+  名单由 `python3 docs/gen_tables.py` 从档案生成，署名取自加入该档案的那次提交的 GitHub 账号
 - app 的 `versionName` 在 `android/app/build.gradle.kts`（当前 `0.3.0-alpha12`），与 tag 去掉 `v` 一致
 - **一次发布带手机的 APK 和游戏档案包，别无其它**。App 不带游戏档案（几百 MB 的着色器表），玩家自己导入：
   release 的第二个附件 `nx2a-profiles-r<版本>-<commit>.zip`（CI 切，`devtools/profiles_zip.py`），夸克网盘里
