@@ -20,13 +20,16 @@ import javax.inject.Singleton
 class AgentPlanter(
     private val source: AgentSeedSource,
     private val root: File,
+    /** 玩家读的是哪种语言：素材里的占位符填它（读的时候才知道玩家现在读什么） */
+    private val playerLanguage: () -> String = { "en" },
 ) {
 
     /** Plant the material: every piece of it, where the engine reads it. */
     fun plant() {
+        val language = playerLanguage()
         for (path in source.files()) {
             val text = source.text(path) ?: continue
-            AgentLayout.seedOwned(target(path), text)
+            AgentLayout.seedOwned(target(path), AgentMaterial.fill(text, language))
         }
     }
 

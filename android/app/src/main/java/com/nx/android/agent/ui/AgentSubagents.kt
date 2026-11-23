@@ -66,16 +66,24 @@ import kotlinx.coroutines.delay
 internal fun AgentRunCard(
     card: AgentToolCard,
     notification: AgentNotification? = null,
-    record: AgentSubagent? = null,
+    run: AgentSubagent? = null,
+    progress: String? = null,
 ) {
     val call = card.subagent ?: return
-    val (tint, stateWord) = when (card.state) {
-        AgentToolState.RUNNING -> AgentPalette.Working to stringResource(R.string.agent_tool_running)
-        AgentToolState.DONE -> AgentPalette.Ready to stringResource(R.string.agent_tool_done)
-        AgentToolState.FAILED -> AgentPalette.Danger to stringResource(R.string.agent_tool_failed)
+    // 状态看的是那一次运行，不是派生这个动作：派生完就返回了，子代理还在那儿干活
+    val interrupted = run?.status == "interrupted"
+    val state = if (run?.running == true) AgentToolState.RUNNING else card.state
+    val (tint, stateWord) = when {
+        // 被掐断的那一次：App 死了，它不会再动——说清楚，别让它看着像还在跑
+        interrupted -> AgentPalette.Danger to stringResource(R.string.agent_subagents_interrupted)
+        else -> when (state) {
+            AgentToolState.RUNNING -> AgentPalette.Working to stringResource(R.string.agent_tool_running)
+            AgentToolState.DONE -> AgentPalette.Ready to stringResource(R.string.agent_tool_done)
+            AgentToolState.FAILED -> AgentPalette.Danger to stringResource(R.string.agent_tool_failed)
+        }
     }
-    val duration = notification?.durationMs?.takeIf { it > 0 } ?: record?.durationMs
-    val tokens = notification?.totalTokens?.takeIf { it > 0 } ?: record?.tokens?.takeIf { it > 0 }
+    val duration = notification?.durationMs?.takeIf { it > 0 } ?: run?.durationMs
+    val tokens = notification?.totalTokens?.takeIf { it > 0 } ?: run?.tokens?.takeIf { it > 0 }
     Column(
         Modifier
             .fillMaxWidth()
@@ -112,7 +120,8 @@ internal fun AgentRunCard(
         }
         if (call.description.isNotBlank()) {
             Text(
-                call.description,
+                // 卡片自己的那一行字是固定词表，跟着玩家的语言走；模型写的那句是它的事
+                "${stringResource(R.string.agent_subagent_run)} · ${call.description}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = AgentPalette.Ink,
                 maxLines = 2,
@@ -120,8 +129,29 @@ internal fun AgentRunCard(
             )
         }
         // 还在跑：它当前这一步（面板上要看得见它在干啥，不只是「在跑」）
-        if (card.state == AgentToolState.RUNNING) {
-            record?.step?.takeIf { it.isNotBlank() }?.let { step ->
+        if (state == AgentToolState.RUNNING) {
+            // 跑了多久、干了多少活：玩家不用发一条消息去问「咋样」
+            val elapsed = run?.let { System.currentTimeMillis() - it.startedAt }?.takeIf { it > 0 }
+            val uses = run?.toolUses ?: 0
+            if (elapsed != null || uses > 0) {
+                val line = buildString {
+                    if (elapsed != null) append(stringResource(R.string.agent_run_running_for, formatDuration(elapsed)))
+                    if (uses > 0) {
+                        if (isNotEmpty()) append(" · ")
+                        append(uses)
+                        append(" ")
+                        append(stringResource(R.string.agent_subagents_tool_uses))
+                    }
+                }
+                Text(
+                    line,
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                    color = AgentPalette.Ink2,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            run?.step?.takeIf { it.isNotBlank() }?.let { step ->
                 Text(
                     step,
                     style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
@@ -130,9 +160,19 @@ internal fun AgentRunCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            // 案例档案里的最新一条时间线：它写下的进展（子代理自己记的）
+            progress?.takeIf { it.isNotBlank() }?.let { note ->
+                Text(
+                    note,
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                    color = AgentPalette.Ink2,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         // 结果的预览：跑完的那次，它自己的答案；还在跑的就是工具回的那段
-        val preview = record?.result?.takeIf { it.isNotBlank() } ?: card.resultSummary
+        val preview = run?.result?.takeIf { it.isNotBlank() } ?: card.resultSummary
         preview?.takeIf { it.isNotBlank() }?.let { result ->
             Text(
                 previewOf(result),
@@ -145,13 +185,21 @@ internal fun AgentRunCard(
     }
 }
 
-/** The result as a preview: a fenced block shows its own words, not its fence. */
+/**
+ * The result as a preview: the first paragraph (the summary the player reads), not the first
+ * eighty characters of a wall of text.
+ */
 internal fun previewOf(result: String): String {
     val text = result.trim()
-    if (!text.startsWith("```")) return text
-    val end = text.lastIndexOf("```")
-    if (end < 3) return text
-    return text.substring(3, end).trim()
+    val body = if (text.startsWith("```")) {
+        val end = text.lastIndexOf("```")
+        if (end < 3) text else text.substring(3, end).trim()
+    } else {
+        text
+    }
+    // 第一段：摘要通常就在开头
+    val paragraph = body.split("\n\n").firstOrNull { it.isNotBlank() }?.trim()
+    return paragraph?.takeIf { it.isNotBlank() } ?: body
 }
 
 /**
@@ -183,7 +231,7 @@ internal fun AgentNotificationCard(notification: AgentNotification) {
                     .background(if (failed) AgentPalette.Danger else AgentPalette.Ready),
             )
             Text(
-                notification.status.ifBlank { stringResource(R.string.agent_tool_done) },
+                notificationStatus(notification.status),
                 style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
                 color = if (failed) AgentPalette.Danger else AgentPalette.Ink,
             )
@@ -231,6 +279,23 @@ internal fun AgentNotificationCard(notification: AgentNotification) {
 }
 
 /**
+ * The notice's status, in the player's language.
+ *
+ * The engine writes a fixed few words (Done / Error: … / Stopped) — a vocabulary, not a sentence.
+ * The app owns that vocabulary, so the player reads it in his own language.
+ */
+@Composable
+private fun notificationStatus(status: String): String {
+    val word = when {
+        status.startsWith("Error") -> stringResource(R.string.agent_tool_failed)
+        status == "Stopped" -> stringResource(R.string.agent_subagents_stopped)
+        else -> stringResource(R.string.agent_tool_done)
+    }
+    val detail = status.substringAfter(':', "").trim()
+    return if (detail.isBlank() || detail == status) word else "$word: $detail"
+}
+
+/**
  * The gate: the case file's plan is waiting for the player.
  *
  * The sub-agent diagnosed and wrote the plan; nothing is changed until the player taps. The card
@@ -256,20 +321,20 @@ internal fun PlanConfirmCard(
             style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
             color = AgentPalette.Quick,
         )
-        if (plan.headline.isNotBlank()) {
+        if (plan.shownHeadline.isNotBlank()) {
             Text(
-                plan.headline,
+                plan.shownHeadline,
                 style = MaterialTheme.typography.bodyMedium,
                 color = AgentPalette.Ink,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (plan.cause.isNotBlank()) {
-            PlanLine(stringResource(R.string.agent_plan_cause), plan.cause)
+        if (plan.shownCause.isNotBlank()) {
+            PlanLine(stringResource(R.string.agent_plan_cause), plan.shownCause)
         }
-        if (plan.fix.isNotBlank()) {
-            PlanLine(stringResource(R.string.agent_plan_fix), plan.fix)
+        if (plan.shownFix.isNotBlank()) {
+            PlanLine(stringResource(R.string.agent_plan_fix), plan.shownFix)
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -284,6 +349,57 @@ internal fun PlanConfirmCard(
                 stringResource(R.string.agent_plan_hint),
                 style = MaterialTheme.typography.labelSmall,
                 color = AgentPalette.Ink2,
+            )
+        }
+    }
+}
+
+/**
+ * 攻关档案的最新状态：该玩家上场了。
+ *
+ * 子 Agent 修完把档案里的状态改成已修——App 读出来就在这儿亮一张卡。玩家不必去聊天记录里翻
+ * 那句「你现在可以做的」，也不必再问一次「接下来干嘛」。
+ */
+@Composable
+internal fun CaseStatusCard(
+    status: String,
+    titleId: String?,
+    onRun: ((String) -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    val (label, hint, canRun) = when (status) {
+        Gamespec.STATUS_FIXED ->
+            Triple(stringResource(R.string.agent_case_fixed), stringResource(R.string.agent_case_fixed_hint), true)
+        Gamespec.STATUS_NOT_FIXED ->
+            Triple(stringResource(R.string.agent_case_not_fixed), stringResource(R.string.agent_case_not_fixed_hint), false)
+        Gamespec.STATUS_OPEN ->
+            Triple(stringResource(R.string.agent_case_open), stringResource(R.string.agent_case_open_hint), false)
+        else -> Triple(stringResource(R.string.agent_case_pending), stringResource(R.string.agent_case_pending_hint), false)
+    }
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(AgentPalette.Panel)
+            .border(1.dp, AgentPalette.Hairline)
+            .padding(horizontal = 14.dp, vertical = 11.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
+            color = AgentPalette.Ready,
+        )
+        Text(
+            hint,
+            style = MaterialTheme.typography.bodySmall,
+            color = AgentPalette.Ink2,
+        )
+        if (canRun && onRun != null && !titleId.isNullOrBlank()) {
+            CapsuleButton(
+                stringResource(R.string.agent_case_run),
+                { onRun(titleId) },
+                Modifier,
             )
         }
     }
@@ -434,7 +550,7 @@ private fun SubagentList(subagents: List<AgentSubagent>, onOpen: (AgentSubagent)
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(subagents, key = { it.id }) { subagent ->
+        items(subagents, key = { it.runId }) { subagent ->
             SubagentRow(subagent) { onOpen(subagent) }
         }
     }
@@ -445,6 +561,7 @@ private fun SubagentList(subagents: List<AgentSubagent>, onOpen: (AgentSubagent)
 private fun SubagentRow(subagent: AgentSubagent, onOpen: () -> Unit) {
     val (tint, word) = when {
         subagent.running -> AgentPalette.Working to stringResource(R.string.agent_subagents_state_running)
+        subagent.status == "interrupted" -> AgentPalette.Danger to stringResource(R.string.agent_subagents_interrupted)
         subagent.failed -> AgentPalette.Danger to stringResource(R.string.agent_tool_failed)
         else -> AgentPalette.Ready to stringResource(R.string.agent_tool_done)
     }
@@ -454,7 +571,10 @@ private fun SubagentRow(subagent: AgentSubagent, onOpen: () -> Unit) {
             .clip(RoundedCornerShape(12.dp))
             .background(AgentPalette.Panel)
             .border(1.dp, AgentPalette.Hairline)
-            .clickable(enabled = subagent.sessionFile != null || subagent.running, onClick = onOpen)
+            .clickable(
+                enabled = subagent.sessionFile != null || subagent.running || subagent.status == "interrupted",
+                onClick = onOpen,
+            )
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -508,8 +628,8 @@ private fun SubagentConversation(
     subagent: AgentSubagent,
     loadConversation: suspend (AgentSubagent) -> List<AgentMessage>,
 ) {
-    var messages by remember(subagent.id) { mutableStateOf<List<AgentMessage>?>(null) }
-    LaunchedEffect(subagent.id) { messages = loadConversation(subagent) }
+    var messages by remember(subagent.runId) { mutableStateOf<List<AgentMessage>?>(null) }
+    LaunchedEffect(subagent.runId) { messages = loadConversation(subagent) }
     val loaded = messages
     Column(Modifier.fillMaxSize()) {
         Row(

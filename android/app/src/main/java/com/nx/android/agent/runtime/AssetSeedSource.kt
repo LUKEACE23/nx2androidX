@@ -8,7 +8,8 @@ import java.io.IOException
  * The material out of the App's own assets.
  *
  * The assets tree mirrors the player's nx2android folder, so the planter can copy it onto the
- * device without knowing what is in it.
+ * device without knowing what is in it. The placeholders in it are filled by the planter (it
+ * knows the language the player reads).
  */
 class AssetSeedSource(private val assets: AssetManager) : AgentSeedSource {
 
@@ -32,8 +33,8 @@ class AssetSeedSource(private val assets: AssetManager) : AgentSeedSource {
     }
 
     /**
-     * Every file under a folder, recursively: the path in the assets, and the path relative to
-     * the seed root (the one the planter writes to the device).
+     * Every file under a folder, recursively: the path in the assets, and the path relative
+     * to the seed root (the one the planter writes to the device).
      */
     private fun collect(folder: String, prefix: String, into: MutableList<String>) {
         val entries = assets.list(folder) ?: return

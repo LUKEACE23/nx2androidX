@@ -46,8 +46,24 @@ class AgentDeviceStateTest {
 
     @Test
     fun `the player's language rides along`() {
-        val state = deviceState("0.4.0-alpha03", library, 600, "zh")
+        val state = deviceState("0.4.0-alpha03", library, 600, "Chinese (zh)")
 
-        assertTrue(state.contains("player language: zh"))
+        assertTrue(state.contains("player language: Chinese (zh)"))
+    }
+
+    @Test
+    fun `the block tells the model what the player reads`() {
+        // 模型不照约定走的时候，这一行是它每轮都看得见的：它自己写给玩家看的字
+        val state = deviceState("0.4.0-alpha03", library, 600, "Chinese (zh)")
+
+        assertTrue(state.contains("every word the player sees must be in that language"))
+        assertTrue(state.contains("the label on a sub-agent card"))
+    }
+
+    @Test
+    fun `without a language the block says nothing about one`() {
+        val state = deviceState("0.4.0-alpha03", library, 600)
+
+        assertTrue(!state.contains("player language"))
     }
 }

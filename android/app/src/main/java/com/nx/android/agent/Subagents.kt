@@ -22,6 +22,12 @@ data class AgentSubagent(
     val error: String? = null,
     val startedAt: Long = 0L,
     val completedAt: Long? = null,
+    /**
+     * 这一次运行的标识：同一个 agent 跑第二次就是另一个标识。
+     *
+     * 引擎给的 id 是那个 agent 的，续跑时它不变——界面上要分清「哪一次」，不能只靠它。
+     */
+    val runId: String = "$id#$startedAt",
     /** The sub-agent's own session file: its whole conversation. */
     val sessionFile: String? = null,
     /** The task it was given, read out of its own conversation. */
@@ -30,6 +36,8 @@ data class AgentSubagent(
     val tokens: Long = 0L,
     /** While it runs: the step it is at right now ("bash · log_triage.py"). */
     val step: String? = null,
+    /** While it runs: how many tool calls it has made (the work it has done so far). */
+    val toolUses: Int = 0,
 ) {
     /** It is still working. */
     val running: Boolean get() = status == "running"
@@ -72,6 +80,10 @@ data class AgentSubagentCall(
     val type: String,
     val description: String,
     val prompt: String,
+    /** The agent this call continues (the engine's `resume` argument); null when it starts a new one. */
+    val resumeId: String? = null,
+    /** The tool call's own id: the link between the card in the conversation and the run. */
+    val toolCallId: String? = null,
 )
 
 /** Reads the sub-agent out of a tool call's arguments. */
@@ -81,13 +93,14 @@ object AgentSubagentCallParser {
     const val TOOL_NAME = "Agent"
 
     /** The call's own words, or null when this is not a sub-agent call. */
-    fun of(name: String, arguments: JSONObject?): AgentSubagentCall? {
+    fun of(name: String, arguments: JSONObject?, toolCallId: String? = null): AgentSubagentCall? {
         if (name != TOOL_NAME) return null
         val args = arguments ?: return null
         val type = args.optString("subagent_type").trim()
         val description = args.optString("description").trim()
         val prompt = args.optString("prompt").trim()
+        val resume = args.optString("resume").trim().takeIf { it.isNotEmpty() }
         if (type.isEmpty() && description.isEmpty() && prompt.isEmpty()) return null
-        return AgentSubagentCall(type, description, prompt)
+        return AgentSubagentCall(type, description, prompt, resume, toolCallId)
     }
 }

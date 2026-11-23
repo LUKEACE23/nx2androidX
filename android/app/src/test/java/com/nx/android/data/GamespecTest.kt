@@ -157,4 +157,82 @@ Proposed fix: new fix
         // 还没确认过：给
         assertEquals(plan, Gamespec.offerPlan(plan, null))
     }
+
+    @Test
+    fun `the plan can carry the player's own language`() {
+        val spec = """### 2026-11-23 shader split finds no shaders (status: pending approval)
+Cause: the splitter only reads MGFX v8
+Proposed fix: merge upstream #2546
+Player headline: 着色器一个都没找到
+Player cause: 切分器只认第 8 版
+Player fix: 并入上游 #2546
+"""
+        val plan = Gamespec.parsePlan(spec)
+        assertTrue(plan != null)
+        assertEquals("着色器一个都没找到", plan!!.shownHeadline)
+        assertEquals("切分器只认第 8 版", plan.shownCause)
+        assertEquals("并入上游 #2546", plan.shownFix)
+        // 英文那几行还在：档案要交给上游看
+        assertEquals("the splitter only reads MGFX v8", plan.cause)
+    }
+
+    @Test
+    fun `a plan without the player's lines shows the English ones`() {
+        val spec = """### 2026-11-23 shader split finds no shaders (status: pending approval)
+Cause: the splitter only reads MGFX v8
+Proposed fix: merge upstream #2546
+"""
+        val plan = Gamespec.parsePlan(spec)
+        assertTrue(plan != null)
+        assertEquals("2026-11-23 shader split finds no shaders", plan!!.shownHeadline)
+        assertEquals("the splitter only reads MGFX v8", plan.shownCause)
+        assertEquals("merge upstream #2546", plan.shownFix)
+    }
+
+    @Test
+    fun `the latest status of the case is read out of the document`() {
+        val spec = """### 2026-11-23 first problem (status: fixed)
+Cause: a
+
+### 2026-11-23 second problem (status: open)
+Cause: b
+"""
+        assertEquals(Gamespec.STATUS_OPEN, Gamespec.latestStatusOf(spec))
+    }
+
+    @Test
+    fun `a fixed case reads as fixed`() {
+        val spec = """### 2026-11-23 the crash (status: fixed)
+Cause: the driver
+"""
+        assertEquals(Gamespec.STATUS_FIXED, Gamespec.latestStatusOf(spec))
+    }
+
+    @Test
+    fun `a case that was not fixed is not mistaken for one that was`() {
+        val spec = """### 2026-11-23 the crash (status: not fixed)
+Cause: the driver
+"""
+        assertEquals(Gamespec.STATUS_NOT_FIXED, Gamespec.latestStatusOf(spec))
+    }
+
+    @Test
+    fun `a case without a document has no status`() {
+        assertNull(Gamespec.latestStatus(Gamespec.dir(folder.root, game)))
+    }
+
+    @Test
+    fun `the latest line of the timeline is the case's progress`() {
+        val spec = """## Timeline
+- 2026-11-23 19:18 the player reported a crash
+- 2026-11-23 21:04 the sub-agent is disassembling main.img
+"""
+        assertEquals("2026-11-23 21:04 the sub-agent is disassembling main.img",
+            Gamespec.latestTimelineOf(spec))
+    }
+
+    @Test
+    fun `a case without a timeline has no progress`() {
+        assertNull(Gamespec.latestTimelineOf("## Runtime problems\n\n### something (status: open)\n"))
+    }
 }

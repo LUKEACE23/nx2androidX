@@ -323,6 +323,9 @@
     <string name="builds_start_title">开始一次移植</string>
     <string name="builds_start_hint">选择一个游戏文件开始移植；同目录的更新与 DLC 会自动带上。构建完成后它会在游戏库里出现。</string>
     <string name="builds_choose_game_file">选择游戏文件</string>
+    <string name="builds_game_list">游戏名单</string>
+    <string name="builds_game_list_title">支持的游戏</string>
+    <string name="builds_game_list_empty">这个版本没有带上游戏名单。</string>
     <string name="builds_profiles_ready">已有 %1$d 个游戏档案</string>
     <string name="builds_profiles_ready_ported">已有 %1$d 个游戏档案，其中 %2$d 个已适配</string>
     <string name="builds_profiles_missing">尚未导入游戏档案</string>
@@ -709,6 +712,7 @@
     <string name="agent_subagents_gone">那条记录不在了。</string>
     <string name="agent_subagents_back">返回</string>
     <string name="agent_subagents_tool_uses">次工具</string>
+    <string name="agent_subagent_run">子 Agent 运行</string>
     <string name="agent_gamespec_export">导出攻关档案</string>
     <string name="agent_thinking_fold">思考</string>
     <string name="agent_plan_waiting">方案待确认</string>
@@ -716,6 +720,18 @@
     <string name="agent_plan_fix">建议修法</string>
     <string name="agent_plan_confirm">按方案修复</string>
     <string name="agent_plan_hint">点了才动代码</string>
+    <string name="agent_subagents_stopped">已停止</string>
+    <string name="agent_subagents_interrupted">已中断</string>
+    <string name="agent_run_running_for">已跑 %1$s</string>
+    <string name="agent_case_fixed">已修好</string>
+    <string name="agent_case_fixed_hint">这局修好了——跑一次看看</string>
+    <string name="agent_case_run">去跑一下</string>
+    <string name="agent_case_not_fixed">没修好</string>
+    <string name="agent_case_not_fixed_hint">试过了，没成——档案里写着试过什么</string>
+    <string name="agent_case_open">还开着</string>
+    <string name="agent_case_open_hint">这局还有一个问题开着——档案里写着是哪个</string>
+    <string name="agent_case_pending">还在查</string>
+    <string name="agent_case_pending_hint">这一局的攻关还在进行</string>
     <string name="agent_thinking_tokens">%1$s tok</string>
     <string name="agent_gamespec_exported">已导出：%1$s</string>
     <string name="agent_gamespec_export_failed">导出攻关档案失败：%1$s</string>

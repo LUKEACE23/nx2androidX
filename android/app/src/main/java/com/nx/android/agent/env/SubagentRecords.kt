@@ -19,16 +19,23 @@ object SubagentRecords {
     /** The entry type the extension writes its records under. */
     const val ENTRY_TYPE = "subagents:record"
 
-    /** The records of one session file, oldest first. A later record of the same id wins. */
+    /**
+     * The records of one session file, oldest first.
+     *
+     * A record is a **run**, not an agent: the same agent id shows up once per run (the engine
+     * reports a run when it ends). Two records of the same id with the same start are the same
+     * run reported twice — the later one wins. Two with different starts are two runs and both
+     * stay.
+     */
     fun of(file: File): List<AgentSubagent> {
         if (!file.isFile) return emptyList()
-        val byId = LinkedHashMap<String, AgentSubagent>()
+        val byRun = LinkedHashMap<String, AgentSubagent>()
         runCatching {
             file.forEachLine { line ->
-                record(line)?.let { byId[it.id] = it }
+                record(line)?.let { byRun[it.runId] = it }
             }
         }
-        return byId.values.sortedBy { it.startedAt }
+        return byRun.values.sortedBy { it.startedAt }
     }
 
     /** The record of one line, or null when the line is not a record (or does not parse). */

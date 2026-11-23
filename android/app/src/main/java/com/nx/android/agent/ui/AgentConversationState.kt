@@ -82,12 +82,28 @@ data class AgentUiState(
     /** The sub-agents this chat spawned: the runs that finished and the ones still going. */
     val subagents: List<AgentSubagent> = emptyList(),
 
+    /** Which run each sub-agent call started: the card in the conversation looks itself up here. */
+    val subagentRuns: Map<String, AgentSubagent> = emptyMap(),
+
     /**
      * 那局档案里待确认的方案：子 Agent 诊断完写下的那一条。
      *
      * 有它，面板才给玩家那个「按方案修复」的按钮——玩家点一下才算确认。
      */
     val pendingPlan: Gamespec.Plan? = null,
+
+    /**
+     * 那局档案里最新一条问题的状态（已修/待确认/未修/还开着）。
+     *
+     * 修好了就该告诉玩家「该你上场了」——那句话不必埋在聊天记录里找。
+     */
+    val caseStatus: String? = null,
+
+    /** 那一局的 title ID：修好了之后「去跑一下」要知道跑哪一局。 */
+    val caseTitleId: String? = null,
+
+    /** 案例档案时间线上的最新一条：子代理自己记下的进展（在跑的卡片上亮出来）。 */
+    val caseProgress: String? = null,
 )
 
 /**
@@ -136,11 +152,23 @@ class AgentConversationState @Inject constructor(
     @Volatile private var piResult: String? = null
     @Volatile private var subagents: List<AgentSubagent> = emptyList()
 
+    /** 哪次调用派出了哪一次运行（卡片与清单都要靠它对上） */
+    @Volatile private var subagentRuns: Map<String, AgentSubagent> = emptyMap()
+
     /** 玩家上一次发问时的页面上下文：确认「按方案修复」要用它（那一局是谁、档案在哪） */
     @Volatile private var lastContext: AgentPageContext? = null
 
     /** 那局档案里待确认的方案（读档案，不写它） */
     @Volatile private var pendingPlan: Gamespec.Plan? = null
+
+    /** 那局档案里最新一条问题的状态（读档案，不写它） */
+    @Volatile private var caseStatus: String? = null
+
+    /** 那一局的 title ID：档案的目录名就是它（攻关档案在 gamespec/<title ID>/ 下） */
+    @Volatile private var caseTitleId: String? = null
+
+    /** 档案时间线上的最新一条：子代理记下的进展 */
+    @Volatile private var caseProgress: String? = null
 
     /**
      * 玩家已经确认过的那一条（按标题记着）。
@@ -243,7 +271,11 @@ class AgentConversationState @Inject constructor(
             activeProfileId = activeProfileId,
             streamingId = conversation.streamingId,
             subagents = subagents,
+            subagentRuns = subagentRuns,
             pendingPlan = pendingPlan,
+            caseStatus = caseStatus,
+            caseTitleId = caseTitleId,
+            caseProgress = caseProgress,
         )
         // markdown 的 AST 在这里备：读到的历史一落地就开始解析，首开抽屉时高度已经是最终值。
         markdownCache.ensureAll(conversation.messages, conversation.streamingId)
@@ -278,6 +310,7 @@ class AgentConversationState @Inject constructor(
         activePath = null
         activeTitle = ""
         subagents = emptyList()
+        subagentRuns = emptyMap()
         conversation.dismissFailure()
         usageTokens = 0L
         usageWindow = 0L
@@ -332,12 +365,13 @@ class AgentConversationState @Inject constructor(
      */
     fun refreshSubagents() {
         val path = activePath
-        val calls = conversation.messages.flatMap { message ->
-            message.tools.mapNotNull { it.subagent }
-        }
+        val calls = subagentCalls()
         scope.launch {
             val listed = withContext(Dispatchers.IO) { subagentStore.list(path, calls) }
-            subagents = listed
+            subagents = listed.runs
+            subagentRuns = listed.byCall
+            // 子代理在跑的时候，档案上的进展也在变：两秒读一次，玩家看得见它干到哪了
+            withContext(Dispatchers.IO) { refreshCaseStatus(caseDir()) }
             publish()
         }
     }
@@ -355,9 +389,11 @@ class AgentConversationState @Inject constructor(
                 val listed = withContext(Dispatchers.IO) {
                     subagentStore.list(activePath, subagentCalls())
                 }
-                subagents = listed
+                subagents = listed.runs
+                subagentRuns = listed.byCall
+                withContext(Dispatchers.IO) { refreshCaseStatus(caseDir()) }
                 publish()
-                if (listed.none { it.running } && !conversation.running) break
+                if (listed.runs.none { it.running } && !conversation.running) break
             }
         }
     }
@@ -373,12 +409,26 @@ class AgentConversationState @Inject constructor(
      * 只读——方案是子 Agent 写的，app 不碰它。
      */
     private fun refreshPendingPlan() {
-        val context = lastContext
-        val dir = context?.facts?.get(CASE_DIR_FACT)?.let { File(it) }
+        val dir = caseDir()
         val plan = if (dir != null) Gamespec.pendingPlan(dir) else null
         // 玩家确认过的那一条不再问一次
         pendingPlan = Gamespec.offerPlan(plan, confirmedPlan)
+        refreshCaseStatus(dir)
         publish()
+    }
+
+    /** 那一局的攻关档案在哪儿（页面上下文里写着）。 */
+    private fun caseDir(): File? = lastContext?.facts?.get(CASE_DIR_FACT)?.let { File(it) }
+
+    /**
+     * 档案里的两件事：最新一条问题的状态（修好了就该亮出「去跑一下」），和时间线上最新一条
+     * （子代理自己记下的进展——玩家看得见的进度通道）。
+     */
+    private fun refreshCaseStatus(dir: File?) {
+        caseStatus = dir?.let { Gamespec.latestStatus(it) }
+        // 哪一局：攻关档案的目录名就是 title ID（页面上下文没有时也认得出）
+        caseTitleId = dir?.name?.takeIf { it.isNotBlank() } ?: lastContext?.subject?.id
+        caseProgress = dir?.let { Gamespec.latestTimeline(it) }
     }
 
     /**

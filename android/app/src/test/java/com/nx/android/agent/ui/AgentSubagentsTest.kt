@@ -27,6 +27,22 @@ class AgentSubagentsTest {
     }
 
     @Test
+    fun `the preview is the first paragraph, not the first line`() {
+        assertEquals(
+            "the digest the player reads",
+            previewOf("the digest the player reads\n\nthe English detail follows"),
+        )
+    }
+
+    @Test
+    fun `a fenced answer keeps its first paragraph`() {
+        assertEquals(
+            "MARKER_TEST",
+            previewOf("```\nMARKER_TEST\n\nmore detail\n```"),
+        )
+    }
+
+    @Test
     fun `a duration reads in seconds or minutes`() {
         assertEquals("850ms", formatDuration(850L))
         assertEquals("3.2s", formatDuration(3235L))

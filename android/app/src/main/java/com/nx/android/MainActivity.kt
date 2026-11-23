@@ -247,6 +247,12 @@ class MainActivity : ComponentActivity() {
         },
         onCancelPort = { PortService.cancel(this) },
         onRun = { pack, name -> runGate(pack, name) },
+        // 攻关修好了之后「去跑一下」：按 title ID 找到那一局，走同一扇门
+        onRunByTitleId = { titleId ->
+            val ported = library.games.firstOrNull { it.titleId.equals(titleId, ignoreCase = true) }?.pack
+            if (ported == null) toast(locale.str(R.string.lib_artifact_missing))
+            else runGate(ported.pack, ported.name)
+        },
         // 闪退之后的「重新构建」：重建运行库再进一次游戏（门还是那一扇）
         onRunRebuild = { pack, name -> runGate(pack, name, rebuild = true) },
         onSendToDesktop = { e ->

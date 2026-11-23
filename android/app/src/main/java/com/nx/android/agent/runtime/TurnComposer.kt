@@ -13,13 +13,18 @@ internal const val CONTEXT_CHARS = 800
  * app was 0.4.0. The line is written before the budget is spent on the library, so a long library
  * can never cut it off.
  *
- * The player's language rides along: the model works in English and translates for the player, so
- * it has to know which language the player reads.
+ * The player's language rides along — and with it the rule that every word the player sees is in
+ * that language. The agreement (AGENTS.md) says it too, but a model that does not follow the
+ * agreement still reads this line: it is in every turn, in front of the model, and it is the app's
+ * own words rather than the model's.
  */
 internal fun deviceState(version: String, library: String, budget: Int, language: String = ""): String {
     val head = buildString {
         append("app version: ").append(version)
-        if (language.isNotBlank()) append("\nplayer language: ").append(language)
+        if (language.isNotBlank()) {
+            append("\nplayer language: ").append(language)
+            append("\nevery word the player sees must be in that language: your answers, the label on a sub-agent card, the digest a sub-agent hands back")
+        }
     }
     val room = (budget - head.length - 1).coerceAtLeast(0)
     return "$head\n${library.take(room)}"

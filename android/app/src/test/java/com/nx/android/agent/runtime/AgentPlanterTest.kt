@@ -22,7 +22,8 @@ class AgentPlanterTest {
     /** The App's own assets: the material that goes into the package. */
     private val assets = File("src/main/assets/nx2a")
 
-    private fun plant(root: File) = AgentPlanter(FileSeedSource(assets), root).plant()
+    private fun plant(root: File, language: String = "en") =
+        AgentPlanter(FileSeedSource(assets), root) { language }.plant()
 
     @Test
     fun `every piece of the material lands where the engine reads it`() {
@@ -100,5 +101,40 @@ class AgentPlanterTest {
         plant(root)
 
         assertEquals("我自己的规矩", agreement.readText())
+    }
+
+    @Test
+    fun `the player's language lands in the sub-agent's own words`() {
+        val root = tmp.newFolder("nx2a")
+
+        plant(root, language = "zh")
+
+        // 子代理的材料里带着玩家读的语言：它写摘要时用的就是它
+        val definition = File(root, "agent/.pi/agent/agents/gamespec.md").readText()
+        assertTrue(definition.contains("Chinese (zh)"))
+        assertTrue("the placeholder is gone", !definition.contains("{{player_language}}"))
+    }
+
+    @Test
+    fun `the player's language lands in the main agent's own words`() {
+        val root = tmp.newFolder("nx2a")
+
+        plant(root, language = "zh")
+
+        // 主代理的材料里也带着它：它写卡片上的那行字（description）用的就是它
+        val agreement = File(root, "AGENTS.md").readText()
+        assertTrue(agreement.contains("The player reads Chinese (zh)"))
+        assertTrue("the placeholder is gone", !agreement.contains("{{player_language}}"))
+    }
+
+    @Test
+    fun `an english player gets an english sub-agent`() {
+        val root = tmp.newFolder("nx2a")
+
+        plant(root, language = "en")
+
+        val definition = File(root, "agent/.pi/agent/agents/gamespec.md").readText()
+        assertTrue(definition.contains("English (en)"))
+        assertTrue("the placeholder is gone", !definition.contains("{{player_language}}"))
     }
 }

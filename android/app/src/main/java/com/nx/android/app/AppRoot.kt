@@ -171,6 +171,8 @@ data class AppActions(
     val onStartPort: (file: File, cfg: GameConfig) -> Unit,
     val onCancelPort: () -> Unit,
     val onRun: (pack: File, name: String) -> Unit,
+    // 攻关修好了之后「去跑一下」：按 title ID 把那一局交到游戏页（门照旧走）
+    val onRunByTitleId: (String) -> Unit = {},
     // 闪退之后的「重新构建」：重建运行库再进一次游戏
     val onRunRebuild: (pack: File, name: String) -> Unit = { _, _ -> },
     // 桌面快捷方式：管理下拉里的「发送到桌面」（只对已完成的游戏出现）
@@ -717,6 +719,8 @@ fun MainScreen(
                     settingsOpen = true
                 },
                 navActive = navHost == NavHost.AGENT,
+                // 修好了之后「去跑一下」：按 title ID 回到游戏页
+                onRunGame = { titleId -> actions.onRunByTitleId(titleId) },
             )
         }        // The assistant's side panel: it docks on the right edge over the page's own content and takes
         // taps — the page beneath keeps its gamepad keys. The entry that opens it is the page's own button
@@ -768,6 +772,8 @@ fun MainScreen(
                 onExportGamespec = onExportGamespec?.let { export ->
                     libraryContext?.subject?.id?.let { tid -> { export(tid) } }
                 },
+                // 修好了之后「去跑一下」：按 title ID 回到游戏页
+                onRunGame = { titleId -> actions.onRunByTitleId(titleId) },
             )
         }
         // 导入的说明框：顶栏那个加号先进这里，框里的按钮再去选文件夹

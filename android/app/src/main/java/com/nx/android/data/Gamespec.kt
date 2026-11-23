@@ -34,6 +34,27 @@ object Gamespec {
      */
     const val PLAN_PENDING = "(status: pending approval)"
 
+    /** 那一条修好了 */
+    const val STATUS_FIXED = "(status: fixed)"
+
+    /** 那一条没修好 */
+    const val STATUS_NOT_FIXED = "(status: not fixed)"
+
+    /** 那一条还开着（有绕法，没有能执行的修法） */
+    const val STATUS_OPEN = "(status: open)"
+
+    /**
+     * 玩家语言的那几行：档案里 `Player ` 开头的行。
+     *
+     * 档案整个是英文的（它要交给上游看），但玩家读的是自己的语言——子 Agent 在英文那几行
+     * 旁边再写几行玩家语言的，app 显示时优先用它们，没有就回退英文那几行。
+     *
+     * 字段名是英文的（那是 app 与子 Agent 之间的约定），值用玩家读的那种语言。
+     */
+    const val PLAYER_HEADLINE = "Player headline:"
+    const val PLAYER_CAUSE = "Player cause:"
+    const val PLAYER_FIX = "Player fix:"
+
     /** 那局的攻关档案里待确认的方案：问题、根因、建议修法 */
     data class Plan(
         /** 那一条的标题（「### 2026-11-23 cross-chunk copy dropped (status: pending approval)」里的前半句） */
@@ -42,7 +63,20 @@ object Gamespec {
         val cause: String,
         /** 建议修法 */
         val fix: String,
-    )
+        /** 玩家语言的那几行（档案里可选的 `Player ` 行） */
+        val playerHeadline: String? = null,
+        val playerCause: String? = null,
+        val playerFix: String? = null,
+    ) {
+        /** 给玩家看的标题：玩家语言的那行优先，没有就用英文的 */
+        val shownHeadline: String get() = playerHeadline?.takeIf { it.isNotBlank() } ?: headline
+
+        /** 给玩家看的根因：玩家语言的那行优先，没有就用英文的 */
+        val shownCause: String get() = playerCause?.takeIf { it.isNotBlank() } ?: cause
+
+        /** 给玩家看的修法：玩家语言的那行优先，没有就用英文的 */
+        val shownFix: String get() = playerFix?.takeIf { it.isNotBlank() } ?: fix
+    }
 
     /** 那局档案的文件夹；[titleId] 是空的（这局说不清是哪个游戏）时返回的文件夹不要用 */
     fun dir(nxHome: File, titleId: String): File = File(File(nxHome, "gamespec"), titleId)
@@ -98,33 +132,107 @@ object Gamespec {
     }
 
     /** 档案里最后一条待确认的方案（解析 spec.md 的正文） */
-    fun parsePlan(text: String): Plan? {        var plan: Plan? = null
+    fun parsePlan(text: String): Plan? {
+        var plan: Plan? = null
         var headline = ""
         var cause = ""
         var fix = ""
+        var playerHeadline = ""
+        var playerCause = ""
+        var playerFix = ""
         for (raw in text.lines()) {
             val line = raw.trim()
             if (line.startsWith("### ")) {
                 // 一条结束了：它带着待确认标记的话，它就是一条方案（后一条覆盖前一条）
                 if (headline.contains(PLAN_PENDING)) {
-                    plan = Plan(headline.substringBefore(PLAN_PENDING).trim(), cause, fix)
+                    plan = Plan(
+                        headline.substringBefore(PLAN_PENDING).trim(), cause, fix,
+                        playerHeadline, playerCause, playerFix,
+                    )
                 }
                 headline = line.removePrefix("### ").trim()
                 cause = ""
                 fix = ""
+                playerHeadline = ""
+                playerCause = ""
+                playerFix = ""
                 continue
             }
             if (headline.isBlank()) continue
             when {
+                line.startsWith(PLAYER_HEADLINE) -> playerHeadline = line.removePrefix(PLAYER_HEADLINE).trim()
+                line.startsWith(PLAYER_CAUSE) -> playerCause = line.removePrefix(PLAYER_CAUSE).trim()
+                line.startsWith(PLAYER_FIX) -> playerFix = line.removePrefix(PLAYER_FIX).trim()
                 line.startsWith("Cause:") -> cause = line.removePrefix("Cause:").trim()
                 line.startsWith("Proposed fix:") -> fix = line.removePrefix("Proposed fix:").trim()
                 line.startsWith("Fix:") && fix.isBlank() -> fix = line.removePrefix("Fix:").trim()
             }
         }
         if (headline.contains(PLAN_PENDING)) {
-            plan = Plan(headline.substringBefore(PLAN_PENDING).trim(), cause, fix)
+            plan = Plan(
+                headline.substringBefore(PLAN_PENDING).trim(), cause, fix,
+                playerHeadline, playerCause, playerFix,
+            )
         }
         return plan?.takeIf { it.headline.isNotBlank() }
+    }
+
+    /**
+     * 档案里最新一条问题的状态（已修/待确认/未修/还开着）。
+     *
+     * App 只读档案：子 Agent 改状态，app 照着显示——修好了就该告诉玩家「去跑一下」，
+     * 还开着就该说「还挂着一个问题」。
+     */
+    fun latestStatus(caseDir: File): String? {
+        val spec = File(caseDir, SPEC_FILE)
+        if (!spec.isFile) return null
+        val text = runCatching { spec.readText() }.getOrNull() ?: return null
+        return latestStatusOf(text)
+    }
+
+    /** 正文里最新一条问题的状态标记（没有就是没有）。 */
+    fun latestStatusOf(text: String): String? {
+        var status: String? = null
+        for (raw in text.lines()) {
+            val line = raw.trim()
+            if (!line.startsWith("### ")) continue
+            status = when {
+                line.contains(PLAN_PENDING) -> PLAN_PENDING
+                line.contains(STATUS_NOT_FIXED) -> STATUS_NOT_FIXED
+                line.contains(STATUS_FIXED) -> STATUS_FIXED
+                line.contains(STATUS_OPEN) -> STATUS_OPEN
+                else -> null
+            }
+        }
+        return status
+    }
+
+    /**
+     * 档案时间线上的最新一条：子代理自己记下的进展。
+     *
+     * 它是玩家看得见的进度通道——子代理干活时往时间线上追加一行，这里把它读出来，
+     * 玩家不用发消息问「咋样」。
+     */
+    fun latestTimeline(caseDir: File): String? {
+        val spec = File(caseDir, SPEC_FILE)
+        if (!spec.isFile) return null
+        val text = runCatching { spec.readText() }.getOrNull() ?: return null
+        return latestTimelineOf(text)
+    }
+
+    /** 正文时间线上的最后一行（没有就是没有）。 */
+    fun latestTimelineOf(text: String): String? {
+        var inTimeline = false
+        var latest: String? = null
+        for (raw in text.lines()) {
+            val line = raw.trim()
+            if (line.startsWith("## ")) {
+                inTimeline = line.equals("## Timeline", ignoreCase = true)
+                continue
+            }
+            if (inTimeline && line.startsWith("- ")) latest = line.removePrefix("- ").trim()
+        }
+        return latest
     }
 
     /**

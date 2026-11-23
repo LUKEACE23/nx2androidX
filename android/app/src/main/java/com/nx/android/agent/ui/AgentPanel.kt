@@ -95,6 +95,7 @@ import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentPresets
 import com.nx.android.agent.AgentRole
+import com.nx.android.data.Gamespec
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.HazeBlurStyle
@@ -143,6 +144,8 @@ fun AgentDrawerHost(
     pageContext: AgentPageContext? = null,
     /** 导出这局的攻关档案（只有游戏页给得起这个动作） */
     onExportGamespec: (() -> Unit)? = null,
+    /** 修好了之后「去跑一下」：按 title ID 把那一局交到游戏页 */
+    onRunGame: (String) -> Unit = {},
 ) {
     // 0 = 抽屉在原位，1 = 抽屉整个滑到屏幕右边之外
     val slide = remember { Animatable(1f) }
@@ -185,6 +188,7 @@ fun AgentDrawerHost(
                 onOpenSettings = onOpenSettings,
                 pageContext = pageContext,
                 onExportGamespec = onExportGamespec,
+                onRunGame = onRunGame,
                 modifier = Modifier.offset { IntOffset((slide.value * widthPx).roundToInt(), 0) },
             )
         }
@@ -211,6 +215,8 @@ fun AgentPanel(
     pageContext: AgentPageContext? = null,
     /** 导出这局的攻关档案（只有游戏页给得起这个动作） */
     onExportGamespec: (() -> Unit)? = null,
+    /** 修好了之后「去跑一下」：按 title ID 把那一局交到游戏页 */
+    onRunGame: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by conversation.uiState.collectAsStateWithLifecycle()
@@ -266,7 +272,9 @@ fun AgentPanel(
     FollowBottom(listState, follow = followBottom, onStop = { followBottom = false })
     // while it streams: stick to the bottom, but only while the player hasn't scrolled up to read
     val pinned = rememberPinnedToBottom(listState)
-    LaunchedEffect(state.messages.size, last?.text?.length, last?.tools?.size, state.running) {
+    // 子 Agent 的状态变了也带到底部：它跑完了、又开始续跑——玩家贴着底就该看见
+    val subagentMark = state.subagents.joinToString(",") { "${it.runId}:${it.status}" }
+    LaunchedEffect(state.messages.size, last?.text?.length, last?.tools?.size, state.running, subagentMark) {
         if (state.messages.isEmpty()) return@LaunchedEffect
         if (!pinned.value) return@LaunchedEffect   // 玩家自己上去了：不跟他抢
         listState.scrollToBottom()
@@ -341,6 +349,8 @@ fun AgentPanel(
                             onToolsClick = { toolsOverlay = it },
                             onCopy = onCopy,
                             subagents = state.subagents,
+                            subagentRuns = state.subagentRuns,
+                            caseProgress = state.caseProgress,
                         )
                     }
                     // 攻关方案等着玩家点一下：确认之前，什么都不改
@@ -353,6 +363,20 @@ fun AgentPanel(
                             )
                         }
                     }
+                    // 修好了：该玩家上场了——按钮就在这儿，不用去聊天记录里翻那句话
+                    // （待确认的不用这张卡：确认门已经在那里了）
+                    state.caseStatus
+                        ?.takeIf { it != Gamespec.PLAN_PENDING }
+                        ?.let { status ->
+                            item(key = "case-status") {
+                                CaseStatusCard(
+                                    status = status,
+                                    titleId = state.caseTitleId,
+                                    onRun = onRunGame,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
                 }
                 if (state.running) {
                     Row(

@@ -90,6 +90,7 @@ import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentRole
 import com.nx.android.agent.AgentSubagent
 import com.nx.android.agent.AgentToolCard
+import com.nx.android.data.Gamespec
 import com.nx.android.agent.AgentToolState
 
 /**
@@ -107,6 +108,7 @@ fun AgentScreen(
     onClose: () -> Unit,
     onOpenSettings: () -> Unit = {},
     navActive: Boolean = false,
+    onRunGame: (String) -> Unit = {},
 ) {
     val state by conversation.uiState.collectAsStateWithLifecycle()
     BackHandler { onClose() }
@@ -155,7 +157,9 @@ fun AgentScreen(
     FollowBottom(listState, follow = followBottom, onStop = { followBottom = false })
     // 正文一长就把玩家按回底部——但玩家自己往上拖了就不跟了
     val pinned = rememberPinnedToBottom(listState)
-    LaunchedEffect(state.messages.size, last?.text?.length, last?.tools?.size) {
+    // 子 Agent 的状态变了也带到底部：它跑完了、又开始续跑——玩家贴着底就该看见
+    val subagentMark = state.subagents.joinToString(",") { "${it.runId}:${it.status}" }
+    LaunchedEffect(state.messages.size, last?.text?.length, last?.tools?.size, subagentMark) {
         if (state.messages.isEmpty()) return@LaunchedEffect
         if (!pinned.value) return@LaunchedEffect
         listState.scrollToBottom()
@@ -222,6 +226,8 @@ fun AgentScreen(
                             markdownState = mdStates[message.id],
                             onCopy = onCopy,
                             subagents = state.subagents,
+                            subagentRuns = state.subagentRuns,
+                            caseProgress = state.caseProgress,
                         )
                     }
                     // 攻关方案等着玩家点一下：确认之前，什么都不改
@@ -234,6 +240,20 @@ fun AgentScreen(
                             )
                         }
                     }
+                    // 修好了：该玩家上场了——按钮就在这儿，不用去聊天记录里翻那句话
+                    // （待确认的不用这张卡：确认门已经在那里了）
+                    state.caseStatus
+                        ?.takeIf { it != Gamespec.PLAN_PENDING }
+                        ?.let { status ->
+                            item(key = "case-status") {
+                                CaseStatusCard(
+                                    status = status,
+                                    titleId = state.caseTitleId,
+                                    onRun = onRunGame,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
                 }
                 AgentInputBar(
                     text = state.draft,
@@ -444,10 +464,14 @@ internal fun MessageRow(
     onToolsClick: ((AgentMessage) -> Unit)? = null,
     onCopy: ((AgentMessage) -> Unit)? = null,
     subagents: List<AgentSubagent> = emptyList(),
+    subagentRuns: Map<String, AgentSubagent> = emptyMap(),
+    caseProgress: String? = null,
 ) {
     if (message.role == AgentRole.USER) {
         UserBubbleText(message.text, message.pending, onCopy?.let { cb -> { cb(message) } })
-    } else AssistantBlock(message, streaming, markdownState, onToolsClick, onCopy, subagents)
+    } else {
+        AssistantBlock(message, streaming, markdownState, onToolsClick, onCopy, subagents, subagentRuns, caseProgress)
+    }
 }
 
 /** What the copy button puts on the clipboard: the message's own text — the answer's markdown, fences and all. */
@@ -508,6 +532,8 @@ private fun AssistantBlock(
     onToolsClick: ((AgentMessage) -> Unit)? = null,
     onCopy: ((AgentMessage) -> Unit)? = null,
     subagents: List<AgentSubagent> = emptyList(),
+    subagentRuns: Map<String, AgentSubagent> = emptyMap(),
+    caseProgress: String? = null,
 ) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         // 思考过程：模型自己想的那一段，折起来放在最前面（玩家想看就点开）
@@ -519,8 +545,15 @@ private fun AssistantBlock(
         val otherTools = message.tools.filter { it.subagent == null }
         subagentCards.forEach { card ->
             val call = card.subagent
-            val record = subagents.firstOrNull { it.prompt != null && it.prompt == call?.prompt }
-            AgentRunCard(card, message.notifications.firstOrNull { it.toolCallId == card.id }, record)
+            // 那一次运行：引擎按调用给的把手对上（续跑那次有自己的运行，不挂上一轮的结果）
+            val run = subagentRuns[card.id]
+                ?: subagents.firstOrNull { it.prompt != null && it.prompt == call?.prompt }
+            AgentRunCard(
+                card,
+                message.notifications.firstOrNull { it.toolCallId == card.id },
+                run,
+                progress = caseProgress,
+            )
         }
         if (otherTools.isNotEmpty()) {
             ToolSummary(otherTools, message.id, onToolsClick?.let { cb -> { cb(message) } })

@@ -111,6 +111,22 @@ class SubagentRecordsTest {
     }
 
     @Test
+    fun `the same agent twice is two runs`() {
+        // 续跑时引擎的 id 不变，但那是两次运行：各自留着
+        val file = folder.newFile("session.jsonl")
+        file.writeText(
+            listOf(
+                recordLine(id = "a", startedAt = 10L, completedAt = 20L),
+                recordLine(id = "a", startedAt = 30L, completedAt = 40L),
+            ).joinToString("\n"),
+        )
+        val records = SubagentRecords.of(file)
+        assertEquals(2, records.size)
+        assertEquals(listOf(10L, 30L), records.map { it.startedAt })
+        assertEquals(2, records.map { it.runId }.distinct().size)
+    }
+
+    @Test
     fun `a broken line does not take the list down`() {
         val file = folder.newFile("session.jsonl")
         file.writeText(

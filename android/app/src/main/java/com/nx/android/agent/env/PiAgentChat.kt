@@ -16,6 +16,7 @@ import com.nx.android.agent.AgentToolState
 import com.nx.android.data.AppLocale
 import com.nx.android.agent.runtime.AgentEngineStore
 import com.nx.android.agent.runtime.AgentExtensions
+import com.nx.android.agent.runtime.AgentMaterial
 import com.nx.android.agent.runtime.AgentSessionStore
 import com.nx.android.agent.runtime.AgentSettingsStore
 import com.nx.android.agent.runtime.AgentWorkspace
@@ -70,10 +71,14 @@ class PiAgentChat @Inject constructor(
      * 玩家读的是哪种语言：模型用英文干活，给玩家看的那句话按这个语言写。
      *
      * 玩家没选语言就是手机的——那也是 App 界面上正显示着的那种语言。
+     *
+     * 写的是语言的名字（"Chinese (zh)"）而不是代码：模型把它抄进给子代理的任务里，
+     * 子代理读到的是"玩家读中文"，不是一个它要去猜的缩写。
      */
     private fun playerLanguage(): String {
         val picked = locale.locale?.language
-        return picked ?: java.util.Locale.getDefault().language.ifBlank { "en" }
+        val code = picked ?: java.util.Locale.getDefault().language.ifBlank { "en" }
+        return AgentMaterial.playerLanguage(code)
     }
 
     private companion object {
@@ -614,11 +619,12 @@ class PiAgentChat @Inject constructor(
                 p.turnStart = true
                 val name = obj.optString("toolName")
                 val args = obj.optJSONObject("args")
-                val call = AgentSubagentCallParser.of(name, args)
+                val toolCallId = obj.optString("toolCallId")
+                val call = AgentSubagentCallParser.of(name, args, toolCallId)
                 p.events.add(
                     AgentEvent.ToolStarted(
                         AgentToolCard(
-                            id = obj.optString("toolCallId"),
+                            id = toolCallId,
                             name = name,
                             argsSummary = if (call != null) {
                                 call.description.ifBlank { call.type }

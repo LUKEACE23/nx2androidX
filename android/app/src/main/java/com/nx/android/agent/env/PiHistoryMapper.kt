@@ -86,6 +86,7 @@ object PiHistoryMapper {
                                 val call = AgentSubagentCallParser.of(
                                     p.optString("name"),
                                     p.optJSONObject("arguments"),
+                                    p.optString("id"),
                                 )
                                 cards += AgentToolCard(
                                     id = p.optString("id"),

@@ -324,6 +324,9 @@
     <string name="builds_start_title">Start a port</string>
     <string name="builds_start_hint">Pick a game file to start a port; the updates and the DLC next to it are taken along. It appears in the library when the build is done.</string>
     <string name="builds_choose_game_file">Choose a game file</string>
+    <string name="builds_game_list">Game list</string>
+    <string name="builds_game_list_title">Supported games</string>
+    <string name="builds_game_list_empty">The list of the games did not come with this build.</string>
     <string name="builds_profiles_ready">%1$d game profile(s) imported</string>
     <string name="builds_profiles_ready_ported">%1$d game profile(s) imported, %2$d of them ported</string>
     <string name="builds_profiles_missing">No game profiles imported</string>
@@ -710,6 +713,7 @@
     <string name="agent_subagents_gone">That record is gone.</string>
     <string name="agent_subagents_back">Back</string>
     <string name="agent_subagents_tool_uses">tool uses</string>
+    <string name="agent_subagent_run">Sub-agent run</string>
     <string name="agent_gamespec_export">Export the case file</string>
     <string name="agent_thinking_fold">thinking</string>
     <string name="agent_plan_waiting">the plan is waiting for you</string>
@@ -717,6 +721,18 @@
     <string name="agent_plan_fix">proposed fix</string>
     <string name="agent_plan_confirm">Fix it as planned</string>
     <string name="agent_plan_hint">nothing is changed until you tap this</string>
+    <string name="agent_subagents_stopped">stopped</string>
+    <string name="agent_subagents_interrupted">interrupted</string>
+    <string name="agent_run_running_for">running %1$s</string>
+    <string name="agent_case_fixed">fixed</string>
+    <string name="agent_case_fixed_hint">the case is fixed — run it and see</string>
+    <string name="agent_case_run">Run it</string>
+    <string name="agent_case_not_fixed">not fixed</string>
+    <string name="agent_case_not_fixed_hint">it was tried and it did not work — the case file says what was tried</string>
+    <string name="agent_case_open">still open</string>
+    <string name="agent_case_open_hint">there is still a problem open on this game — the case file says which</string>
+    <string name="agent_case_pending">in progress</string>
+    <string name="agent_case_pending_hint">the case is still being worked on</string>
     <string name="agent_thinking_tokens">%1$s tok</string>
     <string name="agent_gamespec_exported">Exported: %1$s</string>
     <string name="agent_gamespec_export_failed">The case file could not be exported: %1$s</string>
