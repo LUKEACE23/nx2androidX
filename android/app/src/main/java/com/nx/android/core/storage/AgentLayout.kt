@@ -20,9 +20,6 @@ object AgentLayout {
     /** The installed package's manifest: what is in, and what it needs. */
     const val MANIFEST = "manifest.json"
 
-    /** The working agreement's name, in the folder the engine starts in. */
-    const val AGREEMENT = "AGENTS.md"
-
     /** The assistant's folder: the engine, its own home, the models, the conversations. */
     fun agentDir(nxHome: File): File = File(nxHome, DIR)
 
@@ -36,37 +33,27 @@ object AgentLayout {
     fun modelsFile(agent: File): File = File(agent, "models.json")
 
     /**
-     * The agreement the engine reads: the engine starts in the player's nx2android folder and loads
-     * its context file from the working directory, so that is where the agreement has to be.
-     */
-    fun agreementFile(nxHome: File): File = File(nxHome, AGREEMENT)
-
-    /**
-     * A file we wrote, brought up to date: the agreement, a skill.
+     * A file we wrote, brought up to date: a file still carrying our text is refreshed; a file the
+     * player (or the assistant) has changed is left alone.
      *
-     * A file that still carries one of our seeds is brought up to date; a file the player has
-     * edited is left alone.
-     *
-     * How we tell our own text from the player's: beside the file we keep a mark with the digest of
-     * the text we wrote. The file is ours while that digest still matches it; the moment the player
-     * changes it, it is theirs. Without the mark (the seeds we wrote before it existed) the old
-     * texts are recognized by hand, in [knownSeeds].
+     * How we tell our own text from theirs: beside the file we keep a mark with the digest of the
+     * text we wrote. The file is ours while that digest still matches it; the moment it is
+     * changed, it is theirs. A file whose text is already the one we would write is ours too -
+     * that is how a file we wrote before the mark existed (or before we wrote one) is adopted.
      */
-    fun seedOwned(files: List<File>, seed: String, knownSeeds: Set<String>) {
-        for (file in files) {
-            val text = if (file.isFile) file.readText() else null
-            val mark = File(file.parentFile, "${file.name}.seed")
-            val ours = when {
-                text == null -> true
-                text == seed -> false
-                text in knownSeeds -> true
-                else -> mark.isFile && mark.readText().trim() == digest(text)
-            }
-            if (!ours) continue
-            file.parentFile?.mkdirs()
-            file.writeText(seed)
-            runCatching { mark.writeText(digest(seed)) }
+    fun seedOwned(file: File, seed: String) {
+        val text = file.takeIf { it.isFile }?.readText()
+        when {
+            text == null -> writeSeeded(file, seed)          // 没有这一份：写进去
+            text == seed -> adopt(file, text)                // 已经是这一份：认领它
+            isOurs(file, text) -> writeSeeded(file, seed)   // 我们写的旧版本：换成新的
+            else -> Unit                                    // 玩家或助手改过的：不碰
         }
+    }
+
+    /** The file is ours (its text is the one we would write): record that, so a later seed can replace it. */
+    private fun adopt(file: File, text: String) {
+        runCatching { seedMark(file).writeText(digest(text)) }
     }
 
     /** A text's SHA-256, as hex. */

@@ -1,0 +1,104 @@
+package com.nx.android.agent.runtime
+
+import java.io.File
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+
+/**
+ * The material the App ships: it is planted on the device where the engine reads it, and a file
+ * the player (or the assistant) has written for itself is left alone.
+ *
+ * The material is read out of the App's own assets folder: the very files that go into the
+ * package, so the test and the product cannot drift apart.
+ */
+class AgentPlanterTest {
+
+    @get:Rule
+    val tmp = TemporaryFolder()
+
+    /** The App's own assets: the material that goes into the package. */
+    private val assets = File("src/main/assets/nx2a")
+
+    private fun plant(root: File) = AgentPlanter(FileSeedSource(assets), root).plant()
+
+    @Test
+    fun `every piece of the material lands where the engine reads it`() {
+        val root = tmp.newFolder("nx2a")
+
+        plant(root)
+
+        // the agreement: the engine loads its context file from the folder it starts in
+        val agreement = File(root, "AGENTS.md")
+        assertTrue("the agreement is in the working directory", agreement.isFile)
+        assertTrue("the agreement says what it says", agreement.readText().contains("working agreement"))
+        assertTrue("the agreement is ours", File(root, "AGENTS.md.seed").isFile)
+
+        // the skill: the engine finds it in its own folder
+        val skill = File(root, "agent/.agents/skills/card-unpack/SKILL.md")
+        assertTrue("the skill is where the engine looks for it", skill.isFile)
+        assertTrue("the skill names itself", skill.readText().contains("name: card-unpack"))
+
+        // the agent definition: the engine reads it when it starts
+        val definition = File(root, "agent/.pi/agent/agents/gamespec.md")
+        assertTrue("the definition is where the engine looks for it", definition.isFile)
+        assertTrue("the definition names its type", definition.readText().contains("name: gamespec"))
+
+        // the knowledge we ship
+        assertTrue(
+            "the knowledge is in the workspace",
+            File(root, "agent/workspace/knowledge/KNOWLEDGE.md").isFile,
+        )
+    }
+
+    @Test
+    fun `the port failures skill and its references land with it`() {
+        val root = tmp.newFolder("nx2a")
+
+        plant(root)
+
+        // the knowledge the case worker reads, with the documents it reads
+        val skill = File(root, "agent/.agents/skills/port-failures/SKILL.md")
+        assertTrue("the skill is where the engine looks for it", skill.isFile)
+        assertTrue("the skill names itself", skill.readText().contains("name: port-failures"))
+        for (reference in listOf("build-failures.md", "shader-split.md", "runtime-symptoms.md")) {
+            val file = File(root, "agent/.agents/skills/port-failures/references/$reference")
+            assertTrue("the reference $reference travels with the skill", file.isFile)
+        }
+        // the index the search reads, and the search itself
+        assertTrue(
+            "the case index travels with the skill",
+            File(root, "agent/.agents/skills/port-failures/references/case-index.tsv").isFile,
+        )
+        assertTrue(
+            "the search travels with the skill",
+            File(root, "agent/.agents/skills/port-failures/scripts/kb_search.py").isFile,
+        )
+    }
+
+    @Test
+    fun `a skill the player wrote is left alone`() {
+        val root = tmp.newFolder("nx2a")
+        val skill = File(root, "agent/.agents/skills/card-unpack/SKILL.md")
+        skill.parentFile.mkdirs()
+        skill.writeText("我自己写的拆包步骤")
+
+        plant(root)
+
+        assertEquals("我自己写的拆包步骤", skill.readText())
+    }
+
+    @Test
+    fun `the agreement the player wrote is left alone`() {
+        val root = tmp.newFolder("nx2a")
+        val agreement = File(root, "AGENTS.md")
+        agreement.parentFile.mkdirs()
+        agreement.writeText("我自己的规矩")
+
+        plant(root)
+
+        assertEquals("我自己的规矩", agreement.readText())
+    }
+}

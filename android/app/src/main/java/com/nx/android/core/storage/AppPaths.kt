@@ -33,10 +33,4 @@ class AppPaths @Inject constructor(
     val agentRuntime = AgentLayout.runtimeDir(agent)   // the engine binary and the manifest of the installed package
     val agentWorkspace = AgentLayout.workspaceDir(agent) // the rendered conversations, the memory
     val agentModels = AgentLayout.modelsFile(agent) // the model profiles (the keys are encrypted)
-
-    /**
-     * The assistant's working agreement, in the folder the engine starts in ([nxHome]): the engine
-     * reads its context file from the working directory, so that is where the agreement has to be.
-     */
-    val agentAgreement = AgentLayout.agreementFile(nxHome)
 }

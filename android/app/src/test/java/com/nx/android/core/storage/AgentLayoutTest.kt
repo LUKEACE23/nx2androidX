@@ -30,41 +30,23 @@ class AgentLayoutTest {
     }
 
     @Test
-    fun theAgreementSitsInTheEngineWorkingDirectory() {
-        val nxHome = File(tmp.root, "nx2a")
-
-        // the engine starts in the player's nx2android folder and loads its context file from the
-        // working directory: the agreement has to be right there
-        assertEquals(File(nxHome, "AGENTS.md"), AgentLayout.agreementFile(nxHome))
-    }
-
-    @Test
-    fun theAgreementIsSeededWhereItIsMissing() {
+    fun aFileWeWroteIsWrittenWhenItIsMissing() {
         val agreement = File(tmp.root, "nx2a/AGENTS.md")
-        val copy = File(tmp.root, "nx2a/agent/workspace/AGENTS.md")
 
-        AgentLayout.seedOwned(listOf(agreement, copy), "the rules", setOf("the rules"))
-
-        assertEquals("the rules", agreement.readText())
-        assertEquals("the rules", copy.readText())
-    }
-
-    @Test
-    fun anOldSeedIsBroughtUpToDate() {
-        val agreement = File(tmp.root, "nx2a/AGENTS.md").apply { parentFile.mkdirs(); writeText("the old rules") }
-
-        AgentLayout.seedOwned(listOf(agreement), "the rules", setOf("the rules", "the old rules"))
+        AgentLayout.seedOwned(agreement, "the rules")
 
         assertEquals("the rules", agreement.readText())
     }
 
     @Test
-    fun thePlayersOwnFileIsLeftAlone() {
-        val agreement = File(tmp.root, "nx2a/AGENTS.md").apply { parentFile.mkdirs(); writeText("my own rules") }
+    fun aFileThatAlreadyHasOurTextIsOurs() {
+        // 内容与我们写的一样、旁边却没有标记的：那份也是我们的（认领它），以后才更新得了
+        val agreement = File(tmp.root, "nx2a/AGENTS.md").apply { parentFile.mkdirs(); writeText("the rules") }
 
-        AgentLayout.seedOwned(listOf(agreement), "the rules", setOf("the rules"))
+        AgentLayout.seedOwned(agreement, "the rules")
+        AgentLayout.seedOwned(agreement, "the rules of tomorrow")
 
-        assertEquals("my own rules", agreement.readText())
+        assertEquals("the rules of tomorrow", agreement.readText())
     }
 
     @Test
@@ -72,10 +54,10 @@ class AgentLayoutTest {
         // the mark beside the file says it is ours: a later seed replaces it, and the old text does
         // not have to be listed by hand (the tool catalog grows with every change)
         val agreement = File(tmp.root, "nx2a/AGENTS.md")
-        AgentLayout.seedOwned(listOf(agreement), "the rules of the day", setOf("the rules of the day"))
+        AgentLayout.seedOwned(agreement, "the rules of the day")
         assertEquals("the rules of the day", agreement.readText())
 
-        AgentLayout.seedOwned(listOf(agreement), "the rules of tomorrow", setOf("the rules of tomorrow"))
+        AgentLayout.seedOwned(agreement, "the rules of tomorrow")
 
         assertEquals("the rules of tomorrow", agreement.readText())
     }
@@ -83,12 +65,21 @@ class AgentLayoutTest {
     @Test
     fun aFileThePlayerChangedAfterWeWroteItIsLeftAlone() {
         val agreement = File(tmp.root, "nx2a/AGENTS.md")
-        AgentLayout.seedOwned(listOf(agreement), "the rules of the day", setOf("the rules of the day"))
+        AgentLayout.seedOwned(agreement, "the rules of the day")
         agreement.writeText("the rules of the day, plus mine")
 
-        AgentLayout.seedOwned(listOf(agreement), "the rules of tomorrow", setOf("the rules of tomorrow"))
+        AgentLayout.seedOwned(agreement, "the rules of tomorrow")
 
         assertEquals("the rules of the day, plus mine", agreement.readText())
+    }
+
+    @Test
+    fun aFileThePlayerWroteIsLeftAlone() {
+        val agreement = File(tmp.root, "nx2a/AGENTS.md").apply { parentFile.mkdirs(); writeText("my own rules") }
+
+        AgentLayout.seedOwned(agreement, "the rules")
+
+        assertEquals("my own rules", agreement.readText())
     }
 
     @Test

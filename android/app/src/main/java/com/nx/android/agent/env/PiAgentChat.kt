@@ -13,7 +13,6 @@ import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentSubagentCallParser
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
-import com.nx.android.agent.runtime.AgentAgents
 import com.nx.android.data.AppLocale
 import com.nx.android.agent.runtime.AgentEngineStore
 import com.nx.android.agent.runtime.AgentExtensions
@@ -694,9 +693,9 @@ class PiAgentChat @Inject constructor(
         // the extensions the installed package carries are pointed at before the engine starts:
         // it reads its settings when it comes up, not later
         AgentExtensions.enable(engine.home, engine.runtimeDir, engine.installedExtensions())
-        // the sub-agent definitions are read at startup too: the case-file one is ours
-        // (the workspace has already put it there; this is the belt to that suspenders)
-        AgentAgents.install(engine.home)
+        // the material is planted before the engine starts too: it reads its agreement, its skills
+        // and its agent definitions when it comes up
+        workspace.ensure()
 
         val pb = ProcessBuilder(
             listOf(
