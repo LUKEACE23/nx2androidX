@@ -18,7 +18,10 @@ import javax.inject.Singleton
  * where the agreement has to be for the engine to read it.
  */
 @Singleton
-class AgentWorkspace @Inject constructor(private val paths: AppPaths) {
+class AgentWorkspace @Inject constructor(
+    private val paths: AppPaths,
+    private val skills: AgentSkills,
+) {
 
     val root: File = paths.agentWorkspace
     private val agentsMd: File get() = File(root, "AGENTS.md")
@@ -29,6 +32,9 @@ class AgentWorkspace @Inject constructor(private val paths: AppPaths) {
     fun ensure(): File {
         root.mkdirs()
         seedAgreement()
+        // the skills live in the engine's home, but they are prepared together with the workspace:
+        // the engine finds them when it starts, so they have to be there before it does
+        skills.ensure()
         if (!memoryMd.isFile) memoryMd.writeText("")
         if (!knowledgeMd.isFile) { knowledgeMd.parentFile?.mkdirs(); knowledgeMd.writeText(SEED_KNOWLEDGE) }
         return root
@@ -42,7 +48,7 @@ class AgentWorkspace @Inject constructor(private val paths: AppPaths) {
      * up to date.
      */
     private fun seedAgreement() {
-        AgentLayout.seedAgreement(
+        AgentLayout.seedOwned(
             files = listOf(paths.agentAgreement, agentsMd),
             seed = SEED_AGENTS,
             knownSeeds = SEEDS,
@@ -74,7 +80,7 @@ class AgentWorkspace @Inject constructor(private val paths: AppPaths) {
         }
 
         /** The seeds we know: a file carrying one of them is ours, not the player's. */
-        internal val SEEDS: Set<String> get() = setOf(SEED_AGENTS, SEED_AGENTS_V5, SEED_AGENTS_V4, SEED_AGENTS_V3, SEED_AGENTS_V1, SEED_AGENTS_V2, SEED_AGENTS_V0)
+        internal val SEEDS: Set<String> get() = setOf(SEED_AGENTS, SEED_AGENTS_V6, SEED_AGENTS_V5, SEED_AGENTS_V4, SEED_AGENTS_V3, SEED_AGENTS_V1, SEED_AGENTS_V2, SEED_AGENTS_V0)
 
         private val SEED_AGENTS_V0 = "你是 nx2androidX 的内置助手，用简体中文回答。"
         private val SEED_AGENTS_V1 = """
@@ -223,10 +229,24 @@ class AgentWorkspace @Inject constructor(private val paths: AppPaths) {
             - 重装 APK 只跟 App 自身更新有关，与引擎修复无关。
         """.trimIndent()
 
-        /** The current seed: the frozen one plus the facts above. */
-        internal val SEED_AGENTS = SEED_AGENTS_V5.replace(
+        /**
+         * The seed the phones that ran 0.4.0-alpha03 carry, frozen: it named the card tool but not
+         * the split, so the unpacked files went wherever the assistant made up that turn.
+         */
+        internal val SEED_AGENTS_V6 = SEED_AGENTS_V5.replace(
             "## 工具（",
             "$SEED_AGENTS_FACTS\n\n## 工具（",
+        )
+
+        /**
+         * The current seed: the frozen one plus the split tool and where its output goes.
+         *
+         * The details live in the card-unpack skill (the engine loads it when the task matches);
+         * this is the line that tells the assistant the tool exists at all.
+         */
+        internal val SEED_AGENTS = SEED_AGENTS_V6.replace(
+            "- port_status.py：",
+            "- card_split.py：把卡带拆成每个 title 一个 NSP（解包）——用它，别自己写脚本；产物放 /storage/emulated/0/Download/<游戏名>-<title ID>/，平铺，名字工具定（细则在 card-unpack 技能里）。\n- port_status.py：",
         )
 
         /**

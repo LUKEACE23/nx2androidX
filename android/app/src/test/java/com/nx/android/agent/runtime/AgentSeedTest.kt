@@ -28,10 +28,18 @@ class AgentSeedTest {
     }
 
     @Test
+    fun `the current seed names the split tool and where its output goes`() {
+        val seed = AgentWorkspace.SEED_AGENTS
+
+        assertTrue("the split tool is named", seed.contains("card_split.py"))
+        assertTrue("where the unpacked files go is stated", seed.contains("/storage/emulated/0/Download/"))
+    }
+
+    @Test
     fun `a phone carrying the previous build's text gets the new seed`() {
         val agreement = File(tmp.root, "AGENTS.md").apply { writeText(AgentWorkspace.SEED_AGENTS_V5) }
 
-        AgentLayout.seedAgreement(listOf(agreement), AgentWorkspace.SEED_AGENTS, AgentWorkspace.SEEDS)
+        AgentLayout.seedOwned(listOf(agreement), AgentWorkspace.SEED_AGENTS, AgentWorkspace.SEEDS)
 
         assertEquals(AgentWorkspace.SEED_AGENTS, agreement.readText())
     }
@@ -40,7 +48,7 @@ class AgentSeedTest {
     fun `a phone carrying the build before that one gets the new seed too`() {
         val agreement = File(tmp.root, "AGENTS.md").apply { writeText(AgentWorkspace.SEED_AGENTS_V4) }
 
-        AgentLayout.seedAgreement(listOf(agreement), AgentWorkspace.SEED_AGENTS, AgentWorkspace.SEEDS)
+        AgentLayout.seedOwned(listOf(agreement), AgentWorkspace.SEED_AGENTS, AgentWorkspace.SEEDS)
 
         assertEquals(AgentWorkspace.SEED_AGENTS, agreement.readText())
     }
@@ -49,7 +57,7 @@ class AgentSeedTest {
     fun `the player's own agreement is left alone`() {
         val agreement = File(tmp.root, "AGENTS.md").apply { writeText("我自己写的约定") }
 
-        AgentLayout.seedAgreement(listOf(agreement), AgentWorkspace.SEED_AGENTS, AgentWorkspace.SEEDS)
+        AgentLayout.seedOwned(listOf(agreement), AgentWorkspace.SEED_AGENTS, AgentWorkspace.SEEDS)
 
         assertEquals("我自己写的约定", agreement.readText())
     }

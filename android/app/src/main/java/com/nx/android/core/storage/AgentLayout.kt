@@ -42,15 +42,17 @@ object AgentLayout {
     fun agreementFile(nxHome: File): File = File(nxHome, AGREEMENT)
 
     /**
-     * The agreement, in the places it is read from. A file that still carries one of our seeds is
-     * brought up to date; a file the player has edited is left alone.
+     * A file we wrote, brought up to date: the agreement, a skill.
+     *
+     * A file that still carries one of our seeds is brought up to date; a file the player has
+     * edited is left alone.
      *
      * How we tell our own text from the player's: beside the file we keep a mark with the digest of
      * the text we wrote. The file is ours while that digest still matches it; the moment the player
      * changes it, it is theirs. Without the mark (the seeds we wrote before it existed) the old
      * texts are recognized by hand, in [knownSeeds].
      */
-    fun seedAgreement(files: List<File>, seed: String, knownSeeds: Set<String>) {
+    fun seedOwned(files: List<File>, seed: String, knownSeeds: Set<String>) {
         for (file in files) {
             val text = if (file.isFile) file.readText() else null
             val mark = File(file.parentFile, "${file.name}.seed")
