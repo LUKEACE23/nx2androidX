@@ -92,7 +92,7 @@ It refuses when the game's code on the device was rewritten with other rewriter 
 
 ## Adding a game
 
-Each game is a profile in `nxnative/dm/games/<title ID>/` with an `android.tsv`: [ARCHITECTURE.md](ARCHITECTURE.md#adding-a-game). A finished port updates, in the profile's commit, [PORT_CHECKLIST.md](PORT_CHECKLIST.md) (the game's line, with the nx2android version it was tested on; `python docs/gen_tables.py` makes the ticks and the count from the profiles — an `android.tsv` is what ticks a game — and tests/test_docs_tables.py checks the file is what the profiles make). The README keeps no table of the games: the list of the games that play on Android lives upstream, in [the games table](https://github.com/shirai91/nx2android#games). The porter's options: a field of `porter/pipeline.py` `Options` and a `porter port` argument of the same name (`Options.from_args`).
+Each game is a profile in `nxnative/dm/games/<title ID>/` with an `android.tsv`: [ARCHITECTURE.md](ARCHITECTURE.md#adding-a-game). A finished port updates, in the profile's commit, [PORT_CHECKLIST.md](PORT_CHECKLIST.md): the list of the games is made from the profiles (`python docs/gen_tables.py` — every profile is a row, an `android.tsv` ticks it, the count follows, and the credit comes from the commit that added the profile; tests/test_docs_tables.py checks the file is what the profiles make). The README keeps no table of the games: the list of the games that play on Android lives upstream, in [the games table](https://github.com/shirai91/nx2android#games). The porter's options: a field of `porter/pipeline.py` `Options` and a `porter port` argument of the same name (`Options.from_args`).
 
 ## Releases and version numbers
 
@@ -102,7 +102,7 @@ The phone app says the same version: its `versionName` in `android/app/build.gra
 
 A release checks only the games it adds or fixes, not the older ones; a break in an older game is fixed by a later patch release. The version is raised by a commit `chore(release): version <x.y.z>`.
 
-The release notes carry a `Community ports` section: the people whose work went into the version, named. `python3 devtools/release_contributors.py` lists the pull requests merged since the last tag and who opened them — paste the list into the notes file. A port that came from the community is credited twice: on the game's line in `docs/PORT_CHECKLIST.md` (`ported by @handle`) and in that section.
+The release notes carry a `Community ports` section: the people whose work went into the version, named. `python3 devtools/release_contributors.py` lists the pull requests merged since the last tag and who opened them — paste the list into the notes file. A port that came from the community is credited twice: on the game's line in `docs/PORT_CHECKLIST.md` (`ported by @handle`, written there by `python3 docs/gen_tables.py`) and in that section.
 
 ## Building the bundle
 
