@@ -25,7 +25,20 @@ object AgentExtensions {
      * anything at all.
      */
     fun paths(runtimeDir: File, names: List<String>): List<String> = names.mapNotNull { name ->
-        File(runtimeDir, "extensions/$name/index.js").takeIf { it.isFile }?.absolutePath
+        entryPoint(File(runtimeDir, "extensions/$name"))?.absolutePath
+    }
+
+    /**
+     * The extension's own entry point: the folder's index.js, or the one inside the folder it is
+     * built into (a packaged extension keeps its sources and its dist/ side by side).
+     */
+    private fun entryPoint(folder: File): File? {
+        val direct = File(folder, "index.js")
+        if (direct.isFile) return direct
+        if (!folder.isDirectory) return null
+        return folder.walkTopDown().maxDepth(2)
+            .filter { it.isFile && it.name == "index.js" }
+            .minByOrNull { it.path.length }
     }
 
     /**

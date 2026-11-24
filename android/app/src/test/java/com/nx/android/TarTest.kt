@@ -66,6 +66,28 @@ class TarTest {
         assertTrue("the progress is told", written > 0)
     }
 
+    /**
+     * The assistant's engine travels in the same archive: it lands in the assistant's own folder, in the
+     * engine's own folder inside it.
+     */
+    @Test
+    fun anArchiveWithTheEngine() {
+        val dir = Files.createTempDirectory("nx2a-tar").toFile()
+        val rootfs = File(dir, "rootfs")
+        val tool = File(dir, "tool")
+        val agent = File(dir, "agent")
+        val tar = archive(
+            "rootfs/usr/bin/python3.13" to "#!/bin/sh\n",
+            "agent/runtime/pi" to "the engine\n",
+            "agent/runtime/manifest.json" to "{}\n",
+        )
+        Tar.unpack(tar.inputStream(), mapOf("rootfs" to rootfs, "tool" to tool, "agent" to agent))
+
+        assertEquals("the engine\n", File(agent, "runtime/pi").readText())
+        assertEquals("{}\n", File(agent, "runtime/manifest.json").readText())
+        assertFalse("the assistant's data is not the environment's", File(agent, "models.json").exists())
+    }
+
     /** A small ustar archive: the files it holds, in the order they are given */
     private fun archive(vararg entries: Pair<String, String>): ByteArray {
         val out = java.io.ByteArrayOutputStream()

@@ -23,10 +23,11 @@ import org.json.JSONObject
 /**
  * The environment the porter runs in.
  *
- * The app is a shell: it unpacks the environment (the rootfs and the tool's tree, in one archive) into its files
- * folder, and runs the porter inside it. The guest programs are Linux binaries: Android has no /lib and the guest
- * is not a chroot, so they are started through the rootfs's dynamic loader, and the programs the porter starts
- * itself (the compiler, the .NET runtime) get their interpreter path rewritten to the app's own rootfs.
+ * The app is a shell: it unpacks the environment (the rootfs, the tool's tree and the assistant's engine, in
+ * one archive) into its files folder, and runs the porter inside it. The guest programs are Linux binaries:
+ * Android has no /lib and the guest is not a chroot, so they are started through the rootfs's dynamic loader,
+ * and the programs the porter starts itself (the compiler, the .NET runtime) get their interpreter path
+ * rewritten to the app's own rootfs.
  */
 @Singleton
 class Env @Inject constructor(@ApplicationContext private val ctx: Context, private val paths: AppPaths) : EnvironmentSetup, GuestProcessLauncher {
@@ -56,6 +57,12 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
     val home = paths.home
     val nxHome = paths.nxHome
     val tmp = paths.tmp
+
+    /** The assistant's own folder: it holds the engine, the models and the conversations. */
+    val agent = paths.agent
+
+    /** The engine's folder inside it: the environment's rebuild puts the engine there. */
+    val agentRuntime = paths.agentRuntime
 
     /** 移植产出的数据包：移植器写在这里（NX2A_WORK 的旁边），游戏库也只在这里找包 */
     val ports = paths.ports
@@ -194,16 +201,16 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
         // The tree has to GO, not just be written over: the port compiles every source it finds (build.py globs
         // dm/android/*.c), so a file the new archive no longer has - a renamed one - would be compiled next to
         // its replacement, and the link would die on duplicate symbols.
-        // These two folders and nothing else: the player's nx2android folder (nxHome) keeps what he has - the
+        // These three folders and nothing else: the player's nx2android folder (nxHome) keeps what he has - the
         // imported profiles, the build products, the assistant's own folder - so a rebuild never takes the
-        // assistant's data with it.
-        rootfs.deleteRecursively()
-        tool.deleteRecursively()
+        // assistant's data with it. The engine's own folder (agent/runtime) goes with the environment: it is
+        // the environment's part of the assistant.
+        for (dir in EnvPayload.replaced(rootfs, tool, agentRuntime)) dir.deleteRecursively()
         val bytes = payloadBytes()
         val total = if (bytes > 0) bytes else 1L
         ctx.assets.open(PAYLOAD_ASSET).use { raw ->
             GZIPInputStream(raw).use { gz ->
-                Tar.unpack(gz, mapOf("rootfs" to rootfs, "tool" to tool)) { written ->
+                Tar.unpack(gz, EnvPayload.roots(rootfs, tool, agent)) { written ->
                     onProgress(((written * 100) / total).toInt().coerceIn(0, 99))
                 }
             }
@@ -276,13 +283,16 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
     /**
      * Rewrites the interpreter of the programs that are started directly (the compiler, the .NET runtime): Android
      * has no /lib, and the rootfs the payload carries was built for another app's path.
+     *
+     * The assistant's engine is one of them: it comes out of the payload as it was built, so it needs the same
+     * rewrite. It goes through here too, so a rebuild that brought a new engine brings a patched one.
      */
     override fun patchInterpreters() {
         Log.i(TAG, "python3.13 before patching: ${python.length()} bytes")
         val script = File(tool, "tools/patch_interp.py")
         if (!script.exists()) throw IOException("The interpreter patch tool is missing")
         val targets = listOf(File(tool, "toolchain"), File(rootfs, "usr/bin"), File(rootfs, "usr/sbin"),
-                              File(tool, "tools/nx_extract"))
+                              File(tool, "tools/nx_extract"), File(agentRuntime, "pi"))
             .filter { it.exists() }
         nxHome.mkdirs()
         for (t in targets) {
@@ -304,36 +314,6 @@ class Env @Inject constructor(@ApplicationContext private val ctx: Context, priv
                 throw IOException("The build tools could not be prepared", e)
             }
             Log.i(TAG, "python3.13 after patching: ${python.length()} bytes")
-        }
-    }
-
-    /**
-     * A program that is started in the guest needs its interpreter path pointed at this phone's
-     * loader — the way the payload's own binaries carry it. The engine binary is one of them: it
-     * comes from a package, and the package ships it as it was built.
-     *
-     * @return whether the program was patched
-     */
-    override fun patchInterpreter(file: File): Boolean {
-        val script = File(tool, "tools/patch_interp.py")
-        if (!script.exists() || !file.isFile) return false
-        val log = File(nxHome, "patch-engine.log")
-        return try {
-            val pb = ProcessBuilder(
-                loader.absolutePath, python.absolutePath,
-                script.absolutePath, file.absolutePath, interpPath,
-            )
-            pb.directory(tool)
-            pb.redirectErrorStream(true)
-            pb.redirectOutput(log)
-            pb.environment().putAll(guestEnv())
-            val p = pb.start()
-            val code = p.waitFor()
-            Log.i(TAG, "patch ${file.name}: exit $code")
-            code == 0
-        } catch (e: Exception) {
-            Log.e(TAG, "patch ${file.name}: ${e.message}")
-            false
         }
     }
 

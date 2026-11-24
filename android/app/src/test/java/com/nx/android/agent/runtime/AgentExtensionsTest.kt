@@ -36,6 +36,19 @@ class AgentExtensionsTest {
     }
 
     @Test
+    fun `an extension that is built into a folder of its own is found there`() {
+        // the packaged extension keeps its sources and the built one side by side
+        val dir = File(tmp.root, "runtime/extensions/pi-subagents/dist")
+        dir.mkdirs()
+        File(dir, "index.js").writeText("export default 1;")
+
+        val paths = AgentExtensions.paths(File(tmp.root, "runtime"), listOf("pi-subagents"))
+
+        assertEquals(1, paths.size)
+        assertTrue(paths[0].endsWith("runtime/extensions/pi-subagents/dist/index.js"))
+    }
+
+    @Test
     fun `the settings keep what the engine already wrote`() {
         val settings = AgentExtensions.settingsWith("""{"packages":["npm:foo"]}""", listOf("/a/index.js"))
 

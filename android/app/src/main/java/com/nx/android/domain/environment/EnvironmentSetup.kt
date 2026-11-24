@@ -1,7 +1,5 @@
 package com.nx.android.domain.environment
 
-import java.io.File
-
 /** Operations that prepare and validate the bundled Android porter environment. */
 interface EnvironmentSetup {
     val ready: Boolean
@@ -20,13 +18,9 @@ interface EnvironmentSetup {
      */
     fun rebuild(onProgress: (Int) -> Unit)
 
-    fun patchInterpreters()
-
     /**
-     * A program that is started in the guest needs its interpreter path pointed at this phone's
-     * loader — the way the payload's own binaries carry it.
-     *
-     * @return whether the program was patched
+     * Rewrites the interpreter of the programs that are started in the guest (the compiler, the .NET runtime,
+     * the assistant's engine): Android has no /lib, so their own path is pointed at this phone's loader.
      */
-    fun patchInterpreter(file: File): Boolean
+    fun patchInterpreters()
 }

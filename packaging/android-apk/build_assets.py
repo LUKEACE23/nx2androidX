@@ -12,7 +12,8 @@ driver's hooks add their own files to it afterwards (--finalize packs it again).
 build takes as the app's assets:
 
     <apk>/payload.tar.gz   the environment in one archive: rootfs/ and tool/ (the tool's tree, the compiler, the
-                           .NET runtime). The permissions travel with the files: the APK's assets carry none.
+                           .NET runtime) and agent/ (the assistant's engine). The permissions travel with the
+                           files: the APK's assets carry none.
     <apk>/payload-stamp    the archive's SHA-256: the app compares it with the one the environment was built with
     <apk>/drivers/         the Vulkan driver the app ships (Mesa's Turnip), unpacked by the app itself
     <apk>/manifest.json    what is in there and what it is for
@@ -213,6 +214,146 @@ def driver_archive(cache: Path, out: Path):
     return target
 
 
+# The assistant's engine (Pi): it travels inside the environment, so a player has the assistant without
+# downloading anything. The packages live in the pi-respack repository's releases; the newest one goes in.
+ENGINE_REPO = 'https://github.com/NixPort/pi-respack'
+ENGINE_FEED = f'{ENGINE_REPO}/releases.atom'
+ENGINE_PACKAGE = re.compile(r'(pi-agent-r[A-Za-z0-9._-]+\.zip)')
+
+
+def fetch_body(url: str) -> str:
+    """A page's body (the release feed and the asset list are small ones)"""
+    req = urllib.request.Request(url, headers={'User-Agent': 'nx2android-android-apk'})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return r.read().decode('utf-8', 'replace')
+
+
+def engine_release():
+    """The newest release's tag and the engine package it carries (None when the repository did not answer)"""
+    feed = fetch_body(ENGINE_FEED)
+    tag = None
+    for body in re.findall(r'<entry>(.*?)</entry>', feed, re.S):
+        m = re.search(r'/releases/tag/([^"<>/]+)', body)
+        if m:
+            tag = m.group(1)
+            break
+    if not tag: return None
+    html = fetch_body(f'{ENGINE_REPO}/releases/expanded_assets/{tag}')
+    names = ENGINE_PACKAGE.findall(html)
+    return (tag, names[0]) if names else None
+
+
+def engine_package(cache: Path) -> Path:
+    """The engine package the app ships: the newest one the repository carries, fetched once and kept in the
+    cache (the download needs the network)."""
+    folder = cache / 'pi-respack'
+    folder.mkdir(parents=True, exist_ok=True)
+    try:
+        latest = engine_release()
+    except Exception as e:
+        latest = None
+        print(f'   the engine repository did not answer: {e}')
+    if latest is None:
+        # the repository did not answer: the cached package goes in (the build does not stop for it)
+        cached = sorted(folder.glob('pi-agent-r*.zip'))
+        if not cached:
+            raise SystemExit('the engine package is missing (the repository did not answer and the cache is empty)')
+        print(f'>> the assistant\'s engine (from the cache: {cached[-1].name})')
+        return cached[-1]
+    tag, name = latest
+    target = folder / name
+    if not target.exists():
+        print(f'>> the assistant\'s engine ({name})')
+        url = f'{ENGINE_REPO}/releases/download/{tag}/{name}'
+        req = urllib.request.Request(url, headers={'User-Agent': 'nx2android-android-apk'})
+        part = target.with_suffix('.part')
+        with urllib.request.urlopen(req, timeout=300) as r, open(part, 'wb') as f:
+            shutil.copyfileobj(r, f, 1 << 20)
+        part.replace(target)
+    return target
+
+
+# The app's own version (android/app/build.gradle.kts) and the one an engine package asks for: the shape the
+# app reads (0.4.0-alpha03). Numbers, not strings: "0.10" is newer than "0.9".
+VERSION = re.compile(r'^v?(\d+)\.(\d+)\.(\d+)(?:-([a-z]+)(\d+))?$', re.IGNORECASE)
+LEGACY_VERSION = re.compile(r'^v?(\d+)\.(\d+)-android(?:\.\d+)?$', re.IGNORECASE)
+STAGES = {'alpha': 0, 'beta': 1, 'rc': 2, '': 3}
+
+
+def parse_version(text: str):
+    """A version as the app reads it: the base, the stage's place, the stage's number. None when it is unreadable."""
+    t = text.strip()
+    m = VERSION.match(t)
+    if m:
+        stage = (m.group(4) or '').lower()
+        if stage not in STAGES: return None
+        return (int(m.group(1)), int(m.group(2)), int(m.group(3)), STAGES[stage], int(m.group(5) or 0))
+    m = LEGACY_VERSION.match(t)
+    if m:
+        return (int(m.group(1)), int(m.group(2)), 0, STAGES['alpha'], 1)
+    return None
+
+
+def app_version() -> str:
+    """The version of the app this build makes"""
+    text = (REPO / 'android/app/build.gradle.kts').read_text(encoding='utf-8')
+    m = re.search(r'versionName\s*=\s*"([^"]+)"', text)
+    return m.group(1) if m else ''
+
+
+def stage_engine(package: Path, out: Path) -> dict:
+    """The engine out of its package: checked against the package's own manifest, then unpacked where the
+    environment's archive takes it (agent/runtime).
+
+    The checks are the build's own: the manifest says which binary the package carries and which app it
+    needs. A package that does not hold up to its manifest, or that needs a newer app than this build is,
+    stops the build here - not on the player's phone."""
+    import zipfile
+    with zipfile.ZipFile(package) as z:
+        try:
+            manifest = json.loads(z.read('manifest.json'))
+        except KeyError:
+            raise SystemExit(f'android-apk: the engine package {package.name} carries no manifest')
+        name = str(manifest.get('name', '')).strip()
+        version = str(manifest.get('version', '')).strip()
+        sha = str(manifest.get('sha256', '')).strip().lower()
+        need = str(manifest.get('minAppVersion', '')).strip()
+        if not (name and version and sha):
+            raise SystemExit(f'android-apk: the engine package {package.name} says too little about itself')
+        digest = hashlib.sha256()
+        with z.open('pi') as f:
+            for chunk in iter(lambda: f.read(1 << 20), b''):
+                digest.update(chunk)
+        if digest.hexdigest() != sha:
+            raise SystemExit(f'android-apk: the engine package {package.name} is not the one its manifest describes')
+        mine = app_version()
+        need_v, mine_v = parse_version(need), parse_version(mine)
+        if need_v and mine_v and need_v > mine_v:
+            raise SystemExit(
+                f'android-apk: the engine {version} needs the app {need} or newer (this build is {mine})')
+        target = out / 'agent' / 'runtime'
+        if target.exists(): shutil.rmtree(target)
+        target.mkdir(parents=True)
+        for member in z.infolist():
+            if member.is_dir(): continue
+            parts = Path(member.filename).parts
+            if not member.filename or member.filename.startswith('/') or '..' in parts: continue
+            path = target / member.filename
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with z.open(member) as src, path.open('wb') as dst:
+                shutil.copyfileobj(src, dst, 1 << 20)
+    binary = target / 'pi'
+    if not binary.is_file():
+        raise SystemExit('android-apk: the engine package carries no pi binary')
+    # the archive carries the permissions, the package does not: the engine is a program
+    binary.chmod(0o755)
+    if not os.access(binary, os.X_OK):
+        raise SystemExit('android-apk: the engine binary is not executable')
+    print(f'   the engine {version} ({package.stat().st_size / 2**20:.1f} MB packed, '
+          f'{sum(m.file_size for m in zipfile.ZipFile(package).infolist()) / 2**20:.0f} MB unpacked)')
+    return manifest
+
+
 def dotnet_runtime(cache):
     """The .NET runtime for an ARM64 Linux host: the newest one of the major the port builds with, checked against the
     SHA-512 in Microsoft's release list. The runtime, not the SDK: the phone only runs the two C# tools (nx_extract and
@@ -293,8 +434,8 @@ def add_tarball(out: tarfile.TarFile, source: Path, prefix: str) -> int:
 def payload_archive(assets: Path, apk: Path) -> int:
     """Packs the environment into one archive and stamps it. The bytes it holds unpacked are returned.
 
-    The archive's first path segment says where a file goes (rootfs/ or tool/), so the app puts the two trees
-    where they belong in one pass. The permissions travel with the files: the APK's assets carry none, a tar does."""
+    The archive's first path segment says where a file goes (rootfs/, tool/ or agent/), so the app puts the
+    trees where they belong in one pass. The permissions travel with the files: the APK's assets carry none, a tar does."""
     apk.mkdir(parents=True, exist_ok=True)
     # The name is not .gz on purpose: the build's asset pipeline takes a .gz asset for a compressed one, takes it
     # apart and stores it again. The .pkg name leaves the archive alone (the app reads the gzip stream itself).
@@ -306,6 +447,9 @@ def payload_archive(assets: Path, apk: Path) -> int:
         # the toolchain: the compiler and the .NET runtime, the one folder the porter's own tools live in
         size += add_tree(out, assets / 'toolchain', 'tool/toolchain')
         size += add_tarball(out, assets / 'dotnet.pkg', 'tool/toolchain/dotnet')
+        # the assistant's engine: it lives in the assistant's own folder (agent/runtime), and the environment's
+        # rebuild puts it there - the player never installs it
+        size += add_tree(out, assets / 'agent', 'agent')
     digest = hashlib.sha256()
     with archive.open('rb') as f:
         for chunk in iter(lambda: f.read(1 << 20), b''):
@@ -402,6 +546,11 @@ def main():
     # when it starts (the archive travels; the library does not). It is not part of the environment: the app puts
     # it in its own place and the player picks it there.
     driver_archive(cache, apk / 'drivers')
+
+    # The assistant's engine: it travels in the environment, so the player has the assistant without downloading
+    # anything. The newest package the engine repository carries goes in; a package that does not hold up to its
+    # own manifest stops the build here.
+    stage_engine(engine_package(cache), out)
 
     # The game profiles: the app does not carry them (half a gigabyte of shader tables), the player imports a
     # package into their own folder. The package is cut here, beside the app that does not carry it, and the

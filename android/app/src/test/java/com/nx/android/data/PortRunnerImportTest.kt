@@ -72,6 +72,5 @@ class PortRunnerImportTest {
         override fun needsRebuild() = false
         override fun rebuild(onProgress: (Int) -> Unit) {}
         override fun patchInterpreters() {}
-        override fun patchInterpreter(file: File) = false
     }
 }

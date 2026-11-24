@@ -1,5 +1,7 @@
 package com.nx.android.domain.environment
 
+import java.io.File
+
 /**
  * The rule of the environment's build.
  *
@@ -24,4 +26,24 @@ object EnvPayload {
         // a phone with no environment yet is not a rebuild: the first install is the guided setup's business
         return environmentThere
     }
+
+    /**
+     * The folders a rebuild replaces: the environment itself (the rootfs and the tool tree) and the
+     * assistant's engine, which comes with it.
+     *
+     * The player's data is not among them: the porter's folder (the imported profiles, the build products)
+     * and the assistant's own folder (its models, its conversations) stay. The engine has its own folder
+     * inside the assistant's, so only that one goes.
+     */
+    fun replaced(rootfs: File, tool: File, agentRuntime: File): List<File> =
+        listOf(rootfs, tool, agentRuntime)
+
+    /**
+     * Where the archive's trees land on the phone: the first segment of a path says which one it is.
+     *
+     * The assistant's tree lands in the assistant's own folder, so the engine arrives with the environment
+     * and the assistant's data sits beside it.
+     */
+    fun roots(rootfs: File, tool: File, agent: File): Map<String, File> =
+        mapOf("rootfs" to rootfs, "tool" to tool, "agent" to agent)
 }

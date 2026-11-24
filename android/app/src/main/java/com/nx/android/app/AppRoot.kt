@@ -574,6 +574,10 @@ fun MainScreen(
     val installedDrivers by drivers.drivers.collectAsStateWithLifecycle()
     // 助手准备好了才有入口：开关、引擎与模型都齐了才是
     val agentReady = agentSetup.ready
+    // 引擎随环境来：环境换过（新装的、覆盖安装的），助手的事实要重读一遍，入口才跟着出现
+    LaunchedEffect(environmentCheckViewModel.checks.preparing) {
+        if (!environmentCheckViewModel.checks.preparing) agentSetup.refresh()
+    }
 
     // 选中游戏的背景铺满整块屏幕：顶栏透明画在图上，三个 tab 共用这层背景
     // agent 抽屉的磨砂：页面这两层被抽屉捕获做背景模糊（hazeSource → hazeBlur）

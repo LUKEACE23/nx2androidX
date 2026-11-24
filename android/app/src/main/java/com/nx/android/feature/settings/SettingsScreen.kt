@@ -157,7 +157,7 @@ fun SettingsScreen(ob: OnboardingState, build: EnvBuildState, drivers: List<Driv
                         SettingsSection.STORAGE -> StorageSection(storageViewModel)
                         SettingsSection.DRIVERS -> DriversSection(drivers, driverRepository, actions, onRequest, onDrivers)
                         SettingsSection.DISPLAY -> DisplaySection(actions, onRequest)
-                        SettingsSection.AGENT -> AgentSettingsSection(agentViewModel, onRequest)
+                        SettingsSection.AGENT -> AgentSettingsSection(agentViewModel)
                         SettingsSection.ABOUT -> AboutSection(ob, update, actions)
                     }
                 }

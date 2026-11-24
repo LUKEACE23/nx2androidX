@@ -26,26 +26,22 @@ import com.nx.android.R
 import com.nx.android.agent.runtime.AgentModelProfile
 import com.nx.android.core.ui.components.InfoRow
 import com.nx.android.core.ui.theme.NxPalette
-import com.nx.android.feature.filepicker.PickerMode
-import com.nx.android.feature.filepicker.PickerRequest
 
 /**
  * The assistant's settings: the engine and the models.
  *
- * Two things, no cards and no explanations: the engine (one row — the dialog it opens holds the two
- * ways to get one) and the models (one row each). The rest of the settings page is made of rows like
- * these, so this section is made of rows like these too.
+ * Two things, no cards and no explanations: the engine (one row — it shows which one is in, and the
+ * player never installs it: it comes with the app) and the models (one row each). The rest of the
+ * settings page is made of rows like these, so this section is made of rows like these too.
  */
 @Composable
-fun AgentSettingsSection(viewModel: AgentSettingsViewModel, onRequest: (PickerRequest) -> Unit) {
+fun AgentSettingsSection(viewModel: AgentSettingsViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var engineDialog by remember { mutableStateOf(false) }
     var adding by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<AgentModelProfile?>(null) }
     var deleting by remember { mutableStateOf<AgentModelProfile?>(null) }
-    val pickTitle = stringResource(R.string.agent_engine_pick)
 
-    // the engine: one row. The dialog it opens does the work (download, import)
+    // the engine: one row, and it only says which one is in
     InfoRow(
         title = stringResource(R.string.agent_engine_label),
         value = when {
@@ -53,7 +49,6 @@ fun AgentSettingsSection(viewModel: AgentSettingsViewModel, onRequest: (PickerRe
             state.engineVersion.isBlank() -> stringResource(R.string.agent_engine_ready)
             else -> state.engineVersion
         },
-        onClick = { engineDialog = true },
     )
 
     // the models: one row each. The row picks the model; the pencil edits it.
@@ -88,34 +83,6 @@ fun AgentSettingsSection(viewModel: AgentSettingsViewModel, onRequest: (PickerRe
         value = "+",
         onClick = { adding = true },
     )
-
-    if (engineDialog) {
-        AgentEngineDialog(
-            state = state,
-            onDownload = { viewModel.downloadLatest() },
-            onImport = {
-                // 弹框是它自己的窗口：它会盖在文件选择器上面。所以先把弹框关掉，选完再开回来。
-                engineDialog = false
-                onRequest(
-                    PickerRequest(
-                        mode = PickerMode.FILE,
-                        extensions = setOf("zip"),
-                        initial = null,
-                        title = pickTitle,
-                        onPicked = { file ->
-                            viewModel.importPackage(file)
-                            engineDialog = true
-                        },
-                    ),
-                )
-            },
-            onDismiss = {
-                // 取消随时可用：正在做的动作被叫停，弹框关掉
-                viewModel.cancelActive()
-                engineDialog = false
-            },
-        )
-    }
 
     if (adding) {
         AgentModelDialog(
