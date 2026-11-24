@@ -59,6 +59,7 @@ added it is the one to read for the details.
 | Unreal pak v4 (legacy) | the footer version 4 | yes (`ue_legacy_shaders`) | `#76` (only the paks that need the device decoder count) |
 | Unreal pak v8 | the footer version 8 | yes | `#472` |
 | Unreal pak v11 (modern) | the footer version 11 | yes, and it is **skipped** (`ue_modern_pack`) | `#402` |
+| Unreal pak v11 with the shaders inline in the cooked packages | the footer version 11, no `.ushaderbytecode` in the index, and `.uexp` and `globalshadercache-*.bin` entries | **no** - the split skips every version-11 pak, so the build stops at "UE shader decode" | `#484` |
 | IoStore `.utoc` / `.ucas` | the extension, TOC version 3 | yes (`ue_inline_shaders`) | `#429` (the inline LZ4 blocks), `#473` (an IoStore-only shader library is not "no Unreal step") |
 | NintendoWare Vfx | **nowhere** | no | `#286`, `#505` |
 | RPF6 (Rockstar) | the `RPF6` magic: the game's RomFS is nothing but RPF6 archives | **no** - the reader is in the phone's case file (`nxnative/dm/gfx/tools/rpf6.py`), not in this checkout | the engine's `seedds/nxnative#2005` |
@@ -80,6 +81,10 @@ Two rules from the long tail of these:
   zstd-compressed, so the split's magic scan sees nothing at all: the split found 0 shaders
   where the game has 3 628. The key is never written to disk - it is searched for in `main`,
   where the key setup code keeps the eight key words as four 16-byte constants.
+- **An entry nothing decodes is counted, not a stop.** A GFPAK, a Trinity pack and a PKZ
+  entry that no decoder answers are left out with a red line and a count, so the rest of the
+  game's shaders are still found. The split stops only when the container itself cannot be
+  read.
 
 ## What the split gets wrong
 
@@ -169,7 +174,10 @@ memory come from the control section at `+0x748` and `+0x754` (`#91`).
 3. **Unreal?** Read the pak footer version. Version 4 is the legacy zlib route; version 8
    is `#472`; **version 11 is not read at all** - find the shader code archives instead
    (`#402`). A pak with no `.ushaderbytecode` carries its shaders inline, LZ4, in the IoStore
-   export bundles (`#429`).
+   export bundles (`#429`); a game cooked with the shared material shader code off keeps them
+   inline in the cooked packages of its one pak (`#484`), which this tree does not read
+   either - the port stops at "UE shader decode" with the message that the RomFS holds no
+   shader code archive.
 4. **Does `main` import `glslc*`?** Then the game has no shader files at all and the bundle
    is capture-only. A classifier that says GL for such a game skips every draw (`#483`).
 5. **Unity?** Check the version and whether the type trees are there; compare the type hash

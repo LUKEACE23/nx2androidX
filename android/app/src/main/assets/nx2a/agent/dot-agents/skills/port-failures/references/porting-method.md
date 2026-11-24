@@ -69,6 +69,49 @@ census: a mismatch means the rewriter met something it does not handle.
 These run on a computer with the game's files at hand. On the phone the porter runs the
 stages it needs; the profile that comes out carries what was measured.
 
+### A driver A/B: compare the same pass, not the frame rate
+
+The driver is a setting, so a driver change is measured like any other change - but the
+frame rate is the wrong number for it: the pacing, the frame rate pin and the game's own
+resolution all move with the driver, and none of them changes what a pass costs.
+
+1. **Anchor the two runs on the same moment.** A scene change prints its viewport calls
+   (`[nvn] viewport 1360x768 from ...`) within one millisecond. That line is the anchor,
+   and the first frame after it is the frame to compare.
+2. **Compare the pass list index for index.** The pass order has to agree, and the draw
+   counts with it (within a few percent), before the times mean anything.
+3. **Read the passes in two groups.** The passes with real fragment work follow the
+   driver's fill rate; the passes with a fixed cost (a one-draw resolve, a UI composite)
+   follow its overhead. A driver can be much slower at one and much faster at the other -
+   a measured case: 3.0-4.8x slower on the four fragment-bound passes and 1.6-3.8x
+   *faster* on the two fixed-cost ones. "5-10x slower" was the wrong summary; "3-5x
+   slower exactly where this port already loses its frames" was the right one.
+4. **Name the settings that moved with the driver.** The frame rate pin (`DM_FPS_PIN`),
+   the dynamic resolution steering (`DM_DYN_SCALE`) and the GPU clock (`DM_GPU_TURBO`)
+   change what a burst costs the player without changing what a pass costs. The clock is
+   the exclusion: a driver that is still slow at its highest clock is not slow because of
+   heat or of a clock that never got there.
+
+### A profile that was synced without its tools
+
+A profile is data; the tools it names are code. A profile that arrives from upstream, or
+from another phone, may name rules **this tree does not have**: an engine-wide rule file
+(the engine upstream's `ue_region` rule), an observation gate the host does not know
+(`OBS_UE_REGION`), a key the profile's own table is read by. Nothing says so in the
+profile - it reads as a normal profile.
+
+The symptom is always the same: the game asks for something the tree cannot give, and the
+log says it in the game's own words. Unreal asks for a 62 GB engine region, the alias
+region is 3.12 GB, the request is refused (`AllocateAddressRegion ... refused`, `0x1803`),
+and the game aborts in `nninitStartup` before the title screen.
+
+**Check the profile against the tree before the port:** every file, gate and key its
+comments name has to exist here. A profile that names a rule this tree lacks is not
+broken - it is a profile for another tree. The fix is then either the missing tool (a
+general one, into the core) or the per-game configuration this tree does support (into the
+profile), and the two are not the same work: the first is a port's worth of engine work,
+the second a row.
+
 ## 2. Read the log
 
 The run's log is `log.txt` in the data pack folder, and the **previous** run's is

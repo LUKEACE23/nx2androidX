@@ -220,8 +220,8 @@ in seconds.
 
 ## How to work a build failure
 
-1. **Read the stage and the first error.** `builds.py` gives the stage it stopped at and the
-   first error of the failed build; the full log is in `$NX2A_HOME/builds/<id>/log.txt`.
+1. **Read the stage and the first error.** `builds.py` gives the stage the port stopped at and
+   the first error of the failed build; the full log is in `$NX2A_HOME/builds/<id>/log.txt`.
 2. **Do not read the game files.** The profile, the dump and the logs are enough; the game's
    own files stay in the player's own folder.
 3. **Check the version first.** Most stops are a dump that is not the build the profile
