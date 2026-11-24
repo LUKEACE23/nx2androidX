@@ -86,6 +86,14 @@ data class AgentSubagentCall(
     val toolCallId: String? = null,
 )
 
+/**
+ * 切会话之前要不要问玩家一句：当前会话有正在跑的子任务时，要问。
+ *
+ * 子代理跟着会话活——切走会把正在跑的那些掐断（引擎那边不会为它们留下记录）。这个判断
+ * 只有一条：有没有还在跑的。
+ */
+fun needsConfirmBeforeSwitch(runs: List<AgentSubagent>): Boolean = runs.any { it.running }
+
 /** Reads the sub-agent out of a tool call's arguments. */
 object AgentSubagentCallParser {
 

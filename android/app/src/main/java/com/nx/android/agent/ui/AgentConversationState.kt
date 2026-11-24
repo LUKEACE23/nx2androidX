@@ -10,6 +10,7 @@ import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentSubagent
 import com.nx.android.agent.AgentSubagentCall
 import com.nx.android.agent.AgentTextBatch
+import com.nx.android.agent.needsConfirmBeforeSwitch
 import com.nx.android.data.Gamespec
 import com.nx.android.agent.env.PiHistoryMapper
 import com.nx.android.agent.env.PiRunner
@@ -90,7 +91,22 @@ data class AgentUiState(
      * App 不去档案里猜。
      */
     val caseProgress: String? = null,
+
+    /**
+     * 待确认的会话切换：当前会话有正在跑的子任务，玩家点了切会话。
+     *
+     * `target` 是要切过去的会话文件；`null` 是「新会话」。
+     */
+    val switchAsk: AgentSwitchAsk? = null,
 )
+
+/**
+ * 一次待确认的会话切换：当前会话有正在跑的子任务，玩家点了切会话或新会话。
+ *
+ * 子代理跟着会话活——切走会把正在跑的那些掐掉。这件事该不该做是玩家的决定，App 只负责
+ * 把代价说清楚（几个任务在跑、切过去会中断它们）。
+ */
+data class AgentSwitchAsk(val target: String?, val running: Int)
 
 /**
  * The assistant's conversation, app-wide: one copy of the messages, of the turn that runs and of
@@ -144,6 +160,9 @@ class AgentConversationState @Inject constructor(
 
     /** 档案时间线上的最新一条：子代理记下的进展 */
     @Volatile private var caseProgress: String? = null
+
+    /** 待确认的会话切换：有子任务在跑，玩家点了切会话 */
+    @Volatile private var switchAsk: AgentSwitchAsk? = null
 
     /** 子 Agent 在跑的时候，面板要看得见它在干啥：两秒读一次它的 transcript */
     private var subagentWatch: Job? = null
@@ -236,6 +255,7 @@ class AgentConversationState @Inject constructor(
             subagents = subagents,
             subagentRuns = subagentRuns,
             caseProgress = caseProgress,
+            switchAsk = switchAsk,
         )
         // markdown 的 AST 在这里备：读到的历史一落地就开始解析，首开抽屉时高度已经是最终值。
         markdownCache.ensureAll(conversation.messages, conversation.streamingId)
@@ -258,6 +278,52 @@ class AgentConversationState @Inject constructor(
         if (conversation.running || path == activePath) return
         historyLoaded = false
         load(prefer = path)
+    }
+
+    /**
+     * 切会话（新会话也算）：当前会话有正在跑的子任务时，先问玩家一句。
+     *
+     * 子代理跟着会话活——切走会把正在跑的那些掐掉，引擎那边不会为它们留下记录。所以这一步
+     * 是替玩家挡一下：要不要拿那几份正在干的活去换一段新对话，是他的决定，App 只把代价
+     * 说清楚。没有子任务在跑时不打扰，直接切。
+     *
+     * @param target 要切过去的会话文件；`null` 是「新会话」
+     */
+    fun requestSwitch(target: String?) {
+        if (conversation.running) return   // 引擎正忙着：现在切不了（切了也是乱的）
+        if (switchAsk != null) return     // 问过了：等玩家答
+        val path = activePath
+        val calls = subagentCalls()
+        scope.launch {
+            // 现场读一次，不用界面上那份：刚派出去的那个子代理也许还没进那份清单
+            val runs = withContext(Dispatchers.IO) { subagentStore.list(path, calls).runs }
+            if (!needsConfirmBeforeSwitch(runs)) {
+                doSwitch(target)
+            } else {
+                switchAsk = AgentSwitchAsk(target, runs.count { it.running })
+                publish()
+            }
+        }
+    }
+
+    /** 玩家确认了：切。 */
+    fun confirmSwitch() {
+        val ask = switchAsk ?: return
+        switchAsk = null
+        publish()
+        doSwitch(ask.target)
+    }
+
+    /** 玩家留下了：不切，那些子任务接着跑。 */
+    fun dismissSwitch() {
+        if (switchAsk == null) return
+        switchAsk = null
+        publish()
+    }
+
+    /** 真的切：新会话是空的一段对话，切过去是换一段对话。 */
+    private fun doSwitch(target: String?) {
+        if (target == null) newSession() else switchSession(target)
     }
 
     /** The menu's new-chat entry: the engine's context resets; the file itself appears at the first prompt. */

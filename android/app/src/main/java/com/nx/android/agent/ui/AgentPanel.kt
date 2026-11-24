@@ -669,7 +669,7 @@ fun AgentPanel(
                                         },
                                         onClick = {
                                             sessionMenu = false
-                                            conversation.switchSession(meta.path)
+                                            conversation.requestSwitch(meta.path)
                                         },
                                     )
                                 }
@@ -686,7 +686,7 @@ fun AgentPanel(
                                     },
                                     onClick = {
                                         sessionMenu = false
-                                        conversation.newSession()
+                                        conversation.requestSwitch(null)
                                     },
                                 )
                             }
@@ -732,6 +732,12 @@ fun AgentPanel(
                 modifier = Modifier.matchParentSize(),
             )
         }
+        // 切会话前的二次确认：有子代理在跑时，玩家先看一眼代价
+        AgentSwitchConfirmDialog(
+            ask = state.switchAsk,
+            onConfirm = { conversation.confirmSwitch() },
+            onDismiss = { conversation.dismissSwitch() },
+        )
         // 「贡献上游」的二次确认：包里是这一局的档案，玩家要拿着它去上游提 issue
         if (exportConfirm) {
             AlertDialog(

@@ -114,6 +114,13 @@ to a sub-agent.
   get_subagent_result (without waiting) and tell the player what it is doing. One
   confirmation, one fix: if the player confirms the same plan twice, say that the fix is
   already running instead of spawning it again.
+- When a sub-agent cannot be found - get_subagent_result says the agent is gone - it was
+  interrupted: the player switched away, or the app went away, while it was working. Its
+  transcript is still on disk, and the spawn tool result in this conversation carries its
+  path ("Output file: ..."). Read the tail of that file to see how far it got, then either
+  resume it (Agent({ resume: "<agent id>" })) or spawn a new task that carries that
+  progress forward. Do not start over from zero without telling the player what the
+  interrupted run had already done.
 - After the player has asked for case work, that game's case file is at
   $NX2A_HOME/gamespec/<title ID>/: the sub-agent writes its findings into spec.md
   there, the app records crashes and rebuilds in events.jsonl there. When the player

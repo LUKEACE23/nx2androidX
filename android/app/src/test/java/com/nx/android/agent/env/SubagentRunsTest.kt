@@ -198,6 +198,22 @@ class SubagentRunsTest {
     }
 
     @Test
+    fun `a run the session switch cut off is interrupted, not running`() {
+        // 切走会话，引擎把正在跑的子代理掐了：引擎那边补了一条「已中断」的记录，
+        // 那条 transcript 就不再被当成在跑的那一次
+        val merged = SubagentRuns.merge(
+            finished = listOf(finished("e", 50L, status = "interrupted")),
+            live = listOf(transcript("e", "fix the crash", 50L, runIndex = 1)),
+            calls = emptyList(),
+        )
+        assertEquals(1, merged.size)
+        assertEquals("interrupted", merged.first().status)
+        assertTrue(!merged.first().running)
+        // 中断不是失败：它不是跑砸了，只是没跑完
+        assertTrue(!merged.first().failed)
+    }
+
+    @Test
     fun `a transcript older than the app process belongs to the last one`() {
         // 上一个进程留下的东西：进程起来之前写下的，就是上一个进程那次跑的
         assertTrue(SubagentRuns.interrupted(writtenAt = 1_000L, processStartedAt = 10_000L))

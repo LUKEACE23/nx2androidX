@@ -718,6 +718,9 @@
     <string name="agent_thinking_fold">思考</string>
     <string name="agent_subagents_stopped">已停止</string>
     <string name="agent_subagents_interrupted">已中断</string>
+    <string name="agent_switch_confirm_title">子 Agent 还在跑</string>
+    <string name="agent_switch_confirm_text">当前会话还有 %1$d 个子 Agent 在跑。切过去会把它们中断——它们会停下，已经做过的部分会留着。</string>
+    <string name="agent_switch_confirm_go">仍要切换</string>
     <string name="agent_run_running_for">已跑 %1$s</string>
     <string name="agent_case_fixed">已修好</string>
     <string name="agent_case_fixed_hint">这局修好了——跑一次看看</string>

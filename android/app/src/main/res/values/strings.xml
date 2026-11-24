@@ -719,6 +719,9 @@
     <string name="agent_thinking_fold">thinking</string>
     <string name="agent_subagents_stopped">stopped</string>
     <string name="agent_subagents_interrupted">interrupted</string>
+    <string name="agent_switch_confirm_title">Sub-agents are still running</string>
+    <string name="agent_switch_confirm_text">%1$d sub-agent(s) are still running in this conversation. Switching away interrupts them: they stop, and only what they have done so far is kept.</string>
+    <string name="agent_switch_confirm_go">Switch anyway</string>
     <string name="agent_run_running_for">running %1$s</string>
     <string name="agent_case_fixed">fixed</string>
     <string name="agent_case_fixed_hint">the case is fixed — run it and see</string>

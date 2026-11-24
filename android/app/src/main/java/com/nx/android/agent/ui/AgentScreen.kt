@@ -181,7 +181,7 @@ fun AgentScreen(
             AgentTopBar(
                 state.config,
                 onBack = onClose,
-                onNewSession = { conversation.newSession() },
+                onNewSession = { conversation.requestSwitch(null) },
                 onOpenSetup = onOpenSettings,
             )
             state.error?.let { reason ->
@@ -240,6 +240,12 @@ fun AgentScreen(
                 )
             }
         }
+        // 切会话前的二次确认：有子代理在跑时，玩家先看一眼代价
+        AgentSwitchConfirmDialog(
+            ask = state.switchAsk,
+            onConfirm = { conversation.confirmSwitch() },
+            onDismiss = { conversation.dismissSwitch() },
+        )
     }
     } // MaterialTheme(agent light)
 }
