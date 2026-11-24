@@ -345,6 +345,36 @@ when. Or `judgement` - reasoned from the code, not checked against the game.
 | a cut for a Nintendo SDK build several games ship | `nxnative/dm/tools/sdk_patches.py` |
 | a host behaviour that uses a fixed module address | behind the build-ID check (`module_t.build_id`), so it never runs on a build it was not found in |
 
+### Writing a cut into the game's own code
+
+A crash in the guest's own code is the one fault the host cannot fix. When the faulting
+instruction reads through a null that the guest itself produced - a lookup that answered
+nothing, a member that is not in its table - the cut is not a workaround but the guest's own
+missing null check, made explicit: the game fails cleanly instead of dying, and it goes on.
+
+The shape of it, from the case it was worked out on (Teenage Mutant Ninja Turtles: Shredder's
+Revenge, `case/0100BB8017F24000-tmnt`):
+
+1. **Read the faulting instruction.** `ldr x8, [x8, #0x40]` with `x8 = 0` is a load through a
+   null pointer; the register that holds the null was loaded a few instructions earlier.
+2. **Find who put it there.** A helper that returns a lookup's result leaves it in the return
+   register, so the value is often already in hand where the guest loads it again: the load is
+   redundant, and the cut can be `ldr x8, [sp, #0x10]` → `cbz x8, <the helper's own return
+   path>` - the guest's null check becomes the branch's path, and the helper returns the null
+   it already has.
+3. **Cut the uses of the null too.** The guest calls through the member it looked up, and one
+   branch that skips the *first* call still crashes inside the *next* one: the branch has to
+   skip all of them and land on the join point after the last, not the one after the first.
+   (The first version of that cut skipped only the first call, and the next run died inside the
+   second one.)
+4. **Leave the good case bit-for-bit unchanged.** The branch is not taken when the lookup
+   answered, so the code runs exactly as before - the cut costs the game nothing.
+5. **Verify on the device.** The crash is gone, the game gets past that point, and the thing
+   that failed cleanly (here: the intro video does not play) is the only thing missing.
+
+Two 4-byte cuts did it, in the game's own module, keyed by its build ID. The rewriter asserts
+the original bytes, so a wrong offset fails loudly instead of quietly.
+
 ## 7. The discipline
 
 **Find the root cause and fix it there.** Before changing code, find why it happens: the
