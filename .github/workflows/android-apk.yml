@@ -19,7 +19,7 @@
 # A tag's build also tells the QQ group: the announcement (the version, the release's Chinese changelog, the
 # release's page and the netdisk link) goes out once the APK is attached. It is an extra: it never fails the
 # build. The bot's tickets are the repository's secrets (QQBOT_APP_ID, QQBOT_APP_SECRET, QQBOT_GROUP_OPENID).
-name: Android app
+name: NX2A Custom Build
 
 on:
   workflow_dispatch:   # a build of the branch, kept as the run's artifact
