@@ -54,8 +54,12 @@ class GamespecExporter @Inject constructor(
     }
 
     companion object {
-        /** 提 issue 的页面：玩家拿着导出的包去那里说问题 */
-        const val ISSUE_URL = "${UpdateVersion.REPO_URL}/issues/new"
+        /**
+         * 提 issue 的页面：玩家拿着导出的包去那里说问题。
+         *
+         * 直接落在「Case file」那个模板上：包、机型、版本、附件都在表单里，玩家不用自己挑模板。
+         */
+        const val ISSUE_URL = "${UpdateVersion.REPO_URL}/issues/new?template=case_file.yml"
     }
 }
 
