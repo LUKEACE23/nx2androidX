@@ -548,16 +548,17 @@ class GamespecPack(unittest.TestCase):
         case = home / 'gamespec' / self.GAME
         (case / 'files').mkdir(parents=True)
         if spec:
-            (case / 'spec.md').write_text('# 攻关档案\n\n## 现状\n卡在着色器解码。\n', encoding='utf-8')
+            (case / 'spec.md').write_text('# 攻关档案\n\n## 现状\n卡在着色器解码。\n', encoding='utf-8', newline='\n')
         for path, text in (files or {}).items():
             target = case / 'files' / path
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(text)
+            target.write_text(text, encoding='utf-8', newline='\n')
         for path, text in (orig or {}).items():
             target = case / 'orig' / path
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(text)
-        (case / 'fix.md').write_text('\n'.join(manifest if manifest is not None else list((files or {}).keys())))
+            target.write_text(text, encoding='utf-8', newline='\n')
+        (case / 'fix.md').write_text('\n'.join(manifest if manifest is not None else list((files or {}).keys())),
+                                     encoding='utf-8', newline='\n')
         return home, case
 
     def pack(self, home, *args):
@@ -653,7 +654,8 @@ class GamespecPack(unittest.TestCase):
         # fix.md 顶上的那行「基于哪个版本」是注释：不是路径
         home, case = self.case(files={'porter/pipeline.py': '# fixed\n'})
         (case / 'fix.md').write_text(
-            '# based on: app 0.4.0-alpha03, porter 0.3.0, fixed 2026-11-24\nporter/pipeline.py\n'
+            '# based on: app 0.4.0-alpha03, porter 0.3.0, fixed 2026-11-24\nporter/pipeline.py\n',
+            encoding='utf-8', newline='\n',
         )
         result = self.pack(home, '--json')
         self.assertEqual(result.returncode, 0, result.stderr)
