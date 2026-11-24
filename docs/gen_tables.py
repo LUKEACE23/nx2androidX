@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """The parts of the READMEs and docs/PORT_CHECKLIST.md that come from the game profiles, made from them (pull requests that add a game edit only its profile):
   README.md / README.zh.md, the games gallery: the table of games, one cell for each profile whose android.tsv has readme_* rows (readme_image, readme_tag,
-                    readme_note; readme_name when the table names the game otherwise than game.tsv), in name order, two to a row.
-  README.md / README.zh.md, the counts: the numbers in the table at the top of the page (the ports and their states, the games with a screenshot). Each one is a slot
+                    readme_note; readme_name when the table names the game otherwise than game.tsv), in name order, two to a row. A cell shows the name and
+                    its facts; the picture is not shown (the screenshot still decides which games the gallery lists).
+  README.md / README.zh.md, the counts: the numbers in the table at the top of the page (the ports and their states, the games in the gallery). Each one is a slot
                     (<!-- count:ported --> … <!-- /count -->) in the page's own table; the words around it are the page's own, the numbers are made here.
   docs/PORT_CHECKLIST.md: the list of the games the porter knows: a row for every profile in the tree, checked when the profile has an android.tsv, and the count with it.
                     The list was written by hand and drifted from the tree (the profiles grew: upstream's synced in bulk, ports added), so it is made from the profiles now.
@@ -37,14 +38,15 @@ ON_ANDROID_LOWER = {name.strip().lower() for name in ON_ANDROID}
 
 
 def cells():
-    """The gallery's cells: one per profile that has a screenshot in the repository, in name order."""
+    """The gallery's cells: one per profile that has a screenshot in the repository, in name order. The cell shows
+    the name and its facts only — the page carries no game pictures; the screenshot still decides who is listed."""
     out = []
     for g, p in android_profile.all_profiles():
         if not p or not p.get('readme_tag'): continue
         img = p.get('readme_image')
-        if not img or not (REPO / img).is_file(): continue   # a screenshot that is not in the repository would be a broken image
+        if not img or not (REPO / img).is_file(): continue   # membership: the gallery lists the games a screenshot exists for, though the page shows none
         name = p.get('readme_name') or g.get('name', g.id)
-        out.append((name, f"![{name}]({img})<br>{name}<br><sub>`{p.get('readme_tag')}` · {p.get('readme_note')}</sub>"))
+        out.append((name, f"{name}<br><sub>`{p.get('readme_tag')}` · {p.get('readme_note')}</sub>"))
     out.sort(key=lambda c: c[0].casefold())
     return [c for _, c in out]
 
