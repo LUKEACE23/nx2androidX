@@ -32,10 +32,11 @@ def size(b):
     return f'{b} B'
 
 
-def path_row(edit, pick):   # a line edit with a Browse button
+def path_row(edit, pick, pick2=None, label2=None):   # a line edit with a Browse button (a second, pick2: the game folder takes a folder or one dump file)
     w = QWidget(); h = QHBoxLayout(w); h.setContentsMargins(0, 0, 0, 0); h.setAlignment(Qt.AlignTop)
     b = QPushButton('Browse…'); b.clicked.connect(pick)
     h.addWidget(edit, 1); h.addWidget(b)
+    if pick2: b2 = QPushButton(label2); b2.clicked.connect(pick2); h.addWidget(b2)
     return w
 
 
@@ -74,7 +75,7 @@ class PortTab(QWidget):
         self.porter = Porter(self); self.porter.event.connect(self.on_event); self.porter.finished.connect(self.on_finished)
         v = QVBoxLayout(self)
 
-        self.folder = QLineEdit(); self.folder.setPlaceholderText('the game file (.nsp / .xci / .nsz / .xcz): the updates and the DLC next to it are taken too')
+        self.folder = QLineEdit(); self.folder.setPlaceholderText("the game file (.nsp / .xci / .nsz / .xcz): the updates and the DLC next to it are taken too (a merged NSP / XCI carries the base game, update and DLC)")
         self.folder.editingFinished.connect(self.inspect)
         g = QGroupBox('Game'); gl = QVBoxLayout(g)
         gl.addWidget(path_row(self.folder, self.pick_folder))
@@ -172,6 +173,11 @@ class PortTab(QWidget):
         d = QFileDialog.getOpenFileName(self, 'Game file', self.folder.text() or str(Path.home()),
                                         'Switch games (*.nsp *.xci *.nsz *.xcz);;All files (*)')[0]
         if d: self.folder.setText(d); self.inspect()
+
+    def pick_dump(self):
+        p = QFileDialog.getOpenFileName(self, 'Game dump (a merged NSP / XCI carries the base game, update and DLC)', self.folder.text() or str(Path.home()),
+                                        'Game dumps (*.nsp *.xci *.nsz *.xcz)')[0]
+        if p: self.folder.setText(p); self.inspect()
 
     def pick_driver(self):
         p = QFileDialog.getOpenFileName(self, 'Vulkan driver', self.driver.text() or str(Path.home()), 'Vulkan driver (*.so)')[0]

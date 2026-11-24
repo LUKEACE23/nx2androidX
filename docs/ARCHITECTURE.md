@@ -117,6 +117,12 @@ checked before pointer formation. These checks do not change the decoder choice
 or timestamp/queue policy. The manual [AVC probe](../probes/avc_frame_layout.md)
 checks synthetic planes and padding; physical-device qualification is separate.
 
+The Android AVC adapter snapshots matrix and range with each queued picture.
+MediaCodec color metadata is accepted only for fields declared in the stream's
+SPS VUI. Without a colour description with a specified matrix it uses BT.709 at 720 lines and above,
+BT.601 below. Without a video signal type it uses limited range. Malformed or
+unsupported SPS data uses both defaults.
+
 Stopping a started guest AudioOut returns all pending buffers in queue order,
 including any partly played buffer, and wakes the guest's release event even if
 the pending queue is empty. Capacity covers all buffers accepted and yet to be
@@ -185,6 +191,19 @@ skipped before Vulkan can receive an invalid pipeline.
 ## Frame pacing
 
 How a game's frames are paced is decided in one module, `nxnative/dm/host/dm_pacing.c`: the frame-rate target (`game.tsv` `fps_target`, `DM_FPS_TARGET`), the 30 fps ceiling (`fps_ceiling`, `DM_FPS_CEILING`), the frame step's hold (`fps_hold`, `DM_FPS_HOLD`), presents on the display's ticks (`present_interval`, `DM_PRESENT_INTERVAL`), the Android governor (`DM_ADAPTIVE_FPS`, `DM_FPS_PIN`, `DM_ADAPT_UP_PCT`), the window's rate vote (`DM_VK_WINDOW_GAME_RATE`) and GPU turbo (`DM_GPU_TURBO`). The mechanisms stay where they run (the frame step in `loader.c` and `nvn_fstep.h`, the 60 fps writes in `hle_fpslock.c`, the present interval in `hle_nvn.c`, presents and the rate vote in `gfx_vk_present.c`, the governor in `perf_android.c`) and ask it. At start-up the log has the whole policy in one line (`pacing: target 60 fps (game profile fps_target), ceiling 0, hold on ...`). A profile chooses its policy with one `android.tsv` row, `pacing <preset>` (below). Test harnesses that cut the governor out of `perf_android.c` compile the real `dm_pacing.c` with it (`tests/csrc.py` `pacing_files`).
+
+## Descriptor cache hashing
+
+The Android backend's descriptor caches (`gfx_vk_exec_descriptors.inc`) find candidates by hash. Two kinds of path decide reuse differently:
+
+- **Exact.** The content-keyed set cache (`set_key`) and driver segments built and hashed (`drv_shared`'s content path) compare every byte of a candidate before reusing it, so a collision only costs a miss. Long inputs use a four-lane hash so the replay thread does not wait on one dependent multiply chain.
+- **Hash only.** Two paths reuse on a 64-bit hash alone, to avoid collecting or building anything:
+  - a stage set found again by its bindings (`rmemo_take`, keyed by order-free hashes of the stage's slots, the shader and its constant buffers' buffers);
+  - a c2 driver segment found by the hash of its slots (`drv_shared` with `DM_VK_C2_FAST`).
+
+  `DM_VK_X_SETVERIFY=1` collects one memo hit in 64 anyway and compares it, builds every c2 segment found by hash again and compares its bytes, and logs a `[RED]` line on any difference; its `memo verify` line counts both checks. `DM_VK_X_NOSETMEMO=1` and `DM_VK_C2_FAST=0` turn the two paths off for an A/B.
+
+These hashes stay in the process: they are not persisted and do not change the Vulkan pipeline-cache identity.
 
 ## Game profiles on Android
 
@@ -461,7 +480,7 @@ The player's settings, the legacy path's APK signing key and the built translato
 nx2android/
   docs/ARCHITECTURE.md   this file
   docs/GETTING_STARTED.md   the development setup and the two working loops
-  docs/gen_tables.py     docs/PORT_CHECKLIST.md's ticks, made from the profiles (this line's README carries no games table; the list lives upstream)
+  docs/gen_tables.py     docs/PORT_CHECKLIST.md's list of the games and the READMEs' gallery and counts, all made from the profiles
   porter/                port pipeline (python -m porter)
   gui/                   desktop app (python -m gui)
   devtools/              device bring-up scripts

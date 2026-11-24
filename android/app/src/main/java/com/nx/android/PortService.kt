@@ -166,7 +166,7 @@ class PortService : Service() {
         startForeground(1, notification())
         val handler = Handler(mainLooper)
         lateinit var taskRunner: PortRunner
-        taskRunner = PortRunner(environmentSetup, guestLauncher, locale, File(paths.files, "nx2a/port_exit.txt")) { line ->
+        taskRunner = PortRunner(environmentSetup, guestLauncher, locale::str, File(paths.files, "nx2a/port_exit.txt")) { line ->
             handler.post {
                 if (runner === taskRunner && port.running && port.buildId == taskId) {
                     port.onLine(line)

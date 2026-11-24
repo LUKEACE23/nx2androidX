@@ -30,8 +30,8 @@ class AndroidMotion(unittest.TestCase):
         cc = shutil.which('cc') or shutil.which('clang')
         if not cc:
             raise unittest.SkipTest('a C compiler is required')
-        front = (ROOT / 'nxnative/dm/android/front_player.c').read_text()
-        hid = (ROOT / 'nxnative/dm/host/hle_hid.c').read_text()
+        front = (ROOT / 'nxnative/dm/android/front_player.c').read_text(encoding='utf-8')
+        hid = (ROOT / 'nxnative/dm/host/hle_hid.c').read_text(encoding='utf-8')
         shake = csrc.between(hid, '#define SHAKE_HZ', 'void dm_input_set(')
         motion = csrc.between(hid, 'typedef struct { int64_t delta_ns', '// SixAxisSensorHandle:')
         sensor = csrc.between(front, 'static void motion_feed(', 'static void *input_thread(')
@@ -148,7 +148,7 @@ int main(int argc, char **argv) {
         cls.addClassCleanup(cls.tmp.cleanup)
         c = Path(cls.tmp.name) / 'motion.c'
         cls.exe = Path(cls.tmp.name) / 'motion'
-        c.write_text(harness)
+        c.write_text(harness, encoding='utf-8')
         result = subprocess.run([cc, '-std=gnu11', '-Wall', '-Wextra', '-Werror',
                                  '-I' + str(ROOT / 'nxnative/dm/host'),
                                  '-I' + str(ROOT / 'nxnative/dm/android'), str(c),

@@ -760,6 +760,17 @@ class Misc(unittest.TestCase):
             self.assertIsNotNone(self.space_fits(p, 2**30 + 6 * 2**20 - 1))
         finally: shutil.rmtree(d, ignore_errors=True)
 
+    def test_space_counts_a_merged_dump_once(self):   # a merged dump is one file that is the base game, the update and the DLC: it counts once
+        d = Path(tempfile.mkdtemp(prefix='nx2a_test_space_'))
+        try:
+            (d / 'm.nsp').write_bytes(b'\0' * 2**20)
+            work = d / 'build'
+            fam = {'base': d / 'm.nsp', 'updates': [(65536, d / 'm.nsp')], 'dlc': [('0100000000011000', None, d / 'm.nsp')]}
+            p = self.space_port(d, fam, work)
+            self.assertIsNone(self.space_fits(p, 2**30 + 2 * 2**20))      # one file of 1 MB, twice over, plus 1 GB
+            self.assertIsNotNone(self.space_fits(p, 2**30 + 2 * 2**20 - 1))
+        finally: shutil.rmtree(d, ignore_errors=True)
+
     def test_space_in_the_app_s_mode(self):   # the app's mode asks for the game's files once over: the pack points at the build folder's own RomFS instead of copying it
         d = Path(tempfile.mkdtemp(prefix='nx2a_test_space_'))
         try:
@@ -808,11 +819,11 @@ class Dumps(unittest.TestCase):   # porter/dumps.py: NSZ / XCZ → NSP; an NCZ m
 
     def nsz(self, ncz, name='g.nsz'):
         files = [(self.name + '.ncz', ncz), ('0100000000aaa0000000000000000000.tik', b't' * 0x2c0)]
-        hdr = self.dumps._pfs0_header([n for n, _ in files], [len(d) for _, d in files])
+        hdr = self.dumps.pfs0_header([n for n, _ in files], [len(d) for _, d in files])
         (self.d / name).write_bytes(hdr + b''.join(d for _, d in files)); return self.d / name
 
     def check(self, src):
-        self.assertEqual(self.dumps.size(src), len(self.dumps._pfs0_header([self.name + '.nca', 'x' * 36], [0, 0])) + len(self.nca) + 0x2c0)
+        self.assertEqual(self.dumps.size(src), len(self.dumps.pfs0_header([self.name + '.nca', 'x' * 36], [0, 0])) + len(self.nca) + 0x2c0)
         out = self.dumps.decompress(src, self.d / self.dumps.unpacked_name(src))
         self.assertEqual(out.stat().st_size, self.dumps.size(src)); self.assertEqual(out.stat().st_mtime_ns, src.stat().st_mtime_ns)
         with open(out, 'rb') as f: got = {n: (f.seek(o), f.read(s))[1] for n, o, s in self.dumps.entries(out)}
@@ -1136,7 +1147,7 @@ class SubfolderScan(unittest.TestCase):   # the updates and the DLC in a subfold
             string += len(n) + 1
         path = self.root / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(dumps._pfs0_header([n for n, _ in files], [len(d) for _, d in files]) + b''.join(d for _, d in files))
+        path.write_bytes(dumps.pfs0_header([n for n, _ in files], [len(d) for _, d in files]) + b''.join(d for _, d in files))
         return path
 
     def test_the_dlc_in_a_subfolder_is_taken(self):
