@@ -100,6 +100,8 @@ Ask it why a game crashed, why a port would not build, or what is in the library
 
 The assistant is a main session with sub-agents under it. A game that misbehaves is handed to a case worker, which owns that game's case file: the symptom, the cause, the proposed fix, and the files the fix touched. The workers that explore only read; a code change waits until the player confirms the plan. The skills it loads are written down, and they ship with the app:
 
+![How the assistant is put together: the app talks to a long-lived pi process over JSONL inside the app's own Linux environment, the environment reaches the player's own model API through an in-app proxy, and the knowledge base is loaded into the agent](docs/images/agent-architecture.png)
+
 | Skill | What it is for |
 |---|---|
 | `port-failures` | the upstream's pull requests, read and sorted into a diagnosis |
