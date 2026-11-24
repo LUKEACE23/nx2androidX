@@ -148,34 +148,16 @@ Proposed fix: new fix
     }
 
     @Test
-    fun `the plan can carry the player's own language`() {
+    fun `the plan reads the English lines of the case file`() {
         val spec = """### 2026-11-23 shader split finds no shaders (status: pending approval)
 Cause: the splitter only reads MGFX v8
 Proposed fix: merge upstream #2546
-Player headline: 着色器一个都没找到
-Player cause: 切分器只认第 8 版
-Player fix: 并入上游 #2546
 """
         val plan = Gamespec.parsePlan(spec)
         assertTrue(plan != null)
-        assertEquals("着色器一个都没找到", plan!!.shownHeadline)
-        assertEquals("切分器只认第 8 版", plan.shownCause)
-        assertEquals("并入上游 #2546", plan.shownFix)
-        // 英文那几行还在：档案要交给上游看
+        assertEquals("2026-11-23 shader split finds no shaders", plan!!.headline)
         assertEquals("the splitter only reads MGFX v8", plan.cause)
-    }
-
-    @Test
-    fun `a plan without the player's lines shows the English ones`() {
-        val spec = """### 2026-11-23 shader split finds no shaders (status: pending approval)
-Cause: the splitter only reads MGFX v8
-Proposed fix: merge upstream #2546
-"""
-        val plan = Gamespec.parsePlan(spec)
-        assertTrue(plan != null)
-        assertEquals("2026-11-23 shader split finds no shaders", plan!!.shownHeadline)
-        assertEquals("the splitter only reads MGFX v8", plan.shownCause)
-        assertEquals("merge upstream #2546", plan.shownFix)
+        assertEquals("merge upstream #2546", plan.fix)
     }
 
     @Test

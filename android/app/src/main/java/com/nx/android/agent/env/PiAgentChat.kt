@@ -12,10 +12,8 @@ import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentSubagentCallParser
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
-import com.nx.android.data.AppLocale
 import com.nx.android.agent.runtime.AgentEngineStore
 import com.nx.android.agent.runtime.AgentExtensions
-import com.nx.android.agent.runtime.AgentMaterial
 import com.nx.android.agent.runtime.AgentSessionStore
 import com.nx.android.agent.runtime.AgentSettingsStore
 import com.nx.android.agent.runtime.AgentWorkspace
@@ -63,22 +61,7 @@ class PiAgentChat @Inject constructor(
     private val sessionStore: AgentSessionStore,
     private val catalog: PiSessionCatalog,
     private val engine: AgentEngineStore,
-    private val locale: AppLocale,
 ) : AgentChat {
-
-    /**
-     * 玩家读的是哪种语言：模型用英文干活，给玩家看的那句话按这个语言写。
-     *
-     * 玩家没选语言就是手机的——那也是 App 界面上正显示着的那种语言。
-     *
-     * 写的是语言的名字（"Chinese (zh)"）而不是代码：模型把它抄进给子代理的任务里，
-     * 子代理读到的是"玩家读中文"，不是一个它要去猜的缩写。
-     */
-    private fun playerLanguage(): String {
-        val picked = locale.locale?.language
-        val code = picked ?: java.util.Locale.getDefault().language.ifBlank { "en" }
-        return AgentMaterial.playerLanguage(code)
-    }
 
     private companion object {
         const val TAG = "nx2a-agent-pi"
@@ -339,7 +322,6 @@ class PiAgentChat @Inject constructor(
                 BuildConfig.VERSION_NAME,
                 tools.libraryStatus(),
                 DEVICE_STATE_CHARS,
-                playerLanguage(),
             ),
         )
 

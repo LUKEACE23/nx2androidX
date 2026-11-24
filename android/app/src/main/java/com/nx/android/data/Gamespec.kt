@@ -34,18 +34,6 @@ object Gamespec {
      */
     const val PLAN_PENDING = "(status: pending approval)"
 
-    /**
-     * 玩家语言的那几行：档案里 `Player ` 开头的行。
-     *
-     * 档案整个是英文的（它要交给上游看），但玩家读的是自己的语言——子 Agent 在英文那几行
-     * 旁边再写几行玩家语言的，app 显示时优先用它们，没有就回退英文那几行。
-     *
-     * 字段名是英文的（那是 app 与子 Agent 之间的约定），值用玩家读的那种语言。
-     */
-    const val PLAYER_HEADLINE = "Player headline:"
-    const val PLAYER_CAUSE = "Player cause:"
-    const val PLAYER_FIX = "Player fix:"
-
     /** 那局的攻关档案里待确认的方案：问题、根因、建议修法 */
     data class Plan(
         /** 那一条的标题（「### 2026-11-23 cross-chunk copy dropped (status: pending approval)」里的前半句） */
@@ -54,20 +42,7 @@ object Gamespec {
         val cause: String,
         /** 建议修法 */
         val fix: String,
-        /** 玩家语言的那几行（档案里可选的 `Player ` 行） */
-        val playerHeadline: String? = null,
-        val playerCause: String? = null,
-        val playerFix: String? = null,
-    ) {
-        /** 给玩家看的标题：玩家语言的那行优先，没有就用英文的 */
-        val shownHeadline: String get() = playerHeadline?.takeIf { it.isNotBlank() } ?: headline
-
-        /** 给玩家看的根因：玩家语言的那行优先，没有就用英文的 */
-        val shownCause: String get() = playerCause?.takeIf { it.isNotBlank() } ?: cause
-
-        /** 给玩家看的修法：玩家语言的那行优先，没有就用英文的 */
-        val shownFix: String get() = playerFix?.takeIf { it.isNotBlank() } ?: fix
-    }
+    )
 
     /** 那局档案的文件夹；[titleId] 是空的（这局说不清是哪个游戏）时返回的文件夹不要用 */
     fun dir(nxHome: File, titleId: String): File = File(File(nxHome, "gamespec"), titleId)
@@ -141,42 +116,27 @@ object Gamespec {
         var headline = ""
         var cause = ""
         var fix = ""
-        var playerHeadline = ""
-        var playerCause = ""
-        var playerFix = ""
         for (raw in text.lines()) {
             val line = raw.trim()
             if (line.startsWith("### ")) {
                 // 一条结束了：它带着待确认标记的话，它就是一条方案（后一条覆盖前一条）
                 if (headline.contains(PLAN_PENDING)) {
-                    plan = Plan(
-                        headline.substringBefore(PLAN_PENDING).trim(), cause, fix,
-                        playerHeadline, playerCause, playerFix,
-                    )
+                    plan = Plan(headline.substringBefore(PLAN_PENDING).trim(), cause, fix)
                 }
                 headline = line.removePrefix("### ").trim()
                 cause = ""
                 fix = ""
-                playerHeadline = ""
-                playerCause = ""
-                playerFix = ""
                 continue
             }
             if (headline.isBlank()) continue
             when {
-                line.startsWith(PLAYER_HEADLINE) -> playerHeadline = line.removePrefix(PLAYER_HEADLINE).trim()
-                line.startsWith(PLAYER_CAUSE) -> playerCause = line.removePrefix(PLAYER_CAUSE).trim()
-                line.startsWith(PLAYER_FIX) -> playerFix = line.removePrefix(PLAYER_FIX).trim()
                 line.startsWith("Cause:") -> cause = line.removePrefix("Cause:").trim()
                 line.startsWith("Proposed fix:") -> fix = line.removePrefix("Proposed fix:").trim()
                 line.startsWith("Fix:") && fix.isBlank() -> fix = line.removePrefix("Fix:").trim()
             }
         }
         if (headline.contains(PLAN_PENDING)) {
-            plan = Plan(
-                headline.substringBefore(PLAN_PENDING).trim(), cause, fix,
-                playerHeadline, playerCause, playerFix,
-            )
+            plan = Plan(headline.substringBefore(PLAN_PENDING).trim(), cause, fix)
         }
         return plan?.takeIf { it.headline.isNotBlank() }
     }

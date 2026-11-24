@@ -5,7 +5,6 @@ import com.nx.android.agent.AgentChat
 import com.nx.android.agent.AgentSettings
 import com.nx.android.agent.env.PiAgentChat
 import com.nx.android.core.storage.AppPaths
-import com.nx.android.data.AppLocale
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -31,9 +30,7 @@ abstract class AgentModule {
         /** The material is planted on the player's nx2android folder: the engine reads it there. */
         @Provides
         @Singleton
-        fun providePlanter(source: AgentSeedSource, paths: AppPaths, locale: AppLocale): AgentPlanter =
-            AgentPlanter(source, paths.nxHome) {
-                locale.locale?.language ?: java.util.Locale.getDefault().language.ifBlank { "en" }
-            }
+        fun providePlanter(source: AgentSeedSource, paths: AppPaths): AgentPlanter =
+            AgentPlanter(source, paths.nxHome)
     }
 }

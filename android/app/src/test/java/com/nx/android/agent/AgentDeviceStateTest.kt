@@ -9,8 +9,8 @@ import org.junit.Test
  * The device state block the model reads: the app's own version leads it, and a long library
  * summary cannot push the version out of the block.
  *
- * The block is English, and it carries the player's language along: the model works in English
- * and translates for the player, so it has to know which language the player reads.
+ * The block is English and says nothing about a language: the player's message carries the
+ * language of the answer.
  */
 class AgentDeviceStateTest {
 
@@ -45,23 +45,7 @@ class AgentDeviceStateTest {
     }
 
     @Test
-    fun `the player's language rides along`() {
-        val state = deviceState("0.4.0-alpha03", library, 600, "Chinese (zh)")
-
-        assertTrue(state.contains("player language: Chinese (zh)"))
-    }
-
-    @Test
-    fun `the block tells the model what the player reads`() {
-        // 模型不照约定走的时候，这一行是它每轮都看得见的：它自己写给玩家看的字
-        val state = deviceState("0.4.0-alpha03", library, 600, "Chinese (zh)")
-
-        assertTrue(state.contains("every word the player sees must be in that language"))
-        assertTrue(state.contains("the label on a sub-agent card"))
-    }
-
-    @Test
-    fun `without a language the block says nothing about one`() {
+    fun `the block says nothing about a language`() {
         val state = deviceState("0.4.0-alpha03", library, 600)
 
         assertTrue(!state.contains("player language"))

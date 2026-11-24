@@ -386,15 +386,12 @@ def section_text_of(sections, title, top=SNIPPET_LINES * 8):
 # A problem entry in a case file: "### 2026-11-23 the crash (status: fixed)".
 ENTRY = re.compile(r'^###\s+(?P<title>.+?)\s*\((?P<status>status:[^)]*)\)\s*$')
 
-# The fields of an entry, English and the player's own language.
+# The fields of an entry. The case file is English: the player reads the answer, not the file.
 FIELDS = {
     'symptom': ('Symptom:',),
     'cause': ('Cause:',),
     'fix': ('Proposed fix:', 'Fix:'),
     'evidence': ('Evidence:',),
-    'player_headline': ('Player headline:',),
-    'player_cause': ('Player cause:',),
-    'player_fix': ('Player fix:',),
 }
 
 
