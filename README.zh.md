@@ -295,9 +295,10 @@ nx2android 移植时读取你的游戏文件，需要你自己的 `prod.keys` �
 
 这条分支是一个家族里的一支，它脚下是别人的地基：
 
-- **[nx2android](https://github.com/shirai91/nx2android)** —— 本仓库基于的项目：PC 端把游戏移植打包成 APK；本仓库是它的手机端。
+- **[nx2android](https://github.com/shirai91/nx2android)** —— 本仓库基于的项目：PC 端把游戏移植打包成 APK；本仓库是它的手机端。它的维护者与贡献者，正是助手那份知识库的原料：他们几百个 PR，被读了一遍、蒸馏成随 App 一起发的诊断。
 - **[seedds/nxnative](https://github.com/seedds/nxnative)** —— 它底下的引擎：顶替主机系统服务的宿主程序、NVN 到 Vulkan 的图形回放、着色器翻译器，以及这些移植大多参照过的游戏 profile。上游是 MIT 许可；我们的 fork（`nxnative/`）与本仓库其余部分一样是 GPL-3.0-or-later。
 - **nxnative 的各位贡献者** —— 引擎、工具链和 profile 都是他们写的。
+- **两个上游的维护者们** —— 深夜回 issue、审陌生人递来的补丁、并且给像这条分支一样的来路留一扇门。
 - **[NX2Apple](https://github.com/LNPANDY/NX2Apple)** —— 同一条引擎的苹果路线：macOS 构建器和 iPhone/iPad 共享的游戏库。谢谢他们让这条路在苹果设备上一直活着。
 - **[BananaNative](https://github.com/Raphix91/BananaNative)** —— 把引擎带到安卓、让几款 Switch 2 游戏在手机上原生跑起来的分支。谢谢他们走到比我们更远的地方。
 - **[Mesa](https://www.mesa3d.org/)** —— Turnip，安卓 App 可下载的 Adreno Vulkan 驱动。
