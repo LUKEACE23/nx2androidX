@@ -55,6 +55,31 @@ class AgentPlanterTest {
     }
 
     @Test
+    fun `the faq the assistant answers from lands next to the knowledge`() {
+        val root = tmp.newFolder("nx2a")
+
+        plant(root)
+
+        // the how-to answers: the assistant reads them, the help page shows them - one file
+        for (language in listOf("zh", "en")) {
+            val faq = File(root, "agent/workspace/knowledge/faq_$language.json")
+            assertTrue("the faq ($language) is in the workspace", faq.isFile)
+            assertTrue("the faq ($language) has questions in it", faq.readText().contains("\"q\""))
+        }
+
+        // the agreement says where they are: without that the assistant goes looking
+        val agreement = File(root, "AGENTS.md").readText()
+        assertTrue(
+            "the agreement points at the faq",
+            agreement.contains("agent/workspace/knowledge/faq_zh.json"),
+        )
+        assertTrue(
+            "the agreement points at the faq",
+            agreement.contains("agent/workspace/knowledge/faq_en.json"),
+        )
+    }
+
+    @Test
     fun `the port failures skill and its references land with it`() {
         val root = tmp.newFolder("nx2a")
 
