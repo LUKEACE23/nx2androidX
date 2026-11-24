@@ -73,8 +73,12 @@ import com.nx.android.R
 import com.nx.android.appstate.LibraryState
 import com.nx.android.appstate.EnvBuildState
 import com.nx.android.appstate.OnboardingState
+import com.nx.android.appstate.PageFacts
+import com.nx.android.appstate.PageState
+import com.nx.android.appstate.PageStateStore
 import com.nx.android.appstate.PlayerState
 import com.nx.android.appstate.PortState
+import com.nx.android.appstate.lastBuildOf
 import com.nx.android.core.ui.ProvideAppLocale
 import com.nx.android.core.ui.components.CapsuleButton
 import com.nx.android.core.ui.components.QuietButton
@@ -86,7 +90,6 @@ import com.nx.android.core.ui.theme.NxPalette
 import com.nx.android.core.ui.theme.NxTheme
 import com.nx.android.core.storage.AppPaths
 import com.nx.android.data.AppLocale
-import com.nx.android.data.Gamespec
 import com.nx.android.data.PadPlayers
 import com.nx.android.data.PrefsStore
 import com.nx.android.data.StorageVolumes
@@ -99,7 +102,6 @@ import dev.chrisbanes.haze.rememberHazeState
 import com.nx.android.domain.GameIdentity
 import com.nx.android.domain.drivers.DriverRepository
 import com.nx.android.domain.environment.EnvironmentSetup
-import com.nx.android.agent.gameContext
 import com.nx.android.agent.ui.AgentScreen
 import com.nx.android.feature.builds.BuildsRoute
 import com.nx.android.feature.builds.SupportedGamesOverlay
@@ -226,6 +228,7 @@ fun AppRoot(
     padController: PadCenterController,
     agentSetup: AgentSetup,
     agentState: AgentConversationState,
+    pageState: PageStateStore,
     padCenterOpen: Boolean,
     onPadCenter: (Boolean) -> Unit,
     // the assistant's full chat page: the portrait room (the activity turns the screen portrait for it);
@@ -282,6 +285,7 @@ fun AppRoot(
                         padController = padController,
                         agentSetup = agentSetup,
                         agentState = agentState,
+                        pageState = pageState,
                         padCenterOpen = padCenterOpen,
                         onPadCenter = onPadCenter,
                         agentFullOpen = agentFullOpen,
@@ -498,6 +502,7 @@ fun MainScreen(
     padController: PadCenterController,
     agentSetup: AgentSetup,
     agentState: AgentConversationState,
+    pageState: PageStateStore,
     padCenterOpen: Boolean,
     onPadCenter: (Boolean) -> Unit,
     agentFullOpen: Boolean = false,
@@ -736,24 +741,31 @@ fun MainScreen(
         // taps — the page beneath keeps its gamepad keys. The entry that opens it is the page's own button
         // (bottom right, pinned — the pages draw it, so it never floats over another page's content). The
         // rail's quick questions follow the page the player is on (the light version of the context-aware
-        // chips — full PageContext injection comes with the phase-2 work)
+        // chips — the assistant reads the page state snapshot itself, so the chips need nothing extra)
         val agentChips = when (Tab.entries[tab]) {
             Tab.LIBRARY -> listOf(R.string.agent_chip_crash, R.string.agent_chip_no_build, R.string.agent_chip_playable)
             Tab.BUILDS -> listOf(R.string.agent_chip_build_fail, R.string.agent_chip_build_log, R.string.agent_chip_build_why)
             else -> listOf(R.string.agent_chip_save_backup, R.string.agent_chip_env)
         }
-        // 库页高亮的那张卡：助手据此知道玩家此刻在看哪一局（刚闪退回到库页时正是这一刻）。
-        // 卡没选时没有上下文——助手不该猜玩家在看哪一局。
+        // 助手看得见的页面状态：写进一份快照文件，它自己读（不夹带在玩家的话里）。
+        // 最近一次构建与构建阶段是全局事实：「构建失败/无法构建」从哪一页都会问出来。
         val hero = lib.visible().getOrNull(lib.heroIndex)
-        val libraryContext = remember(hero) {
-            hero?.let { entry ->
-                gameContext(
-                    entry.titleId,
-                    entry.label,
-                    Gamespec.dir(AppPaths(padCtx).nxHome, entry.titleId),
-                    page = "library",
-                )
+        val buildGame = buildsViewModel.gameInfo.info
+        val lastRecord = port.history.firstOrNull()
+        LaunchedEffect(
+            tab, hero?.titleId, buildGame?.titleId,
+            port.phase, port.stageOf, port.stages, port.stageName,
+            lastRecord?.id, lastRecord?.phase,
+        ) {
+            val facts = PageFacts.builds(
+                stage = if (port.running) "${port.stageOf}/${port.stages} ${port.stageName}".trim() else null,
+                last = lastBuildOf(port, lastRecord, lib, AppPaths(padCtx).nxHome),
+            )
+            val state = when (Tab.entries[tab]) {
+                Tab.LIBRARY -> PageState("library", hero?.titleId.orEmpty(), hero?.label.orEmpty(), facts)
+                Tab.BUILDS -> PageState("builds", buildGame?.titleId.orEmpty(), buildGame?.name.orEmpty(), facts)
             }
+            pageState.setMain(state)
         }
         // The drawer stays in the tree and slides out of the screen when it closes: the scroll
         // position, the laid-out markdown and the half-typed words are still there when it comes back.
@@ -776,11 +788,9 @@ fun MainScreen(
                     settingsSection = SettingsSection.AGENT
                     settingsOpen = true
                 },
-                // 库页选中的那局：助手据此知道玩家此刻在看哪一局（刚闪退回到库页时正是这一刻）
-                pageContext = libraryContext,
-                // 导出选中的那局的档案
+                // 导出选中的那局的档案：那一局是页面状态里写着的那一局
                 onExportGamespec = onExportGamespec?.let { export ->
-                    libraryContext?.subject?.id?.let { tid -> { export(tid) } }
+                    { val tid = pageState.current().titleId; if (tid.isNotBlank()) export(tid) }
                 },
                 // 修好了之后「去跑一下」：按 title ID 回到游戏页
                 onRunGame = { titleId -> actions.onRunByTitleId(titleId) },

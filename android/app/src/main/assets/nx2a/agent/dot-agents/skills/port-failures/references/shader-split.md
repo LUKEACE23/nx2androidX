@@ -61,15 +61,25 @@ added it is the one to read for the details.
 | Unreal pak v11 (modern) | the footer version 11 | yes, and it is **skipped** (`ue_modern_pack`) | `#402` |
 | IoStore `.utoc` / `.ucas` | the extension, TOC version 3 | yes (`ue_inline_shaders`) | `#429` (the inline LZ4 blocks), `#473` (an IoStore-only shader library is not "no Unreal step") |
 | NintendoWare Vfx | **nowhere** | no | `#286`, `#505` |
+| RPF6 (Rockstar) | the `RPF6` magic: the game's RomFS is nothing but RPF6 archives | **no** - the reader is in the phone's case file (`nxnative/dm/gfx/tools/rpf6.py`), not in this checkout | the engine's `seedds/nxnative#2005` |
+| RAGE effects (`rgxd`) | inside an RPF6 resource: the name starts with `rgxd`, and the record holds the GLSLC outputs | **no** - with the RPF6 reader | the engine's `seedds/nxnative#2005` |
+| Double Eleven packs | `langselect.pkdswitch` with its `langselect.pkiswitch` index beside it | **no** - with the RPF6 reader | the engine's `seedds/nxnative#2005` |
+| MGFX 10 effects and `.zxnb` assets | the effect's own header, and the `.zxnb` container | yes, on the case branch `case/0100BB8017F24000-tmnt` | fork `00d3c8bd` |
 
 Two rules from the long tail of these:
 
 - **"The split found no shaders" is nearly always a container format nobody read yet.** Every
   instance above was a new archive shape, not a bug in the scanner. When the count is far
-  too low (121 against 27 297, 209 against 672, 6 against 15 328), walk the table above.
+  too low (121 against 27 297, 209 against 672, 6 against 15 328, 0 against 3 628), walk the
+  table above.
 - **A format the split reads whole kills the port.** The v11 pak and the `.ucas` together
   were read as one 8.9 GB buffer: 15.7 GB resident, 40 s, killed by the low-memory killer
   with **no error line** (`#402`). The split skips them now and says so.
+- **A format that hides behind a cipher needs the key, and the key is in the game.** Rockstar's
+  RPF6 archives keep their entry and name tables AES-256 ECB encrypted and their resources
+  zstd-compressed, so the split's magic scan sees nothing at all: the split found 0 shaders
+  where the game has 3 628. The key is never written to disk - it is searched for in `main`,
+  where the key setup code keeps the eight key words as four 16-byte constants.
 
 ## What the split gets wrong
 

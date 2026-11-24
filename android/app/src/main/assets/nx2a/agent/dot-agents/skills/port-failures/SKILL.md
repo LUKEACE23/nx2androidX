@@ -18,6 +18,13 @@ When a case turns up that is not in here, write it into that game's case file - 
 knowledge base. The knowledge base is maintained by a person, on a computer; the procedure
 is in `openspec/specs/port-failures/tasks.md` in the repository.
 
+**One thing the case file has to carry, so the knowledge can be written down later:** the
+case's own index row. When the case is closed, write a `## Case index row` section into the
+case file with one line of tab-separated fields, the same columns the index has: the case's
+reference, the symptom, the layer, the game and its title ID, the paths the fix touched and
+a one-line summary of the cause and the fix. The person at the computer pastes that line
+into the index (`corpus-fork.json`), and the next game with the same symptom finds it.
+
 ## When to read what
 
 | The question | The file |
@@ -69,6 +76,13 @@ request names, the paths it touched, the title, the summary line and the link.
 
 The first column says which upstream the case came from. `--source shirai91` narrows the
 search to this fork's upstream; leaving it out searches every upstream in the index.
+
+**This fork's own cases are in the index too**, with the source `nx2androidX`: a fix that
+was worked out on a phone and put on a branch under `case/`, or a case whose fix is still
+only in the phone's case file. `--source nx2androidX` finds them, and `--fork no` lists
+the ones whose fix is not in the checkout yet - those are worth bringing over. Their
+reference is the case's own name (`case/<title ID>-<slug>`) or a commit's hash, not a
+pull request number: the code is on a branch, not on a pull request.
 
 ## The discipline
 

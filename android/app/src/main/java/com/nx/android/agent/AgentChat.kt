@@ -86,7 +86,7 @@ data class AgentModelConfig(
 
 interface AgentChat {
     val messages: List<AgentMessage>
-    suspend fun send(userText: String, context: AgentPageContext? = null): Flow<AgentEvent>
+    suspend fun send(userText: String): Flow<AgentEvent>
     fun reset()
 
     /**
@@ -118,42 +118,6 @@ data class AgentHistory(
 
 /** 引擎还没装：历史读不了，面板要引导安装，而不是显示一段空历史。 */
 class AgentEngineMissingException : IllegalStateException("引擎未安装")
-
-data class AgentPageContext(
-    val page: String,
-    val subject: AgentSubject? = null,
-    val facts: Map<String, String> = emptyMap(),
-)
-
-/** 页面上下文里那个键：那一局的攻关档案在哪儿 */
-const val CASE_DIR_FACT = "攻关档案"
-
-/**
- * 玩家点了「按方案修复」之后送去主会话的话。
- *
- * 攻关子 Agent 看到「玩家已确认」才动代码——这句是那道门。
- */
-const val CONFIRM_WORDS = "玩家已确认，按档案里的方案执行修复"
-
-data class AgentSubject(val kind: String, val id: String, val title: String)
-
-/**
- * The context a page hands the assistant: which game the player is in, and where that game's
- * case file is.
- *
- * The game page says "game"; the library page says "library" — there the player is looking at the
- * card they picked (right after a crash, that is the game that crashed).
- */
-fun gameContext(
-    titleId: String,
-    name: String,
-    caseDir: File,
-    page: String = "game",
-): AgentPageContext = AgentPageContext(
-    page = page,
-    subject = AgentSubject("game", titleId, name),
-    facts = mapOf(CASE_DIR_FACT to caseDir.absolutePath),
-)
 
 interface AgentUiActions {
     fun navigate(page: String, game: String? = null): String

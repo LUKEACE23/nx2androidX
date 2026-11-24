@@ -717,11 +717,6 @@
     <string name="agent_gamespec_export">Contribute upstream</string>
     <string name="agent_gamespec_confirm_text">Select the game you worked on in the game library before exporting — the export always takes the currently selected game, and the wrong pick fails. It packs that game\'s case file into a zip (in Download/nx2android/gamespec/), then opens this repo\'s issue page; attach the zip to the form.</string>
     <string name="agent_thinking_fold">thinking</string>
-    <string name="agent_plan_waiting">the plan is waiting for you</string>
-    <string name="agent_plan_cause">cause</string>
-    <string name="agent_plan_fix">proposed fix</string>
-    <string name="agent_plan_confirm">Fix it as planned</string>
-    <string name="agent_plan_hint">nothing is changed until you tap this</string>
     <string name="agent_subagents_stopped">stopped</string>
     <string name="agent_subagents_interrupted">interrupted</string>
     <string name="agent_run_running_for">running %1$s</string>

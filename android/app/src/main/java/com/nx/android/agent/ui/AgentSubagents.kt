@@ -296,65 +296,6 @@ private fun notificationStatus(status: String): String {
 }
 
 /**
- * The gate: the case file's plan is waiting for the player.
- *
- * The sub-agent diagnosed and wrote the plan; nothing is changed until the player taps. The card
- * says what the plan is (the problem, the cause, what the fix would be) so the tap is informed.
- */
-@Composable
-internal fun PlanConfirmCard(
-    plan: Gamespec.Plan,
-    onConfirm: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(AgentPalette.Panel)
-            .border(1.dp, AgentPalette.Hairline)
-            .padding(horizontal = 14.dp, vertical = 11.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(
-            stringResource(R.string.agent_plan_waiting),
-            style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
-            color = AgentPalette.Quick,
-        )
-        if (plan.shownHeadline.isNotBlank()) {
-            Text(
-                plan.shownHeadline,
-                style = MaterialTheme.typography.bodyMedium,
-                color = AgentPalette.Ink,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (plan.shownCause.isNotBlank()) {
-            PlanLine(stringResource(R.string.agent_plan_cause), plan.shownCause)
-        }
-        if (plan.shownFix.isNotBlank()) {
-            PlanLine(stringResource(R.string.agent_plan_fix), plan.shownFix)
-        }
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            CapsuleButton(
-                stringResource(R.string.agent_plan_confirm),
-                onConfirm,
-                Modifier,
-            )
-            Text(
-                stringResource(R.string.agent_plan_hint),
-                style = MaterialTheme.typography.labelSmall,
-                color = AgentPalette.Ink2,
-            )
-        }
-    }
-}
-
-/**
  * 攻关档案的最新状态：该玩家上场了。
  *
  * 子 Agent 修完把档案里的状态改成已修——App 读出来就在这儿亮一张卡。玩家不必去聊天记录里翻
@@ -405,24 +346,7 @@ internal fun CaseStatusCard(
     }
 }
 
-/** One line of the plan: the label in mono, the words under it. */
-@Composable
-private fun PlanLine(label: String, text: String) {
-    Column {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-            color = AgentPalette.Ink2,
-        )
-        Text(
-            text,
-            style = MaterialTheme.typography.bodySmall,
-            color = AgentPalette.Ink,
-            maxLines = 4,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
+
 
 /** The kind of agent, in a little mono badge. */
 @Composable

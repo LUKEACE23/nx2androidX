@@ -148,17 +148,6 @@ Proposed fix: new fix
     }
 
     @Test
-    fun `the plan the player confirmed is not offered again`() {
-        val plan = Gamespec.Plan("2026-11-23 the crash", "the driver", "skip the shader")
-
-        assertNull(Gamespec.offerPlan(plan, "2026-11-23 the crash"))
-        // 换了别的那一条（新问题）：照常给玩家看
-        assertEquals(plan, Gamespec.offerPlan(plan, "2026-11-23 something else"))
-        // 还没确认过：给
-        assertEquals(plan, Gamespec.offerPlan(plan, null))
-    }
-
-    @Test
     fun `the plan can carry the player's own language`() {
         val spec = """### 2026-11-23 shader split finds no shaders (status: pending approval)
 Cause: the splitter only reads MGFX v8

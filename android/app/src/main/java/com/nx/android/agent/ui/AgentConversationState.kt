@@ -7,12 +7,9 @@ import com.nx.android.agent.AgentEvent
 import com.nx.android.agent.AgentFailure
 import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentModelConfig
-import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentSubagent
 import com.nx.android.agent.AgentSubagentCall
 import com.nx.android.agent.AgentTextBatch
-import com.nx.android.agent.CASE_DIR_FACT
-import com.nx.android.agent.CONFIRM_WORDS
 import com.nx.android.data.Gamespec
 import com.nx.android.agent.env.PiHistoryMapper
 import com.nx.android.agent.env.PiRunner
@@ -23,6 +20,7 @@ import com.nx.android.agent.runtime.AgentModelStore
 import com.nx.android.agent.runtime.AgentSessionStore
 import com.nx.android.agent.runtime.AgentSettingsStore
 import com.nx.android.core.di.ApplicationCoroutineScope
+import com.nx.android.core.storage.AppPaths
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -86,13 +84,6 @@ data class AgentUiState(
     val subagentRuns: Map<String, AgentSubagent> = emptyMap(),
 
     /**
-     * 那局档案里待确认的方案：子 Agent 诊断完写下的那一条。
-     *
-     * 有它，面板才给玩家那个「按方案修复」的按钮——玩家点一下才算确认。
-     */
-    val pendingPlan: Gamespec.Plan? = null,
-
-    /**
      * 那局档案里最新一条问题的状态（已修/待确认/未修/还开着）。
      *
      * 修好了就该告诉玩家「该你上场了」——那句话不必埋在聊天记录里找。
@@ -123,6 +114,7 @@ class AgentConversationState @Inject constructor(
     private val piRunner: PiRunner,
     private val models: AgentModelStore,
     private val subagentStore: SubagentStore,
+    private val paths: AppPaths,
     @ApplicationCoroutineScope private val scope: CoroutineScope,
 ) {
 
@@ -155,12 +147,6 @@ class AgentConversationState @Inject constructor(
     /** 哪次调用派出了哪一次运行（卡片与清单都要靠它对上） */
     @Volatile private var subagentRuns: Map<String, AgentSubagent> = emptyMap()
 
-    /** 玩家上一次发问时的页面上下文：确认「按方案修复」要用它（那一局是谁、档案在哪） */
-    @Volatile private var lastContext: AgentPageContext? = null
-
-    /** 那局档案里待确认的方案（读档案，不写它） */
-    @Volatile private var pendingPlan: Gamespec.Plan? = null
-
     /** 那局档案里最新一条问题的状态（读档案，不写它） */
     @Volatile private var caseStatus: String? = null
 
@@ -169,18 +155,6 @@ class AgentConversationState @Inject constructor(
 
     /** 档案时间线上的最新一条：子代理记下的进展 */
     @Volatile private var caseProgress: String? = null
-
-    /**
-     * 玩家已经确认过的那一条（按标题记着）。
-     *
-     * 子 Agent 修完才改档案里的状态，那要好几分钟。这段时间里按钮要是自己回来，
-     * 玩家会以为刚才那一下没生效，又点一次——于是同一份确认发了好几遍。
-     * 同一条不再问第二次；换了别的那条（新问题）才再问。
-     */
-    @Volatile private var confirmedPlan: String? = null
-
-    /** 玩家点了确认但那一轮还在跑：记下来，等它结束再送出去 */
-    @Volatile private var queuedConfirm: Boolean = false
 
     /** 子 Agent 在跑的时候，面板要看得见它在干啥：两秒读一次它的 transcript */
     private var subagentWatch: Job? = null
@@ -219,9 +193,9 @@ class AgentConversationState @Inject constructor(
                     is AgentEvent.Notification -> {
                         flushBackground(batch)
                         conversation.followUp(event)
-                        // 子 Agent 刚跑完：清单跟上，方案可能刚写进档案
+                        // 子 Agent 刚跑完：清单跟上，档案里的状态可能刚变了
                         refreshSubagents()
-                        refreshPendingPlan()
+                        refreshCase()
                         publish()
                     }
                     is AgentEvent.Failed -> {
@@ -272,7 +246,6 @@ class AgentConversationState @Inject constructor(
             streamingId = conversation.streamingId,
             subagents = subagents,
             subagentRuns = subagentRuns,
-            pendingPlan = pendingPlan,
             caseStatus = caseStatus,
             caseTitleId = caseTitleId,
             caseProgress = caseProgress,
@@ -371,7 +344,7 @@ class AgentConversationState @Inject constructor(
             subagents = listed.runs
             subagentRuns = listed.byCall
             // 子代理在跑的时候，档案上的进展也在变：两秒读一次，玩家看得见它干到哪了
-            withContext(Dispatchers.IO) { refreshCaseStatus(caseDir()) }
+            withContext(Dispatchers.IO) { refreshCaseStatus(Gamespec.recentCaseDir(paths.nxHome)) }
             publish()
         }
     }
@@ -391,7 +364,7 @@ class AgentConversationState @Inject constructor(
                 }
                 subagents = listed.runs
                 subagentRuns = listed.byCall
-                withContext(Dispatchers.IO) { refreshCaseStatus(caseDir()) }
+                withContext(Dispatchers.IO) { refreshCaseStatus(Gamespec.recentCaseDir(paths.nxHome)) }
                 publish()
                 if (listed.runs.none { it.running } && !conversation.running) break
             }
@@ -404,21 +377,18 @@ class AgentConversationState @Inject constructor(
     }
 
     /**
-     * 读那局档案里待确认的方案：档案在页面上下文里写着它在哪儿。
+     * 读档案的状态：最近动过的那一局，修好了没有、进展到哪。
      *
-     * 只读——方案是子 Agent 写的，app 不碰它。
+     * 只读——档案是子 Agent 写的，app 不碰它。方案本身不进面板：助手在会话里讲给玩家，
+     * 玩家在会话里回复确认（约定写在 AGENTS.md 里）。
      */
-    private fun refreshPendingPlan() {
-        val dir = caseDir()
-        val plan = if (dir != null) Gamespec.pendingPlan(dir) else null
-        // 玩家确认过的那一条不再问一次
-        pendingPlan = Gamespec.offerPlan(plan, confirmedPlan)
-        refreshCaseStatus(dir)
-        publish()
+    private fun refreshCase() {
+        scope.launch {
+            val dir = withContext(Dispatchers.IO) { Gamespec.recentCaseDir(paths.nxHome) }
+            refreshCaseStatus(dir)
+            publish()
+        }
     }
-
-    /** 那一局的攻关档案在哪儿（页面上下文里写着）。 */
-    private fun caseDir(): File? = lastContext?.facts?.get(CASE_DIR_FACT)?.let { File(it) }
 
     /**
      * 档案里的两件事：最新一条问题的状态（修好了就该亮出「去跑一下」），和时间线上最新一条
@@ -426,29 +396,9 @@ class AgentConversationState @Inject constructor(
      */
     private fun refreshCaseStatus(dir: File?) {
         caseStatus = dir?.let { Gamespec.latestStatus(it) }
-        // 哪一局：攻关档案的目录名就是 title ID（页面上下文没有时也认得出）
-        caseTitleId = dir?.name?.takeIf { it.isNotBlank() } ?: lastContext?.subject?.id
+        // 哪一局：攻关档案的目录名就是 title ID
+        caseTitleId = dir?.name?.takeIf { it.isNotBlank() }
         caseProgress = dir?.let { Gamespec.latestTimeline(it) }
-    }
-
-    /**
-     * 玩家点了「按方案修复」：把确认送去主会话。
-     *
-     * 任务里写明玩家已确认——攻关子 Agent 读到这句话才动代码。
-     * 那一轮还在跑的话先记着，等它结束再送出去。
-     */
-    fun confirmPlan() {
-        val plan = pendingPlan ?: return
-        val context = lastContext
-        // 方案还在档案里（子 Agent 修完才改状态）：按钮先收起来，别让玩家点两次
-        pendingPlan = null
-        confirmedPlan = plan.headline
-        publish()
-        if (conversation.running) {
-            queuedConfirm = true
-            return
-        }
-        send(CONFIRM_WORDS, context)
     }
 
     /** 子 Agent 的完整对话：它自己的会话文件（还在跑的就是它的 transcript）。 */
@@ -499,18 +449,11 @@ class AgentConversationState @Inject constructor(
     }
 
     /** One turn: the words land at once, the answer streams in as the events arrive. */
-    fun send(text: String, context: AgentPageContext? = null) {
+    fun send(text: String) {
         val words = text.trim()
         if (words.isEmpty() || conversation.running) return
         conversation.dismissFailure()
         draft = ""
-        // 这一问是在哪一局上问的：确认「按方案修复」要带着它
-        if (context != null) {
-            val before = lastContext?.subject?.id
-            lastContext = context
-            // 换了一局：上一局确认过的那一条不算数（这一局还没问过）
-            if (before != null && before != context.subject?.id) confirmedPlan = null
-        }
         conversation.say(words)
         conversation.begin()
         publish()
@@ -520,7 +463,7 @@ class AgentConversationState @Inject constructor(
             val batch = AgentTextBatch()
             val thoughts = AgentTextBatch()
             try {
-                chat.send(words, context).collect { event ->
+                chat.send(words).collect { event ->
                     when (event) {
                         is AgentEvent.TextDelta -> {
                             // the deltas wait in the buffer: the answer is re-laid ten times a
@@ -559,11 +502,6 @@ class AgentConversationState @Inject constructor(
                 flushThoughts(thoughts)
                 conversation.end()
                 publish()
-                // 玩家在上一轮还在跑的时候点了确认：这一轮结束了，把它送出去
-                if (queuedConfirm) {
-                    queuedConfirm = false
-                    send(CONFIRM_WORDS, lastContext)
-                }
             }
         }
     }
@@ -605,8 +543,8 @@ class AgentConversationState @Inject constructor(
         // 子 Agent 可能刚跑完：清单跟着更新
         if (event is AgentEvent.Notification || event is AgentEvent.TurnDone) {
             refreshSubagents()
-            // 方案可能刚写进档案：读一下，玩家才看得见那个按钮
-            refreshPendingPlan()
+            // 档案里的状态可能刚变了：读一下
+            refreshCase()
         }
         publish()
     }

@@ -93,13 +93,14 @@ import com.nx.android.game.hud.HudField
 import com.nx.android.game.hud.HudOverlay
 import com.nx.android.game.input.PadEditor
 import com.nx.android.game.input.PadView
-import com.nx.android.agent.AgentPageContext
-import com.nx.android.agent.gameContext
 import com.nx.android.agent.runtime.GamespecExporter
 import com.nx.android.agent.runtime.openGamespecIssue
 import com.nx.android.agent.ui.AgentConversationState
 import com.nx.android.agent.ui.AgentDrawerHost
 import com.nx.android.agent.ui.AgentEdgeBadge
+import com.nx.android.appstate.PageFacts
+import com.nx.android.appstate.PageState
+import com.nx.android.appstate.PageStateStore
 import com.nx.android.game.overlay.GameDrawer
 import com.nx.android.game.overlay.TextPrompt
 import com.nx.android.input.GamepadScan
@@ -185,6 +186,8 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     @Inject lateinit var paths: AppPaths
     /** 助手的会话：整个 App 一份——首页的抽屉与这里的抽屉看的都是它 */
     @Inject lateinit var agentConversation: AgentConversationState
+    /** 页面状态快照：助手想知道玩家此刻在哪一局，就读它 */
+    @Inject lateinit var pageState: PageStateStore
 
     /** 界面语言：toast 与抽屉里的词从这里取 */
     private val locale: AppLocale get() = (application as NxApp).locale
@@ -207,11 +210,22 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     /** 这次进来是要重建运行库的（游戏闪退后玩家点的「重新构建」）：目录里那份对不上也不将就，重编一次 */
     private var forceRebuild = false
 
-    /** 玩家在处理哪一局：助手据此知道这局的 title ID 与攻关档案在哪 */
-    private val agentContext: AgentPageContext?
-        get() = packTitleId?.let { tid ->
-            gameContext(tid, packName, Gamespec.dir(paths.nxHome, tid))
+    /** 玩家在处理哪一局：助手据此知道这局是哪一局、运行参数是什么 */
+    private fun gamePageState(): PageState {
+        val facts = mutableMapOf<String, String>()
+        // 运行参数：包里的 env.txt 写着它们（语言与 Vulkan 驱动）
+        packPath?.let { pack ->
+            val (lang, driver) = PackEnvStore.current(File(pack))
+            if (!lang.isNullOrBlank()) facts[PageFacts.LANGUAGE] = lang
+            if (!driver.isNullOrBlank()) facts[PageFacts.DRIVER] = driver
         }
+        return PageState(
+            page = "game",
+            titleId = packTitleId.orEmpty(),
+            name = packName,
+            facts = facts,
+        )
+    }
 
     /** the game UI (surface, pad, drawer) is in the view tree: the native calls and the input paths are live */
     private var gameUiReady = false
@@ -1070,8 +1084,6 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
                     onCollapse = { closeAgentDrawer() },
                     onExpand = {},
                     onOpenSettings = {},
-                    // 玩家在处理哪一局：助手据此知道这局的攻关档案在哪
-                    pageContext = agentContext,
                     onExportGamespec = { packTitleId?.let { exportGamespec(it) } },
                 )
             }
@@ -1189,6 +1201,8 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     // ---- lifecycle: the same dance as the NativeActivity's callbacks ----
     override fun onResume() {
         super.onResume()
+        // 助手看得见的页面状态：游戏页在前台时它说了算（这一局是哪一局、跑的是什么参数）
+        pageState.setGame(gamePageState())
         if (!gameUiReady) return   // Loading 期：宿主与手柄都还没就位
         Native.lifecycle(1)
         padView.fetchLayout()
@@ -1254,6 +1268,8 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onDestroy() {
+        // 这一局没了：助手看到的页面状态回到主界面那一页
+        pageState.setGame(null)
         ctrlListener?.let { runCatching { inputManager.unregisterInputDeviceListener(it) } }
         ctrlListener = null
         externalDisplay?.stop()   // 外接屏：把它收起来，宿主那边也放回手机

@@ -48,6 +48,7 @@ import com.nx.android.appstate.LibraryState
 import com.nx.android.appstate.EnvBuildState
 import com.nx.android.appstate.EnvCheckState
 import com.nx.android.appstate.OnboardingState
+import com.nx.android.appstate.PageStateStore
 import com.nx.android.appstate.PlayerState
 import com.nx.android.appstate.PortState
 import com.nx.android.data.AppLocale
@@ -136,6 +137,8 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var exporter: GamespecExporter
     /** 助手的会话：整个 App 一份——首页的抽屉、竖屏的聊天页与游戏里的抽屉看的都是它 */
     @Inject lateinit var agentConversation: AgentConversationState
+    /** 页面状态快照：助手想知道玩家此刻在哪一局，就读它 */
+    @Inject lateinit var pageState: PageStateStore
 
     /** 界面语言：toast 与分享面板的标题从这里取词 */
     /** Which tab the screen opens on (the notification's tap says the builds page) */
@@ -192,7 +195,7 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             AppRoot(prefs, locale, port, library, onboarding, drivers, environmentSetup, actions,
-                launchTab, launchBuildId, padController, agentSetup, agentConversation,
+                launchTab, launchBuildId, padController, agentSetup, agentConversation, pageState,
                 padCenterOpen = padCenterOpen, onPadCenter = { padCenterOpen = it },
                 agentFullOpen = agentFullOpen, onAgentFull = { agentFullOpen = it },
                 crash = crash, onCrashHandled = { crash = null },

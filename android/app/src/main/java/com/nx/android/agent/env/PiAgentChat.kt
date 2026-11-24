@@ -9,7 +9,6 @@ import com.nx.android.agent.AgentFailure
 import com.nx.android.agent.AgentHistory
 import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentModelConfig
-import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentSubagentCallParser
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
@@ -315,7 +314,7 @@ class PiAgentChat @Inject constructor(
         }
     }
 
-    override suspend fun send(userText: String, context: AgentPageContext?): Flow<AgentEvent> = channelFlow {
+    override suspend fun send(userText: String): Flow<AgentEvent> = channelFlow {
         val config = settings.config
         if (!config.configured) { send(AgentEvent.Failed(AgentFailure.NO_KEY)); return@channelFlow }
 
@@ -336,7 +335,6 @@ class PiAgentChat @Inject constructor(
         val composed = composeTurn(
             userText,
             workspace.readMemory(),
-            context,
             deviceState = deviceState(
                 BuildConfig.VERSION_NAME,
                 tools.libraryStatus(),

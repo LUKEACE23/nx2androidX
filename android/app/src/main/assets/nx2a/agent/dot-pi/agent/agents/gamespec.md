@@ -113,7 +113,17 @@ up; an answer that never comes cannot.
 5. Answer the main session with a summary: it starts with a digest in the player's language
    (the task says which one) - what changed, whether the verification passed, what the
    player does next - and the English detail follows after it.
-6. When the case is closed, leave the rule behind: write the distilled lesson into
+6. Leave the case the way the knowledge base can use it: add a "## Case index row" section
+   to the case file, with one JSON object in it:
+   ```json
+   {"number": "case-<title ID>-<slug>", "title": "fix(<layer>): <one line>", "symptom": "black",
+    "game": "<the game's name>", "ids": "<the title ID>", "files": ["<the path>"],
+    "summary": "<one sentence: the symptom, the cause, the fix>"}
+   ```
+   The symptom is one of: crash, black, garble, freeze, missing, build, memory, shader,
+   perf, audio, movie, feature. The person at the computer pastes that object into the
+   knowledge base's corpus, and the next game with the same symptom finds it there.
+7. When the case is closed, leave the rule behind: write the distilled lesson into
    $NX2A_HOME/agent/workspace/knowledge/local-cases.md - the domain rule that outlives this
    case (which engine, which format, which fix, which upstream number). One entry, one
    line, in English, the newest first.
@@ -150,6 +160,10 @@ Player fix: ... (the proposed fix in the player's language - optional)
 
 ## Timeline
 - <date time> <what happened>
+
+## Case index row
+<one JSON object: the case's reference, its title, its symptom, the game and its title ID,
+the paths the fix touched and a one-line summary. The knowledge base takes this line.>
 
 ## Red lines
 - Never delete or overwrite the player's data packs or game profiles.

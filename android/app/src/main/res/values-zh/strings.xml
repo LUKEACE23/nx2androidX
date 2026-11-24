@@ -716,11 +716,6 @@
     <string name="agent_gamespec_export">贡献上游</string>
     <string name="agent_gamespec_confirm_text">请先在游戏库里选中你改动的那个游戏再导出——导出的永远是当前选中的那一局，选错了会导出失败。会把这一局的档案打成一个 zip 包（放在下载目录的 nx2android/gamespec/ 里），然后打开本仓库的 issue 页面，请在表单里把这个 zip 一起附上。</string>
     <string name="agent_thinking_fold">思考</string>
-    <string name="agent_plan_waiting">方案待确认</string>
-    <string name="agent_plan_cause">根因</string>
-    <string name="agent_plan_fix">建议修法</string>
-    <string name="agent_plan_confirm">按方案修复</string>
-    <string name="agent_plan_hint">点了才动代码</string>
     <string name="agent_subagents_stopped">已停止</string>
     <string name="agent_subagents_interrupted">已中断</string>
     <string name="agent_run_running_for">已跑 %1$s</string>

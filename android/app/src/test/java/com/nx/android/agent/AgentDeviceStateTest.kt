@@ -37,7 +37,7 @@ class AgentDeviceStateTest {
     @Test
     fun `the composed turn carries the version first`() {
         val state = deviceState("0.4.0-alpha03", library, 600)
-        val composed = composeTurn("我的 App 什么版本", "", null, state)
+        val composed = composeTurn("我的 App 什么版本", "", state)
 
         assertTrue(composed.startsWith("[device] app version: 0.4.0-alpha03"))
         assertTrue(composed.contains("the library has 12 game(s)"))

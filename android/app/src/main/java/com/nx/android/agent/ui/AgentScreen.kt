@@ -230,18 +230,8 @@ fun AgentScreen(
                             caseProgress = state.caseProgress,
                         )
                     }
-                    // 攻关方案等着玩家点一下：确认之前，什么都不改
-                    state.pendingPlan?.let { plan ->
-                        item(key = "plan-confirm") {
-                            PlanConfirmCard(
-                                plan = plan,
-                                onConfirm = { conversation.confirmPlan() },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                    }
                     // 修好了：该玩家上场了——按钮就在这儿，不用去聊天记录里翻那句话
-                    // （待确认的不用这张卡：确认门已经在那里了）
+                    // （待确认的不用这张卡：方案在会话里等玩家回复确认）
                     state.caseStatus
                         ?.takeIf { it != Gamespec.PLAN_PENDING }
                         ?.let { status ->

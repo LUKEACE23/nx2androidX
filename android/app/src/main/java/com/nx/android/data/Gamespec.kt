@@ -131,6 +131,19 @@ object Gamespec {
         return parsePlan(text)
     }
 
+    /**
+     * 最近动过的那一局档案：面板上「修好了，去跑一下」说的是它。
+     *
+     * 最近写过的档案就是刚刚被攻关的那一局（子 Agent 写完 spec.md 才算数）。
+     */
+    fun recentCaseDir(nxHome: File): File? {
+        val root = File(nxHome, "gamespec")
+        val dirs = runCatching { root.listFiles()?.filter { it.isDirectory } }.getOrNull() ?: return null
+        return dirs
+            .filter { File(it, SPEC_FILE).isFile }
+            .maxByOrNull { runCatching { File(it, SPEC_FILE).lastModified() }.getOrDefault(0L) }
+    }
+
     /** 档案里最后一条待确认的方案（解析 spec.md 的正文） */
     fun parsePlan(text: String): Plan? {
         var plan: Plan? = null
@@ -235,13 +248,4 @@ object Gamespec {
         return latest
     }
 
-    /**
-     * 该给玩家看的方案：玩家确认过的那一条不再问第二次。
-     *
-     * 子 Agent 修完才改档案里的状态，那要好几分钟。这段时间里那个按钮要是自己回来，
-     * 玩家会以为刚才那一下没生效，又点一次——同一份确认就发了好几遍。
-     * 换了别的那一条（新问题）才再问。
-     */
-    fun offerPlan(plan: Plan?, confirmed: String?): Plan? =
-        plan?.takeIf { confirmed == null || it.headline != confirmed }
 }

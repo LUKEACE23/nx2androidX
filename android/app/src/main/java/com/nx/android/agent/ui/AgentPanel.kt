@@ -94,7 +94,6 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nx.android.R
 import com.nx.android.agent.AgentMessage
-import com.nx.android.agent.AgentPageContext
 import com.nx.android.agent.AgentPresets
 import com.nx.android.agent.AgentRole
 import com.nx.android.data.Gamespec
@@ -142,8 +141,6 @@ fun AgentDrawerHost(
     onCollapse: () -> Unit,
     onExpand: () -> Unit,
     onOpenSettings: () -> Unit = {},
-    /** 玩家此刻在处理什么（游戏页给 title ID 与攻关档案的位置）；没有就是没有 */
-    pageContext: AgentPageContext? = null,
     /** 导出这局的攻关档案（只有游戏页给得起这个动作） */
     onExportGamespec: (() -> Unit)? = null,
     /** 修好了之后「去跑一下」：按 title ID 把那一局交到游戏页 */
@@ -188,7 +185,6 @@ fun AgentDrawerHost(
                 onCollapse = onCollapse,
                 onExpand = onExpand,
                 onOpenSettings = onOpenSettings,
-                pageContext = pageContext,
                 onExportGamespec = onExportGamespec,
                 onRunGame = onRunGame,
                 modifier = Modifier.offset { IntOffset((slide.value * widthPx).roundToInt(), 0) },
@@ -213,8 +209,6 @@ fun AgentPanel(
     onCollapse: () -> Unit,
     onExpand: () -> Unit,
     onOpenSettings: () -> Unit = {},
-    /** 玩家此刻在处理什么（游戏页给 title ID 与攻关档案的位置）；没有就是没有 */
-    pageContext: AgentPageContext? = null,
     /** 导出这局的攻关档案（只有游戏页给得起这个动作） */
     onExportGamespec: (() -> Unit)? = null,
     /** 修好了之后「去跑一下」：按 title ID 把那一局交到游戏页 */
@@ -356,16 +350,6 @@ fun AgentPanel(
                             subagentRuns = state.subagentRuns,
                             caseProgress = state.caseProgress,
                         )
-                    }
-                    // 攻关方案等着玩家点一下：确认之前，什么都不改
-                    state.pendingPlan?.let { plan ->
-                        item(key = "plan-confirm") {
-                            PlanConfirmCard(
-                                plan = plan,
-                                onConfirm = { conversation.confirmPlan() },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
                     }
                     // 修好了：该玩家上场了——按钮就在这儿，不用去聊天记录里翻那句话
                     // （待确认的不用这张卡：确认门已经在那里了）
@@ -617,7 +601,7 @@ fun AgentPanel(
                             )
                             chips.forEach { res ->
                                 val words = stringResource(res)
-                                QuickCard(words) { conversation.send(words, pageContext) }
+                                QuickCard(words) { conversation.send(words) }
                             }
                         }
                     } else {
