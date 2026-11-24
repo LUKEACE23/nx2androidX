@@ -8,6 +8,8 @@ import org.json.JSONObject
  * One model the player configured: a provider, an endpoint, a model name and a key.
  *
  * @param apiKey the key in plain text — it is only ever in memory; what is written down is a blob
+ * @param modelIds the models the endpoint offered when the player last asked for them; it saves the
+ *   player a second trip, and it is a list of names — nothing secret
  */
 data class AgentModelProfile(
     val id: String,
@@ -16,6 +18,7 @@ data class AgentModelProfile(
     val baseUrl: String,
     val modelName: String,
     val apiKey: String,
+    val modelIds: List<String> = emptyList(),
 ) {
     /** The config the engine works with. */
     fun toConfig(): AgentModelConfig = AgentModelConfig(providerId, baseUrl, apiKey, modelName)
@@ -43,7 +46,8 @@ object AgentModelFile {
                     .put("label", p.label)
                     .put("baseUrl", p.baseUrl)
                     .put("modelName", p.modelName)
-                    .put("apiKeyEnc", encrypt(p.apiKey)),
+                    .put("apiKeyEnc", encrypt(p.apiKey))
+                    .put("modelIds", JSONArray(p.modelIds)),
             )
         }
         return JSONObject()
@@ -70,10 +74,22 @@ object AgentModelFile {
                     baseUrl = p.optString("baseUrl").trim(),
                     modelName = p.optString("modelName").trim(),
                     apiKey = decrypt(p.optString("apiKeyEnc")),
+                    modelIds = readModelIds(p.optJSONArray("modelIds")),
                 ),
             )
         }
         return Content(o.optString("activeId").trim(), out)
+    }
+
+    /** The list of model names the file carries (empty when it carries none). */
+    private fun readModelIds(array: JSONArray?): List<String> {
+        if (array == null) return emptyList()
+        val out = mutableListOf<String>()
+        for (i in 0 until array.length()) {
+            val id = array.optString(i).trim()
+            if (id.isNotEmpty()) out.add(id)
+        }
+        return out
     }
 
     /** The content with a profile added, or with the one that carries the same id replaced. */

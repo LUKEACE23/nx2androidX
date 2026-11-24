@@ -13,6 +13,7 @@ import com.nx.android.agent.runtime.AgentEngineStore
 import com.nx.android.agent.runtime.AgentModelProfile
 import com.nx.android.agent.runtime.AgentModelStore
 import com.nx.android.agent.runtime.AgentSetup
+import com.nx.android.agent.env.PiModelList
 import com.nx.android.data.AppVersion
 import com.nx.android.data.agent.AgentPackageDownloader
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -39,6 +40,7 @@ class AgentSettingsViewModel @Inject constructor(
     private val engine: AgentEngineStore,
     private val installer: AgentEngineInstaller,
     private val models: AgentModelStore,
+    private val modelList: PiModelList,
     @ApplicationContext private val ctx: Context,
 ) : ViewModel() {
 
@@ -150,6 +152,14 @@ class AgentSettingsViewModel @Inject constructor(
         models.setActive(id)
         refreshModels()
     }
+
+    /**
+     * Asks the engine which models a provider has.
+     *
+     * The engine knows the providers it carries — the endpoint and the model list are its business.
+     */
+    suspend fun listModels(providerId: String, apiKey: String): Result<PiModelList.Listing> =
+        modelList.list(providerId, apiKey)
 
     private fun refreshModels() {
         profiles = models.list()

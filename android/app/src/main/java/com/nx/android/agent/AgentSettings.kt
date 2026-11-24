@@ -13,12 +13,18 @@ data class AgentPreset(
 )
 
 object AgentPresets {
+    /**
+     * The providers the player may choose.
+     *
+     * The three the engine knows by itself carry no endpoint here: the engine knows where they
+     * live, and the player brings the key. The rest are ours to describe.
+     */
     val ALL: List<AgentPreset> = listOf(
         AgentPreset("glm", "GLM", "https://open.bigmodel.cn/api/paas/v4", "glm-4.6"),
-        AgentPreset("deepseek", "DeepSeek", "https://api.deepseek.com", "deepseek-chat"),
+        AgentPreset("deepseek", "DeepSeek", "", ""),
         AgentPreset("doubao", "豆包", "https://ark.cn-beijing.volces.com/api/v3", ""),
-        AgentPreset("kimi", "Kimi", "https://api.moonshot.cn/v1", "kimi-latest"),
-        AgentPreset("minimax", "MiniMax", "https://api.minimax.chat/v1", "MiniMax-M2.7"),
+        AgentPreset("kimi", "Kimi", "", ""),
+        AgentPreset("minimax", "MiniMax", "", ""),
         AgentPreset("custom", "自定义", "", ""),
     )
 

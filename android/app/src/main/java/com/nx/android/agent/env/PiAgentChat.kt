@@ -842,32 +842,41 @@ internal object PiCatalog {
         "minimax-cn/MiniMax-M2" to 204_800L,
         "deepseek/deepseek-chat" to 131_072L,
         "deepseek/deepseek-reasoner" to 131_072L,
-        "moonshot/kimi-latest" to 262_144L,
+        "moonshotai-cn/kimi-latest" to 262_144L,
         "zhipu/glm-4.6" to 204_800L,
         "zhipu/glm-4.5" to 131_072L,
     )
 
     fun contextWindowFor(fullModelId: String): Long = CONTEXT_WINDOWS[fullModelId] ?: 0L
 
-    /** The providers pi knows by itself (its own catalog names them). */
-    private val BUILT_IN = setOf("minimax", "deepseek", "kimi")
-
-    /** The name the provider carries in the models.json and in the model id. */
+    /**
+     * The name the provider carries in the models.json and in the model id.
+     *
+     * These are the names pi's own catalog uses: a model is looked up by the pair (provider, id),
+     * so a name of our own would not be found. Kimi's name is `moonshotai-cn`, not `moonshot`.
+     */
     fun providerKey(providerId: String): String = when (providerId) {
         "glm" -> "zhipu"
+        "minimax" -> "minimax-cn"
+        "kimi" -> "moonshotai-cn"
         else -> providerId
     }
 
+    /**
+     * The providers pi knows by itself: the endpoint and the list of models are its business, and
+     * the player only brings the key.
+     *
+     * This is the one place that knows it — the dialog hides the endpoint for these, and the
+     * models.json is not written for them.
+     */
+    fun engineManaged(providerId: String): Boolean = providerId in ENGINE_MANAGED
+
+    /** The providers pi's own catalog carries. */
+    private val ENGINE_MANAGED = setOf("minimax", "deepseek", "kimi")
+
     fun fullModelId(config: AgentModelConfig): String =
         if (config.modelName.contains('/')) config.modelName
-        else when (config.providerId) {
-            "minimax" -> "minimax-cn/${config.modelName}"
-            "glm" -> "zhipu/${config.modelName}"
-            "deepseek" -> "deepseek/${config.modelName}"
-            "kimi" -> "moonshot/${config.modelName}"
-            else -> if (config.providerId in BUILT_IN) config.modelName
-            else "${providerKey(config.providerId)}/${config.modelName}"
-        }
+        else "${providerKey(config.providerId)}/${config.modelName}"
 
     fun keyEnv(providerId: String, key: String): Pair<String, String> = when (providerId) {
         "minimax" -> "MINIMAX_CN_API_KEY" to key
@@ -881,46 +890,32 @@ internal object PiCatalog {
     /**
      * The models.json a provider of ours needs: pi knows some providers by itself, the others
      * (glm through bigmodel.cn, doubao, an endpoint of the player's own) are declared here — the
-     * endpoint, the key's env var and the model.
+     * endpoint, the key's env var and the model the player picked.
+     *
+     * The model that goes in is the one this profile names, not a list of our own: a model pi does
+     * not know is a model pi cannot run.
      *
      * Null when pi knows the provider by itself.
      */
-    fun modelsJson(config: AgentModelConfig): String? = when (config.providerId) {
-        "minimax", "deepseek", "kimi" -> null
-        "glm" -> """
+    fun modelsJson(config: AgentModelConfig): String? {
+        if (engineManaged(config.providerId)) return null
+        val key = providerKey(config.providerId)
+        val (envName, _) = keyEnv(config.providerId, config.apiKey)
+        val window = contextWindowFor("$key/${config.modelName}")
+        val model = if (window > 0) """{ "id": "${config.modelName}", "contextWindow": $window }"""
+        else """{ "id": "${config.modelName}" }"""
+        return """
             {
               "providers": {
-                "zhipu": {
+                "$key": {
                   "baseUrl": "${config.baseUrl.trimEnd('/')}",
                   "api": "openai-completions",
-                  "apiKey": "${'$'}ZHIPU_API_KEY",
-                  "models": [
-                    { "id": "glm-4.6", "contextWindow": 204800 },
-                    { "id": "glm-4.5", "contextWindow": 131072 },
-                    { "id": "glm-4.5-air", "contextWindow": 131072 }
-                  ]
+                  "apiKey": "${'$'}${envName}",
+                  "compat": { "maxTokensField": "max_tokens" },
+                  "models": [ $model ]
                 }
               }
             }
         """.trimIndent()
-        else -> {
-            val key = providerKey(config.providerId)
-            val (envName, _) = keyEnv(config.providerId, config.apiKey)
-            val window = contextWindowFor("$key/${config.modelName}")
-            val model = if (window > 0) """{ "id": "${config.modelName}", "contextWindow": $window }"""
-            else """{ "id": "${config.modelName}" }"""
-            """
-                {
-                  "providers": {
-                    "$key": {
-                      "baseUrl": "${config.baseUrl.trimEnd('/')}",
-                      "api": "openai-completions",
-                      "apiKey": "${'$'}${envName}",
-                      "models": [ $model ]
-                    }
-                  }
-                }
-            """.trimIndent()
-        }
     }
 }

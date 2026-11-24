@@ -121,6 +121,8 @@ fun AgentSettingsSection(viewModel: AgentSettingsViewModel, onRequest: (PickerRe
         AgentModelDialog(
             existing = null,
             error = state.modelError,
+            engineReady = state.engineInstalled,
+            listModels = { providerId, apiKey -> viewModel.listModels(providerId, apiKey) },
             onDismiss = { adding = false },
             onSave = {
                 // 存不上就留在框里：玩家看得见哪里出了错，不用重新填一遍
@@ -132,6 +134,8 @@ fun AgentSettingsSection(viewModel: AgentSettingsViewModel, onRequest: (PickerRe
         AgentModelDialog(
             existing = profile,
             error = state.modelError,
+            engineReady = state.engineInstalled,
+            listModels = { providerId, apiKey -> viewModel.listModels(providerId, apiKey) },
             onDismiss = { editing = null },
             onSave = {
                 if (viewModel.saveModel(it)) editing = null

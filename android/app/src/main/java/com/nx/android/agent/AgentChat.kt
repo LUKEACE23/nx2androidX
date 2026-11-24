@@ -1,5 +1,6 @@
 package com.nx.android.agent
 
+import com.nx.android.agent.env.PiCatalog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import java.io.File
@@ -72,7 +73,15 @@ data class AgentModelConfig(
     val apiKey: String,
     val modelName: String,
 ) {
-    val configured: Boolean get() = apiKey.isNotBlank() && baseUrl.isNotBlank() && modelName.isNotBlank()
+    /**
+     * Whether this model is ready to run.
+     *
+     * The providers the engine knows by itself carry their own endpoint, so there is no address to
+     * keep for them — a missing one does not make the model unready.
+     */
+    val configured: Boolean
+        get() = apiKey.isNotBlank() && modelName.isNotBlank() &&
+            (baseUrl.isNotBlank() || PiCatalog.engineManaged(providerId))
 }
 
 interface AgentChat {

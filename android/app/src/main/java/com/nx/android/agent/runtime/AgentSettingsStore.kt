@@ -32,6 +32,8 @@ class AgentSettingsStore @Inject constructor(
                 baseUrl = config.baseUrl,
                 modelName = config.modelName,
                 apiKey = config.apiKey,
+                // the list of models the endpoint offered stays: the endpoint did not change
+                modelIds = current?.modelIds.orEmpty(),
             ),
         )
     }
