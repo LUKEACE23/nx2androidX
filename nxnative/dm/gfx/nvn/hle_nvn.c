@@ -508,28 +508,31 @@ NVN(nvnTextureInitialize, NVNboolean, NVNtexture *t, const NVNtextureBuilder *b)
     o->serial = nvn_new_serial(); mtl_tex_init(o);
     #if !defined(__APPLE__)
     if (s->gl_name && !o->mem && o->L.size) {
-        extern void *eglGetProcAddress(const char *);
+        __attribute__((weak)) extern void *eglGetProcAddress(const char *);
         typedef void (*P_GENFB)(int, unsigned *);
         typedef void (*P_BINDFB)(unsigned, unsigned);
         typedef void (*P_FBTEX2D)(unsigned, unsigned, unsigned, unsigned, int);
         typedef void (*P_READPIX)(int, int, int, int, unsigned, unsigned, void *);
         typedef void (*P_DELFB)(int, const unsigned *);
-        P_GENFB pGenFb = (P_GENFB)eglGetProcAddress("glGenFramebuffers");
-        P_BINDFB pBindFb = (P_BINDFB)eglGetProcAddress("glBindFramebuffer");
-        P_FBTEX2D pFbTex2D = (P_FBTEX2D)eglGetProcAddress("glFramebufferTexture2D");
-        P_READPIX pReadPix = (P_READPIX)eglGetProcAddress("glReadPixels");
-        P_DELFB pDelFb = (P_DELFB)eglGetProcAddress("glDeleteFramebuffers");
         uint8_t *buf = calloc(1, o->L.size);
-        if (buf && pGenFb && pBindFb && pFbTex2D && pReadPix && pDelFb) {
-            unsigned fb = 0; pGenFb(1, &fb); pBindFb(0x8D40, fb);
-            pFbTex2D(0x8D40, 0x8CE0, 0x0DE1, s->gl_name, 0);
-            pReadPix(0, 0, (int)o->d.width, (int)o->d.height, 0x1908, 0x1401, buf);
-            pBindFb(0x8D40, 0); pDelFb(1, &fb);
-            static int gllog; if (gllog++ < 8) LOG("[nvn] GL texture %u (%ux%u fmt %#x) copied into NVN texture", s->gl_name, o->d.width, o->d.height, o->d.format);
+        if (eglGetProcAddress && buf) {
+            P_GENFB pGenFb = (P_GENFB)eglGetProcAddress("glGenFramebuffers");
+            P_BINDFB pBindFb = (P_BINDFB)eglGetProcAddress("glBindFramebuffer");
+            P_FBTEX2D pFbTex2D = (P_FBTEX2D)eglGetProcAddress("glFramebufferTexture2D");
+            P_READPIX pReadPix = (P_READPIX)eglGetProcAddress("glReadPixels");
+            P_DELFB pDelFb = (P_DELFB)eglGetProcAddress("glDeleteFramebuffers");
+            if (pGenFb && pBindFb && pFbTex2D && pReadPix && pDelFb) {
+                unsigned fb = 0; pGenFb(1, &fb); pBindFb(0x8D40, fb);
+                pFbTex2D(0x8D40, 0x8CE0, 0x0DE1, s->gl_name, 0);
+                pReadPix(0, 0, (int)o->d.width, (int)o->d.height, 0x1908, 0x1401, buf);
+                pBindFb(0x8D40, 0); pDelFb(1, &fb);
+                static int gllog; if (gllog++ < 8) LOG("[nvn] GL texture %u (%ux%u fmt %#x) copied into NVN texture", s->gl_name, o->d.width, o->d.height, o->d.format);
+            }
         }
         if (buf) { o->mem = buf; o->d.flags |= NVN_TEXTURE_FLAGS_LINEAR; mtl_tex_cpu_written(o); }
     }
 #endif
+
     
     {   // DM_NVN_TEXINFO=WxH also logs every texture of that size as it is initialized (render targets included): which ones share storage, and how their descriptions differ
         static int ti = -1; static uint32_t tw, th;
