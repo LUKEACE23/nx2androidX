@@ -35,6 +35,7 @@ into the index (`corpus-fork.json`), and the next game with the same symptom fin
 | What the symptom looks like on a phone, what the first move is, the dead ends | `references/device-findings.md` |
 | How to bring up a new game, how to read a crash report, where a fix belongs | `references/porting-method.md` |
 | Which upstream case is this? | `references/case-index.tsv`, through `scripts/kb_search.py` |
+| What the documents say about this symptom, word for word | the documents, through `scripts/kb_search.py --docs` |
 
 The runtime document opens with a triage table: the symptom, the likely causes in order,
 what tells them apart, and the first thing to do. Start there.
@@ -51,6 +52,30 @@ touching the host, how to read the log and a crash report, the probe toolbox
 happen every time, and the levels a fix can be bound to. Reach for it when you need to
 decide what to do, not when you need to know what a symptom means.
 
+## Never read a document whole
+
+The documents are a database, not a text to read: five files, 116 KB of prose, and every
+answer is one section of one of them. Reading a whole document costs tens of thousands of
+tokens, and they are paid again on every tool call that follows - a diagnosis turns dozens
+of calls, so the bill is multiplied.
+
+**Query first, then read one section.** The search finds the section and says where it is.
+Read that section, and no more.
+
+```bash
+# the documents, by section: the answer, where it is, and a snippet of it
+python3 $NX2A_HOME/agent/.agents/skills/port-failures/scripts/kb_search.py --docs "shared font glyph"
+# one section as it is written, when the snippet is not enough
+python3 $NX2A_HOME/agent/.agents/skills/port-failures/scripts/kb_search.py --docs --section "The shared fonts"
+```
+
+A hit that holds every word of the query is a **strict** hit; a hit that holds only some of
+them is marked **loose** - a loose hit is a hint, not a conclusion: read it and check, or
+ask again with fewer words. When nothing matches, the search says how the documents spell
+the word and points at the upstream cases, which hold the pull request titles and summaries.
+The two corpora answer different questions: the documents hold the distilled knowledge, the
+index holds what upstream wrote.
+
 ## The search
 
 On the phone the skill sits in the assistant's own folder, so the search is:
@@ -59,9 +84,14 @@ On the phone the skill sits in the assistant's own folder, so the search is:
 python3 $NX2A_HOME/agent/.agents/skills/port-failures/scripts/kb_search.py "black screen"
 python3 $NX2A_HOME/agent/.agents/skills/port-failures/scripts/kb_search.py --symptom crash --layer host
 python3 $NX2A_HOME/agent/.agents/skills/port-failures/scripts/kb_search.py --game "Pokémon" --fork no
+python3 $NX2A_HOME/agent/.agents/skills/port-failures/scripts/kb_search.py --docs "shared font glyph"
+python3 $NX2A_HOME/agent/.agents/skills/port-failures/scripts/kb_search.py --docs --section "The shared fonts"
 ```
 
 In the checkout the same script is under the skill's own `scripts/` folder.
+
+Every answer is bounded: a search lists at most twelve cases, or five document sections,
+and says how many matched in all. `--top N` asks for more.
 
 `--symptom` is one of `crash`, `black`, `garble`, `freeze`, `missing`, `build`, `memory`,
 `shader`, `perf`, `audio`, `movie`, `feature`. `--layer` is one of `profile`, `shader`, `nvn`,

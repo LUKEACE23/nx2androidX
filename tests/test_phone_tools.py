@@ -420,6 +420,120 @@ class UpstreamPr(unittest.TestCase):
         self.assertEqual('network', unreachable[0]['kind'])
 
 
+class KbSearch(unittest.TestCase):
+    """The knowledge search: the upstream cases, the knowledge documents, and the phone's own cases.
+
+    The script is the one that ships with the App (it lives in the assistant's skill folder), and
+    it is run the way the assistant runs it.
+    """
+
+    SKILL = (ROOT / 'android/app/src/main/assets/nx2a/agent/dot-agents/skills/port-failures')
+
+    DOC = """# A document
+
+## The crash
+A crash at the start with `x1 = 0x25a1` is the shared font: it has no glyph for the
+fallback character and the lookup dereferenced a null.
+
+## The build
+The port stops at a stage when the shader split finds too few shaders.
+"""
+
+    def search(self, *args, **kwargs):
+        """The search, run as the assistant runs it."""
+        return subprocess.run([sys.executable, str(self.SKILL / 'scripts/kb_search.py'),
+                               *[str(a) for a in args]], capture_output=True, text=True, **kwargs)
+
+    def docs(self, text=None, name='runtime-symptoms.md'):
+        """A folder with one knowledge document in it."""
+        folder = Path(tempfile.mkdtemp(prefix='nx2a_docs_'))
+        (folder / name).write_text(text if text is not None else self.DOC)
+        return folder
+
+    def index(self, rows=('shirai91\t419\tMERGED\tprofile\tcrash\thost\tcore\tyes\t\t\t\t\t'
+                          'fix(host): readable zero slack behind each module\tA read past the end of a module\t'
+                          'https://github.com/shirai91/nx2android/pull/419',)):
+        """A case index with a header and a few rows."""
+        folder = Path(tempfile.mkdtemp(prefix='nx2a_index_'))
+        header = 'source\tref\tstate\tarea\tsymptom\tlayer\tkind\tfork\tgame\tids\tswitches\tpaths\ttitle\tsummary\turl'
+        (folder / 'case-index.tsv').write_text('\n'.join([header, *rows]))
+        return folder
+
+    def test_a_document_is_found_by_section(self):
+        result = self.search('--docs', 'shared font glyph', '--docs-dir', self.docs())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('The crash', result.stdout)
+        self.assertIn('lines', result.stdout)          # where the section is
+        self.assertIn('0x25a1', result.stdout)         # a snippet of it
+
+    def test_a_section_is_printed_as_it_is(self):
+        result = self.search('--docs', '--section', 'The crash', '--docs-dir', self.docs())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('The crash', result.stdout)
+        self.assertIn('it has no glyph for the', result.stdout)
+
+    def test_a_section_that_is_not_there_says_so(self):
+        result = self.search('--docs', '--section', 'Nothing', '--docs-dir', self.docs())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('no section titled', result.stdout)
+
+    def test_a_loose_hit_is_marked(self):
+        result = self.search('--docs', 'shared font glyph nothing', '--docs-dir', self.docs())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('loose', result.stdout)          # not every word is there
+
+    def test_nothing_found_points_at_the_other_corpus(self):
+        result = self.search('--docs', 'qwertyuiop', '--docs-dir', self.docs())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('nothing found', result.stdout)
+        self.assertIn('kb_search.py', result.stdout)   # the upstream cases may have it
+
+    def test_the_answer_stays_small(self):
+        result = self.search('--docs', 'font', '--docs-dir', self.docs())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertLess(len(result.stdout), 4000)
+
+    def test_the_cases_are_capped(self):
+        rows = tuple(f'shirai91\t{n}\tMERGED\tprofile\tcrash\thost\tcore\tyes\t\t\t\t\t'
+                     f'fix(host): case {n}\tsummary {n}\thttps://example/{n}' for n in range(40))
+        result = self.search('crash', '--index', self.index(rows) / 'case-index.tsv')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('40 cases match', result.stdout)
+        self.assertIn('12 shown', result.stdout)
+
+    def test_the_json_gives_the_same_count_as_the_text(self):
+        rows = tuple(f'shirai91\t{n}\tMERGED\tprofile\tcrash\thost\tcore\tyes\t\t\t\t\t'
+                     f'fix(host): case {n}\tsummary {n}\thttps://example/{n}' for n in range(40))
+        path = self.index(rows) / 'case-index.tsv'
+        text = self.search('crash', '--index', path)
+        out = json.loads(self.search('crash', '--index', path, '--json').stdout)
+        self.assertEqual(40, out['count'])
+        self.assertEqual(12, out['shown'])
+        self.assertEqual(12, len(out['results']))
+        self.assertIn('40 cases match', text.stdout)
+
+    def test_the_shipped_documents_are_searchable(self):
+        result = self.search('--docs', 'shared font')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('shared fonts', result.stdout.lower())
+
+    def test_the_phone_own_cases_are_searched(self):
+        home = Path(tempfile.mkdtemp(prefix='nx2a_home_'))
+        case = home / 'gamespec' / '0100A3501946E000'
+        case.mkdir(parents=True)
+        (case / 'spec.md').write_text(
+            '# Super Game (0100A3501946E000) case file\n\n'
+            '## Problems\n\n'
+            '### 2026-11-23 the black screen (status: fixed)\n\n'
+            'Symptom: the screen stays black after the logo.\n\n'
+            'Cause: the shaders were not in the bundle.\n\n'
+            'Fix: capture them and port again.\n')
+        result = self.search('--local', 'black screen', env={'NX2A_HOME': str(home)})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Super Game', result.stdout)
+        self.assertIn('shaders', result.stdout)
+
+
 class GamespecPack(unittest.TestCase):
     """The case file of one game, packed into a zip the player hands to the upstream."""
 

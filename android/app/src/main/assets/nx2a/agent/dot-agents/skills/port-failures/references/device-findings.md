@@ -39,6 +39,7 @@ time it has been found so far.
 | A crash in the audio device callback, or "more than 8 AudioOuts open", after a pause-menu mode switch | count `OpenAudioOut` against `Close` | the game closes an output only when its `AudioOut` struct is marked open (the first word non-zero, as the SDK leaves it); unmarked, every mode change opened another one beside the old |
 | Buzz, stutter or clicks in the music and the voices, with 0 underruns in the log | record the output (`env.txt` `DM_AUDREN_DUMP=<files>/aud.pcm`), pull it and run `devtools/pcm_glitches.py`: repeats, clicks on the 240-sample frame edges, gaps, clipping; `catch-up renders so far` growing tens a second, and `DM_AUDREN_TRACE` showing pairs of updates under 1 ms apart | Fire Emblem: Three Houses updates twice per renderer event: the catch-up frame for every second update ran its looping stream buffers past the refill (46% of the blocks were repeats). The profile sets `DM_AUDREN_CATCHUP_FRAMES=200` |
 | A frame shown twice about once a minute at a steady 60 fps, with `display timing` resyncs and 0 frames late | `env.txt` `DM_VK_PACE_LOG=1`: a present margin that falls steadily between the resyncs (3 ms to 0 in 30-60 s) is the game's frame clock drifting against the display, not GPU load | Fire Emblem: Three Houses' limiter counted each wait from the frame's real end, so every wake-up overshoot slowed its clock (about 100 µs a second); its wait now targets the last planned end plus one frame (the profile's `patches.py`): 19 resyncs in 20 minutes became 0 |
+| A crash a few seconds in, `x1 = <code point>` (U+25A1 the commonest) | read the log's `shared font (standard.ttf): <path> (<N> bytes)` lines, then probe the served file's cmap for that code point | the served font lacks the glyph and the game wrote through the null record - see The shared fonts |
 
 ## Crashes and boots
 
@@ -174,6 +175,73 @@ time again.
 - On a Retroid Pocket 5 the kgsl counters stand still in its high performance mode: they
   read the same for minutes and say nothing.
 - Pass timestamps disturb Adreno's binning, so compare runs only.
+
+## The shared fonts
+
+A game's system text - the standard, Chinese and Korean faces, and the button icons - is
+served by `dm/host/hle_sdk16.c` out of three sources, in a fixed order. The font crash and
+the text that draws as "?" both come from not knowing which source won, so the chain
+first:
+
+- **type 0** (standard): `DM_SHARED_FONT` -> the console's own font from system data
+  (`DM_SYSDATA`, porter `--firmware`) -> the platform's font (Roboto on Android).
+- **types 1-4** (Chinese, Korean): **`DM_SHARED_FONT` set: that one file, and the console's
+  regional files are not opened at all.** Unset: the console's regional font -> the
+  platform's CJK font -> the standard font.
+- **type 5** (button icons): the console's own font from system data first, then the
+  generated stand-in.
+
+**An app port always sets `DM_SHARED_FONT`** (`porter/pipeline.py` `shared_font()`): the
+player's own font with `--shared-font`, else the payload's `dm/tools/shared_cjk.ttf`. So on
+this product types 0-4 are always that one file, and a firmware dump only ever reaches type
+5. The app has no `--shared-font` input today (the porter config has no key for it), so the
+env.txt edit below is the only override a case worker can make.
+
+**What the shipped font is** (every cell measured with a cmap probe, not assumed):
+
+| Font | Glyphs | post | Latin/punct | CJK/kana | symbols □■●★→①℃ |
+|---|---|---|---|---|---|
+| OpenSans-Regular.ttf (the Latin base) | - | 2.0 | yes | none | none |
+| DroidSansFallbackFull.ttf (the CJK source) | 49,382 | 3.0 (no names) | **none** (not even an en dash) | yes | none |
+| shared_cjk.ttf (the merge; the payload ships it) | 32,052 | 2.0 | yes | yes | **none** |
+
+"Full" in DroidSansFallbackFull means full coverage of its own scripts: it is AOSP's
+ideograph companion of Roboto, which draws the symbols on phones. The merge exists because
+a game that parses the font itself (Mario vs. Donkey Kong) builds its glyph table from post
+2.0 glyph names, and the raw Droid font crashed on the null glyph of every lookup. The
+charset `uni` in `cjk_font.py` carries no symbol block - and adding blocks to `uni` alone
+fixes nothing, because **neither source font has the glyph outlines**. A symbol donor has
+to be a third font: an open-licensed symbol font (DejaVu Sans, Noto Sans Symbols) merged in
+by `cjk_font.py`. Not macOS's Arial Unicode (it has every symbol but is an Apple font and
+must not be redistributed), and not the player's phone fonts (not reproducible in the
+repo's build). Kana is already in through Big5 - do not chase it.
+
+**The crash and the first moves.** The signature is
+`CRASH sig=11 addr=0x38 x1=<code point>` seconds in (Super Smash Bros. Ultimate 13.0.5:
+4.86 s, `x1=0x25a1`, the game's fallback glyph; Echoes of Wisdom was upstream `#470`):
+x1 IS the missing code point, and the game wrote through the null record its lookup
+returned.
+
+1. Read the log's `shared font (standard.ttf): <path> (<N> bytes)` lines: which file was
+   served and its size. The shipped font is 3,163,172 bytes; another size is a player's or
+   a device font, and the diagnosis starts from that file.
+2. Probe the served file's cmap for the code point before changing anything.
+3. **The one-line workaround, no re-port**: the data pack's `env.txt`, `DM_SHARED_FONT` ->
+   a device font that has the glyph and covers CJK. Measured on a HONOR phone:
+   `/system/fonts/DroidSansChinese.ttf` (28,432 glyphs: U+25A1, U+25CF, the arrows),
+   `/system/fonts/HONORSansVFCN.ttf` second. It must be a static TTF: a TTC is not served,
+   and a variable font crashed Super Mario Odyssey's font engine once already. The host
+   mmaps it at launch, so a restart is enough.
+4. The workaround outlives a re-port (a port writes nothing under `tool/`) but not an app
+   payload refresh, which re-extracts `tool/` and puts the shipped font back. The durable
+   fix is one commit in the repo: a symbol donor in `dm/tools/`, the blocks added to
+   `cjk_font.py`, `shared_cjk.ttf` regenerated and shipped with the payload.
+
+Where the fix belongs: `nxnative/dm/tools/cjk_font.py` + the shipped `shared_cjk.ttf` (the
+asset IS the fix; a port never builds the font). The host is not at fault - it serves what
+it is told. Upstream's answer, the console's own fonts from system data (#311, #287,
+#422), only reaches players with a firmware dump, because the app port's `DM_SHARED_FONT`
+outranks system data for types 0-4.
 
 ## This line's own findings
 

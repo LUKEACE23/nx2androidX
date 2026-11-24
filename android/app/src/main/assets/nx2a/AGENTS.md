@@ -203,3 +203,7 @@ tool does not do the job, look it up yourself as before - do not get stuck on it
 - Never read or print the contents of prod.keys.
 - Never read the contents of game files.
 - Never invent readings, log contents, or the player's confirmation.
+- Never read a knowledge document whole. They are a database, not a text: query the
+  port-failures skill for the section (`kb_search.py --docs "..."`), then read that one
+  section. A document read whole costs tens of thousands of tokens, and the context is
+  paid again on every tool call that follows.
