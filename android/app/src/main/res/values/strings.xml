@@ -715,7 +715,7 @@
     <string name="agent_subagents_tool_uses">tool uses</string>
     <string name="agent_subagent_run">Sub-agent run</string>
     <string name="agent_gamespec_export">Contribute upstream</string>
-    <string name="agent_gamespec_confirm_text">Packs this case file into a zip (in Download/nx2android/gamespec/) and then opens this repo\'s issue page. Attach the zip to the form.</string>
+    <string name="agent_gamespec_confirm_text">Select the game you worked on in the game library before exporting — the export always takes the currently selected game, and the wrong pick fails. It packs that game\'s case file into a zip (in Download/nx2android/gamespec/), then opens this repo\'s issue page; attach the zip to the form.</string>
     <string name="agent_thinking_fold">thinking</string>
     <string name="agent_plan_waiting">the plan is waiting for you</string>
     <string name="agent_plan_cause">cause</string>
