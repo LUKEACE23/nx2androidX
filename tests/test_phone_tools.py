@@ -20,10 +20,10 @@ sys.path.insert(0, str(TOOLS))
 
 def run(tool, *args, env=None):
     """A tool, run as the assistant runs it."""
-    environment = dict(os.environ)
+    environment = dict(os.environ, PYTHONUTF8='1')
     environment.update(env or {})
     return subprocess.run([sys.executable, str(TOOLS / tool), *[str(a) for a in args]],
-                          capture_output=True, text=True, env=environment)
+                          capture_output=True, text=True, encoding='utf-8', env=environment)
 
 
 class MemLayout(unittest.TestCase):
@@ -441,8 +441,11 @@ The port stops at a stage when the shader split finds too few shaders.
 
     def search(self, *args, **kwargs):
         """The search, run as the assistant runs it."""
+        env = dict(kwargs.pop('env', {}), PYTHONUTF8='1')
+        kwargs.setdefault('encoding', 'utf-8')
         return subprocess.run([sys.executable, str(self.SKILL / 'scripts/kb_search.py'),
-                               *[str(a) for a in args]], capture_output=True, text=True, **kwargs)
+                               *[str(a) for a in args]], capture_output=True, text=True,
+                              env=env, **kwargs)
 
     def docs(self, text=None, name='runtime-symptoms.md'):
         """A folder with one knowledge document in it."""
@@ -545,7 +548,7 @@ class GamespecPack(unittest.TestCase):
         case = home / 'gamespec' / self.GAME
         (case / 'files').mkdir(parents=True)
         if spec:
-            (case / 'spec.md').write_text('# 攻关档案\n\n## 现状\n卡在着色器解码。\n')
+            (case / 'spec.md').write_text('# 攻关档案\n\n## 现状\n卡在着色器解码。\n', encoding='utf-8')
         for path, text in (files or {}).items():
             target = case / 'files' / path
             target.parent.mkdir(parents=True, exist_ok=True)

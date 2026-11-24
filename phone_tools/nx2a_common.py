@@ -18,6 +18,12 @@ import os
 import sys
 from pathlib import Path
 
+# The tools say the game's own name, which is Chinese: a Windows console defaults to the ANSI code
+# page and would fail on it (the porter's own CLI does the same, porter/cli.py).
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, 'reconfigure'):
+        _stream.reconfigure(encoding='utf-8', errors='replace')
+
 
 def home():
     """The player's nx2android folder: the app's own folder on the phone (files/nx2a)."""

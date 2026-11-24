@@ -1,5 +1,6 @@
 """The environment ships as one archive; its stamp follows what is in it, including late-staged hooks."""
 import importlib.util
+import os
 import tarfile
 from pathlib import Path
 import tempfile
@@ -34,6 +35,7 @@ class PayloadStampTest(unittest.TestCase):
             with tarfile.open(apk / 'payload.pkg', 'r:gz') as tar:
                 self.assertIn('tool/tools/adrenotools/libhook_impl.so', tar.getnames())
 
+    @unittest.skipIf(os.name == 'nt', 'Windows has no executable bit: the mode the archive carries comes from the filesystem')
     def test_the_permissions_travel_with_the_files(self):
         """The APK's assets carry no permissions: the archive does, or the guest's programs cannot start."""
         with tempfile.TemporaryDirectory() as directory:
