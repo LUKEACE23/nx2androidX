@@ -5,12 +5,14 @@
     python3 $NX2A_REPO/tools/gamespec_pack.py --game <title ID> --out <zip>
 
 包里是那局的攻关文档（spec.md）、改过的文件（files/，按它们在工具树里的相对路径）与清单（fix.md）。
-导出的是快照：档案本身不动，导出完了还能继续往里记。
+改动前的原件（orig/，同样的相对路径）在包里时，还多一份 diff.patch：那是从原件到改后文件的
+unified diff，上游 `git apply` 直接就能打。导出的是快照：档案本身不动，导出完了还能继续往里记。
 
 一条红线守着这个包：游戏文件与密钥不进包。清单里写了游戏文件、密钥或者工具树之外的路径，
 这个包就不打——并说清是哪一项被拒。
 """
 import argparse
+import difflib
 import os
 import sys
 import zipfile
@@ -22,6 +24,10 @@ from nx2a_common import add_json, emit, fail, home, size_text  # noqa: E402
 SPEC = 'spec.md'
 MANIFEST = 'fix.md'
 FILES = 'files'
+# 改动前的原件：diff 从这里来（没有原件就只带整份文件，上游自己比）
+ORIG = 'orig'
+# 包里那份 diff：原件 → 改后文件
+PATCH = 'diff.patch'
 
 # 游戏文件与密钥：这些名字的东西不进包（仓库的红线：游戏文件与 prod.keys 不进包、不进聊天）。
 FORBIDDEN_NAMES = ('prod.keys', '.keys')
@@ -80,8 +86,37 @@ def collect(case, paths):
     return files
 
 
-def pack(case, out, paths, files):
-    """打成 zip：攻关文档、清单、改过的文件（保持它们在工具树里的相对路径）。"""
+def collect_originals(case, paths):
+    """改动前的原件（相对路径 -> 档案里的那份）：有原件的才有 diff。"""
+    out = {}
+    for path in paths:
+        source = case / ORIG / path
+        if source.is_file():
+            out[path] = source
+    return out
+
+
+def diff_text(path, before, after):
+    """原件 → 改后文件的 unified diff（a/ b/ 前缀，上游 git apply 直接能用）。"""
+    old = before.read_text(encoding='utf-8', errors='replace').splitlines(keepends=True)
+    new = after.read_text(encoding='utf-8', errors='replace').splitlines(keepends=True)
+    return ''.join(difflib.unified_diff(old, new, fromfile=f'a/{path}', tofile=f'b/{path}'))
+
+
+def patch_text(originals, files):
+    """包里那份 patch 的正文：每个有原件的文件一段；改过头的才有内容。"""
+    chunks = []
+    diffed = []
+    for path in sorted(originals):
+        chunk = diff_text(path, originals[path], files[path])
+        if chunk:
+            chunks.append(chunk)
+            diffed.append(path)
+    return ''.join(chunks), diffed
+
+
+def pack(case, out, paths, files, originals, patch):
+    """打成 zip：攻关文档、清单、改过的文件（保持它们在工具树里的相对路径），有原件的还带 diff。"""
     out.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zf:
         for name in (SPEC, MANIFEST):
@@ -90,6 +125,11 @@ def pack(case, out, paths, files):
                 zf.write(source, name)
         for path, source in sorted(files.items()):
             zf.write(source, f'{FILES}/{path}')
+        # 原件也进包：diff 是从它来的，上游想自己看原始文件时也在手边
+        for path, source in sorted(originals.items()):
+            zf.write(source, f'{ORIG}/{path}')
+        if patch:
+            zf.writestr(PATCH, patch)
     return out
 
 
@@ -109,19 +149,24 @@ def main():
 
     paths = read_manifest(case / MANIFEST)
     files = collect(case, paths)
+    originals = collect_originals(case, paths)
+    patch, diffed = patch_text(originals, files)
     out = Path(args.out) if args.out else case.parent / f'{args.game}-gamespec.zip'
-    pack(case, out, paths, files)
+    pack(case, out, paths, files, originals, patch)
 
     payload = {
         'game': args.game,
         'zip': str(out),
         'bytes': out.stat().st_size,
         'files': sorted(files),
+        'originals': sorted(originals),
+        'diffed': diffed,
     }
     text = '\n'.join([
         f'packed {out} ({size_text(payload["bytes"])})',
         f'  {SPEC}: the case file',
         f'  {MANIFEST}: {len(paths)} file(s) listed',
+        f'  {PATCH}: {len(diffed)} file(s) diffed' if diffed else '  no originals: whole files only',
     ] + [f'  {path}' for path in payload['files']])
     emit(args, payload, text)
 

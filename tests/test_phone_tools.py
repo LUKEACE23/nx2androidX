@@ -425,8 +425,8 @@ class GamespecPack(unittest.TestCase):
 
     GAME = '0100A3501946E000'
 
-    def case(self, files=None, manifest=None, spec=True):
-        """A case file: the document, the manifest and the files it lists."""
+    def case(self, files=None, manifest=None, spec=True, orig=None):
+        """A case file: the document, the manifest and the files it lists (with their originals)."""
         home = Path(tempfile.mkdtemp(prefix='nx2a_gamespec_'))
         case = home / 'gamespec' / self.GAME
         (case / 'files').mkdir(parents=True)
@@ -434,6 +434,10 @@ class GamespecPack(unittest.TestCase):
             (case / 'spec.md').write_text('# 攻关档案\n\n## 现状\n卡在着色器解码。\n')
         for path, text in (files or {}).items():
             target = case / 'files' / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text)
+        for path, text in (orig or {}).items():
+            target = case / 'orig' / path
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(text)
         (case / 'fix.md').write_text('\n'.join(manifest if manifest is not None else list((files or {}).keys())))
@@ -491,6 +495,53 @@ class GamespecPack(unittest.TestCase):
         result = self.pack(home)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('没有攻关档案', result.stderr)
+
+    def test_a_diff_is_packed_when_the_original_is_there(self):
+        # 原件在档案里，包里就多一份 diff：上游拿到就能 git apply，不用自己比
+        home, case = self.case(
+            files={'nxnative/dm/android/gfx_vk_present.c': '// fixed\n'},
+            orig={'nxnative/dm/android/gfx_vk_present.c': '// before\n'},
+        )
+        result = self.pack(home, '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = json.loads(result.stdout)
+        self.assertEqual(['nxnative/dm/android/gfx_vk_present.c'], out['diffed'])
+
+        import zipfile
+        with zipfile.ZipFile(out['zip']) as zf:
+            names = zf.namelist()
+            self.assertIn('diff.patch', names)
+            self.assertIn('orig/nxnative/dm/android/gfx_vk_present.c', names)
+            patch = zf.read('diff.patch').decode('utf-8')
+            self.assertIn('--- a/nxnative/dm/android/gfx_vk_present.c', patch)
+            self.assertIn('+++ b/nxnative/dm/android/gfx_vk_present.c', patch)
+            self.assertIn('-// before', patch)
+            self.assertIn('+// fixed', patch)
+
+    def test_a_case_without_originals_is_packed_as_it_was(self):
+        # 老档案没有原件：照旧打包（整份文件），没有 diff，也不报错
+        home, case = self.case(files={'porter/pipeline.py': '# fixed\n'})
+        result = self.pack(home, '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = json.loads(result.stdout)
+        self.assertEqual([], out['diffed'])
+
+        import zipfile
+        with zipfile.ZipFile(out['zip']) as zf:
+            names = zf.namelist()
+            self.assertNotIn('diff.patch', names)
+            self.assertIn('files/porter/pipeline.py', names)
+
+    def test_a_comment_line_in_the_manifest_is_not_a_path(self):
+        # fix.md 顶上的那行「基于哪个版本」是注释：不是路径
+        home, case = self.case(files={'porter/pipeline.py': '# fixed\n'})
+        (case / 'fix.md').write_text(
+            '# based on: app 0.4.0-alpha03, porter 0.3.0, fixed 2026-11-24\nporter/pipeline.py\n'
+        )
+        result = self.pack(home, '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = json.loads(result.stdout)
+        self.assertEqual(['porter/pipeline.py'], out['files'])
 
 
 class ToolHousekeeping(unittest.TestCase):

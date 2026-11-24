@@ -99,14 +99,21 @@ up; an answer that never comes cannot.
 ## Fix phase (only when the task says the player has confirmed)
 1. Read the entry marked "(status: pending approval)" in the case file and fix exactly that - do not
    invent a different approach.
-2. Change the files under nxnative/ in $NX2A_REPO, then re-run the port to verify.
-3. Change the status to "(status: fixed)" or "(status: not fixed)" and write down what the
+2. Before you change a file, copy the original into the case file: the file's path in the tool tree
+   under orig/ in the case folder (gamespec/<title ID>/orig/<path>), creating the folders as needed.
+   The exported zip's diff is made from that original - without it the pack carries whole files only,
+   and nobody can see what you actually changed.
+3. Change the files under nxnative/ in $NX2A_REPO, then re-run the port to verify.
+4. Change the status to "(status: fixed)" or "(status: not fixed)" and write down what the
    verification showed. Put the files you changed into files/ under their path in the tool tree and
-   write fix.md (one relative path per line).
-4. Answer the main session with a summary: it starts with a digest in the player's language
+   write fix.md (one relative path per line). fix.md starts with a comment line saying what the fix
+   was based on:
+   `# based on: app <the app version, when the task names it>, porter <read it from $NX2A_REPO/porter/__init__.py>, fixed <today>`
+   A `#` line is a comment: the packer skips it when it reads the paths.
+5. Answer the main session with a summary: it starts with a digest in the player's language
    (the task says which one) - what changed, whether the verification passed, what the
    player does next - and the English detail follows after it.
-5. When the case is closed, leave the rule behind: write the distilled lesson into
+6. When the case is closed, leave the rule behind: write the distilled lesson into
    $NX2A_HOME/agent/workspace/knowledge/local-cases.md - the domain rule that outlives this
    case (which engine, which format, which fix, which upstream number). One entry, one
    line, in English, the newest first.
