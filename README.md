@@ -110,7 +110,7 @@ The assistant is a main session with sub-agents under it. A game that misbehaves
 
 ### The knowledge it carries
 
-`port-failures` is the one worth knowing about: **387 upstream pull requests**, sorted into a diagnosis — the build that stops at a stage, the shader split that finds too few shaders, the crash, the black screen, the garbled picture, the freeze. Each case carries the evidence that named it and the layer that owns the fix (a rule in the engine, or one game's profile). It is offline: the phone's network often cannot reach GitHub at all, so the knowledge is on the device.
+`port-failures` is the one worth knowing about: **over 400 upstream pull requests**, sorted into a diagnosis — the build that stops at a stage, the shader split that finds too few shaders, the crash, the black screen, the garbled picture, the freeze. Each case carries the evidence that named it and the layer that owns the fix (a rule in the engine, or one game's profile). It is offline: the phone's network often cannot reach GitHub at all, so the knowledge is on the device.
 
 That knowledge was never rare — it was scattered across hundreds of pull requests, and it stayed there. Bringing a game up meant reading the crash, finding the layer and writing the fix: an evening of reverse engineering, per game, per person. The cases are written down now, searchable, and on every phone that installs the app.
 
