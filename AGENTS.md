@@ -64,7 +64,7 @@ README 的 "For players" 一节讲桌面工具，那仍是真实存在的玩家�
   之后的预发布不会自动抢走这个位置。**只改标记可能不会让 "Latest" 指过去**：GitHub 的 "Latest" 在创建时
   就定了（`make_latest`），事后去标记要另外显式点名：
   `gh api -X PATCH repos/zFitness/nx2androidX/releases/<id> -F make_latest=true`。
-  现状：`v0.3.0-alpha14` 是 Latest
+  现状：`v0.4.0-alpha03` 是 Latest（`v0.4.1-alpha01` 是预发布，不抢这个位置）
 - **构建只由 tag 触发**：推分支什么都不构建。tag 一推，构建就开始（产物从那个 tag 的提交来），
   它会等 release 建好后把 APK 附上去（`gh release create` 紧跟着 tag 就行）。**要重新构建就把 tag 重推一次**
   （`git tag -f` + `git push --force`），构建跟着新 tag 走
@@ -79,7 +79,7 @@ README 的 "For players" 一节讲桌面工具，那仍是真实存在的玩家�
   名单用 `python3 devtools/release_contributors.py` 取（上个 tag 之后合并的 PR 与作者），粘进 notes；
   游戏级别的署名同时落在 `docs/PORT_CHECKLIST.md` 的那一行（`ported by @handle`）——
   名单由 `python3 docs/gen_tables.py` 从档案生成，署名取自加入该档案的那次提交的 GitHub 账号
-- app 的 `versionName` 在 `android/app/build.gradle.kts`（当前 `0.3.0-alpha12`），与 tag 去掉 `v` 一致
+- app 的 `versionName` 在 `android/app/build.gradle.kts`（当前 `0.4.1-alpha01`），与 tag 去掉 `v` 一致
 - **一次发布带手机的 APK 和游戏档案包，别无其它**。App 不带游戏档案（几百 MB 的着色器表），玩家自己导入：
   release 的第二个附件 `nx2a-profiles-r<版本>-<commit>.zip`（CI 切，`devtools/profiles_zip.py`），夸克网盘里
   同样放一份。桌面 workflow（`release-windows.yml` / `release-macos.yml`）不发版，
