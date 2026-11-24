@@ -757,6 +757,9 @@
     <string name="agent_engine_ready">Ready</string>
     <string name="agent_engine_missing">Not in place yet</string>
     <string name="agent_models_add">Add a model</string>
+    <string name="agent_models_recommended">Recommended models</string>
+    <string name="agent_models_recommended_hint">Tap a provider to get an API key there</string>
+    <string name="agent_models_recommended_open">Open the recommended page</string>
     <string name="agent_models_edit">Edit this model</string>
     <string name="agent_models_delete">Delete this model</string>
     <string name="agent_models_delete_confirm">Delete “%1$s”? Its key goes with it.</string>
@@ -820,12 +823,16 @@
     <string name="agent_provider_doubao">Doubao (Volcengine Ark)</string>
     <string name="agent_provider_kimi">Kimi (Moonshot)</string>
     <string name="agent_provider_minimax">MiniMax</string>
+    <string name="agent_provider_siliconflow">SiliconFlow</string>
+    <string name="agent_provider_qiniu">Qiniu Cloud</string>
     <string name="agent_provider_custom">Custom</string>
     <string name="agent_provider_hint_glm">A GLM API key from open.bigmodel.cn</string>
     <string name="agent_provider_hint_deepseek">A DeepSeek API key from platform.deepseek.com</string>
     <string name="agent_provider_hint_doubao">An Ark API key; the model name is the endpoint id (ep-…)</string>
     <string name="agent_provider_hint_kimi">A Moonshot API key from platform.moonshot.cn</string>
     <string name="agent_provider_hint_minimax">A MiniMax API key from the MiniMax open platform</string>
+    <string name="agent_provider_hint_siliconflow">A SiliconFlow API key from cloud.siliconflow.cn</string>
+    <string name="agent_provider_hint_qiniu">A Qiniu Cloud API key from qiniu.com</string>
     <string name="agent_provider_hint_custom">Any OpenAI-compatible endpoint and model name</string>
     <string name="agent_chip_crash">Why crash</string>
     <string name="agent_chip_no_build">Won\'t build</string>

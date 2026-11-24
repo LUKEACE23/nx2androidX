@@ -33,6 +33,11 @@ import com.nx.android.core.ui.theme.NxPalette
  * Two things, no cards and no explanations: the engine (one row — it shows which one is in, and the
  * player never installs it: it comes with the app) and the models (one row each). The rest of the
  * settings page is made of rows like these, so this section is made of rows like these too.
+ *
+ * One exception, at the top: the card of the recommended providers. It is the only card on this
+ * page, and it earns it — a group of providers is not a setting, it is a list of places to go for
+ * a key. It sits at the top because it is the way in: the rows below are the models the player
+ * already has.
  */
 @Composable
 fun AgentSettingsSection(viewModel: AgentSettingsViewModel) {
@@ -40,6 +45,9 @@ fun AgentSettingsSection(viewModel: AgentSettingsViewModel) {
     var adding by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<AgentModelProfile?>(null) }
     var deleting by remember { mutableStateOf<AgentModelProfile?>(null) }
+
+    // the card at the top: the providers we recommend, each one a link out to where the key is
+    RecommendedModelsCard()
 
     // the engine: one row, and it only says which one is in
     InfoRow(
@@ -54,9 +62,12 @@ fun AgentSettingsSection(viewModel: AgentSettingsViewModel) {
     // the models: one row each. The row picks the model; the pencil edits it.
     state.profiles.forEach { profile ->
         val active = profile.id == state.activeProfileId
+        // the row's name: the player's own, or the model's when they gave none. The model's name
+        // is the second column only when it says something the first one does not.
+        val name = profile.label.ifBlank { profile.modelName }
         InfoRow(
-            title = profile.label.ifBlank { profile.modelName },
-            value = profile.modelName.takeIf { it != profile.label }.orEmpty(),
+            title = name,
+            value = profile.modelName.takeIf { it != name }.orEmpty(),
             leading = {
                 Icon(
                     Icons.Filled.Check,
@@ -146,6 +157,8 @@ internal fun providerLabelRes(providerId: String): Int = when (providerId) {
     "doubao" -> R.string.agent_provider_doubao
     "kimi" -> R.string.agent_provider_kimi
     "minimax" -> R.string.agent_provider_minimax
+    "siliconflow" -> R.string.agent_provider_siliconflow
+    "qiniu" -> R.string.agent_provider_qiniu
     else -> R.string.agent_provider_custom
 }
 
@@ -161,5 +174,7 @@ internal fun providerHintRes(providerId: String): Int = when (providerId) {
     "doubao" -> R.string.agent_provider_hint_doubao
     "kimi" -> R.string.agent_provider_hint_kimi
     "minimax" -> R.string.agent_provider_hint_minimax
+    "siliconflow" -> R.string.agent_provider_hint_siliconflow
+    "qiniu" -> R.string.agent_provider_hint_qiniu
     else -> R.string.agent_provider_hint_custom
 }

@@ -56,7 +56,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -75,11 +74,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -432,93 +433,77 @@ fun AgentPanel(
                     }
                     // the model chip: what answers now; the menu lists the models the player configured
                     var modelMenu by remember { mutableStateOf(false) }
-                    GlassChip(
-                        modifier = Modifier.fillMaxWidth().height(32.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp),
-                        onClick = { modelMenu = !modelMenu },
-                    ) {
-                        Box(
-                            Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(if (state.configured) AgentPalette.Ready else AgentPalette.Idle),
-                        )
-                        Text(
-                            state.profiles.firstOrNull { it.id == state.activeProfileId }?.modelName
-                                .orEmpty()
-                                .ifBlank { stringResource(R.string.agent_model_unset) },
-                            style = MaterialTheme.typography.labelMedium,
-                            color = AgentPalette.Ink,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Icon(
-                            Icons.Filled.KeyboardArrowDown,
-                            null,
-                            Modifier.size(13.dp),
-                            tint = AgentPalette.Ink2,
-                        )
-                    }
-                    GlassMenu(
-                        expanded = modelMenu,
-                        onDismiss = { modelMenu = false },
-                        // a Popup has no parent width: fillMaxWidth here once stretched to the screen
-                        modifier = Modifier.width(224.dp),
-                    ) {
-                        if (state.profiles.isEmpty()) {
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        stringResource(R.string.agent_model_unset),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = AgentPalette.Ink2,
-                                    )
-                                },
-                                onClick = { modelMenu = false },
+                    // the menu hangs under the chip: the popup's parent is this box, so it opens
+                    // where the chip is and not at the top of the column
+                    Box(Modifier.fillMaxWidth()) {
+                        GlassChip(
+                            modifier = Modifier.fillMaxWidth().height(32.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp),
+                            onClick = { modelMenu = !modelMenu },
+                        ) {
+                            Box(
+                                Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(if (state.configured) AgentPalette.Ready else AgentPalette.Idle),
+                            )
+                            Text(
+                                state.profiles.firstOrNull { it.id == state.activeProfileId }?.modelName
+                                    .orEmpty()
+                                    .ifBlank { stringResource(R.string.agent_model_unset) },
+                                style = MaterialTheme.typography.labelMedium,
+                                color = AgentPalette.Ink,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Icon(
+                                Icons.Filled.KeyboardArrowDown,
+                                null,
+                                // the arrow turns when the menu is open
+                                Modifier.size(13.dp).rotate(if (modelMenu) 180f else 0f),
+                                tint = AgentPalette.Ink2,
                             )
                         }
-                        state.profiles.forEach { profile ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        // one name per row: the player's own name first, the model
-                                        // name when they gave none. A long name is cut, not squeezed.
-                                        profile.label.ifBlank { profile.modelName },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = AgentPalette.Ink,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                },
+                        GlassMenu(
+                            expanded = modelMenu,
+                            onDismiss = { modelMenu = false },
+                            // a Popup has no parent width: the chip's own width, so the menu's right
+                            // edge lines up with the chip's
+                            modifier = Modifier.width(220.dp),
+                            alignment = Alignment.TopStart,
+                            // below the chip, with a finger's gap
+                            offset = IntOffset(0, with(LocalDensity.current) { 36.dp.roundToPx() }),
+                        ) {
+                            if (state.profiles.isEmpty()) {
+                                GlassMenuRow(
+                                    stringResource(R.string.agent_model_unset),
+                                    ink = AgentPalette.Ink2,
+                                    onClick = { modelMenu = false },
+                                )
+                            }
+                            state.profiles.forEach { profile ->
+                                GlassMenuRow(
+                                    // one name per row: the player's own name first, the model name
+                                    // when they gave none. A long name is cut, not squeezed.
+                                    profile.label.ifBlank { profile.modelName },
+                                    onClick = {
+                                        modelMenu = false
+                                        conversation.selectProfile(profile.id)
+                                    },
+                                )
+                            }
+                            HorizontalDivider(color = AgentPalette.Hairline)
+                            GlassMenuRow(
+                                stringResource(R.string.agent_menu_settings),
+                                icon = Icons.Filled.Settings,
+                                ink = AgentPalette.Ink2,
                                 onClick = {
                                     modelMenu = false
-                                    conversation.selectProfile(profile.id)
+                                    onOpenSettings()
                                 },
                             )
                         }
-                        HorizontalDivider(color = AgentPalette.Hairline)
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    stringResource(R.string.agent_menu_settings),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = AgentPalette.Ink2,
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Filled.Settings,
-                                    null,
-                                    Modifier.size(14.dp),
-                                    tint = AgentPalette.Ink2,
-                                )
-                            },
-                            onClick = {
-                                modelMenu = false
-                                onOpenSettings()
-                            },
-                        )
                     }
                     // the sub-agents entry: this chat's runs, and the ones still going
                     GlassChip(
@@ -668,16 +653,9 @@ fun AgentPanel(
                                 modifier = Modifier.width(292.dp),
                             ) {
                                 state.sessions.take(6).forEach { meta ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                meta.title,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = if (meta.path == state.activePath) AgentPalette.Quick else AgentPalette.Ink,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                            )
-                                        },
+                                    GlassMenuRow(
+                                        meta.title,
+                                        ink = if (meta.path == state.activePath) AgentPalette.Quick else AgentPalette.Ink,
                                         onClick = {
                                             sessionMenu = false
                                             conversation.requestSwitch(meta.path)
@@ -685,16 +663,9 @@ fun AgentPanel(
                                     )
                                 }
                                 HorizontalDivider(color = AgentPalette.Hairline)
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            stringResource(R.string.agent_action_new_session),
-                                            style = MaterialTheme.typography.labelMedium.copy(
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = AgentPalette.Cream,
-                                            ),
-                                        )
-                                    },
+                                GlassMenuRow(
+                                    stringResource(R.string.agent_action_new_session),
+                                    bold = true,
                                     onClick = {
                                         sessionMenu = false
                                         conversation.requestSwitch(null)
@@ -975,6 +946,46 @@ private fun GlassMenu(
                 .padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
             content = content,
+        )
+    }
+}
+
+/**
+ * A row in the glass menu: a name, an optional icon, and a tap that answers.
+ *
+ * The Material dropdown row is not used here: it brings its own height and padding, and in a
+ * glass popup it reads like a different app. This one fills the menu's width, keeps the name on
+ * one line (cut, not squeezed) and takes the popup's own radius.
+ */
+@Composable
+private fun GlassMenuRow(
+    text: String,
+    icon: ImageVector? = null,
+    ink: Color = AgentPalette.Ink,
+    bold: Boolean = false,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (icon != null) {
+            Icon(icon, null, Modifier.size(14.dp), tint = AgentPalette.Ink2)
+        }
+        Text(
+            text,
+            style = MaterialTheme.typography.labelLarge.let {
+                if (bold) it.copy(fontWeight = FontWeight.SemiBold) else it
+            },
+            color = ink,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
         )
     }
 }
