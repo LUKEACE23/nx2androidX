@@ -56,7 +56,9 @@ object SubagentTranscripts {
         val interrupted: Boolean = false,
     )
 
-    /** The tasks folder of one parent session, or null when there is none. */
+    /**
+     * The tasks folder of one parent session, or null when there is none.
+     */
     fun taskDir(scratch: File, parentSessionId: String): File? {
         if (!scratch.isDirectory || parentSessionId.isBlank()) return null
         val roots = scratch.listFiles { f -> f.isDirectory && f.name.startsWith(ROOT) } ?: return null
@@ -70,6 +72,18 @@ object SubagentTranscripts {
             }
         }
         return null
+    }
+
+    /**
+     * 某个 agent 的 transcript 在哪儿：它跑过的那些对话都在这个文件里。
+     *
+     * 被掐断的那一次运行没有自己的会话文件（引擎来不及写），它的对话与用量在这儿。
+     */
+    fun fileOf(scratch: File, parentSessionId: String, agentId: String): File? {
+        if (agentId.isBlank()) return null
+        val dir = taskDir(scratch, parentSessionId) ?: return null
+        val file = File(dir, "$agentId.output")
+        return if (file.isFile) file else null
     }
 
     /** The transcripts of one parent session, in the order the sub-agents were spawned. */

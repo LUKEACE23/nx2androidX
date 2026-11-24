@@ -22,6 +22,8 @@ object AgentPalette {
     val Cream = Color(0xFF141416)
     val CreamInk = Color(0xFFFFF0D6)
     val Orange = Color(0xFFFF8A00)
+    /** 品牌橙的深一档：文字用（白底上读得清），亮橙只做大面积的填充。 */
+    val Accent = Color(0xFFB45309)
     val Ready = Color(0xFF2FBF63)
     val Working = Color(0xFFE6A23C)
     val Idle = Color(0xFF9CA3AF)

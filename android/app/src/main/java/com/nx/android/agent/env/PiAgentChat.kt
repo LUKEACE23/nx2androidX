@@ -10,8 +10,10 @@ import com.nx.android.agent.AgentHistory
 import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentSubagentCallParser
+import com.nx.android.agent.AgentTokenUsage
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
+import com.nx.android.agent.sessionUsageOf
 import com.nx.android.agent.runtime.AgentEngineStore
 import com.nx.android.agent.runtime.AgentExtensions
 import com.nx.android.agent.runtime.AgentSessionStore
@@ -100,6 +102,9 @@ class PiAgentChat @Inject constructor(
     /** The session's context occupancy and its model's window; live from the engine, zeroed on switch/new. */
     private var sessionTokens: Long = 0L
     private var sessionWindow: Long = 0L
+
+    /** 这一局的累计用量：引擎那本账上的数（读历史时取一次，面板打开时再取一次）。 */
+    @Volatile private var sessionUsage: AgentTokenUsage = AgentTokenUsage()
 
     /** pi's own session jsonl (from get_state) — the anchor the active pointer holds. */
     private var piSessionFile: String? = null
@@ -213,6 +218,7 @@ class PiAgentChat @Inject constructor(
         loadedMessages = emptyList()
         sessionTokens = 0L
         sessionWindow = 0L
+        sessionUsage = AgentTokenUsage()
         return ""
     }
 
@@ -246,9 +252,12 @@ class PiAgentChat @Inject constructor(
         val title = state.optJSONObject("data")?.optString("sessionName").orEmpty()
 
         val stats = rpc(JSONObject().put("type", "get_session_stats"))
-        val usage = stats?.optJSONObject("data")?.optJSONObject("contextUsage")
+        val data = stats?.optJSONObject("data")
+        val usage = data?.optJSONObject("contextUsage")
         sessionTokens = usage?.optLong("tokens", 0L) ?: 0L
         sessionWindow = usage?.optLong("contextWindow", 0L) ?: 0L
+        // 这一局花了多少：引擎那本账上的累计（App 只把它显示出来）
+        sessionUsage = sessionUsageOf(data)
         if (sessionWindow <= 0) {
             state.optJSONObject("data")?.optJSONObject("model")?.optLong("contextWindow")?.takeIf { it > 0 }
                 ?.let { sessionWindow = it }
@@ -275,8 +284,22 @@ class PiAgentChat @Inject constructor(
                 title = title,
                 contextTokens = sessionTokens,
                 contextWindow = sessionWindow,
+                usage = sessionUsage,
             ),
         )
+    }
+
+    /**
+     * 这一局到现在花了多少：引擎那本账上的累计（面板打开时拉一次，拿到的是当下的）。
+     *
+     * 不在 App 那边累加自己收到的事件——那样重开一次 App 就会少算（引擎的账本含已被
+     * 压缩掉的历史）。
+     */
+    override suspend fun usage(): AgentTokenUsage {
+        val stats = rpc(JSONObject().put("type", "get_session_stats")) ?: return AgentTokenUsage()
+        val usage = sessionUsageOf(stats.optJSONObject("data"))
+        sessionUsage = usage
+        return usage
     }
 
     /**

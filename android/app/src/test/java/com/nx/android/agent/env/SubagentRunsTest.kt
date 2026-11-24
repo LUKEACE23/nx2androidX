@@ -35,14 +35,33 @@ class SubagentRunsTest {
         spawnedAt: Long,
         runIndex: Int = 1,
         interrupted: Boolean = false,
+        messages: List<org.json.JSONObject> = emptyList(),
     ) = SubagentTranscripts.Transcript(
         agentId = id,
         prompt = prompt,
-        messages = emptyList(),
+        messages = messages,
         spawnedAt = spawnedAt,
         runIndex = runIndex,
         interrupted = interrupted,
     )
+
+    @Test
+    fun `a running run carries what it has spent so far`() {
+        // 正在跑的那一次：尾巴里那些回答各自的用量加起来
+        val usage = org.json.JSONObject()
+            .put("input", 5)
+            .put("output", 20)
+            .put("cacheRead", 0)
+            .put("cacheWrite", 0)
+        val answer = org.json.JSONObject().put("role", "assistant").put("usage", usage)
+        val merged = SubagentRuns.merge(
+            finished = emptyList(),
+            live = listOf(transcript("d", "run echo", 40L, messages = listOf(answer))),
+            calls = emptyList(),
+        )
+        assertEquals(25L, merged.first().usage.total)
+        assertEquals(20L, merged.first().usage.output)
+    }
 
     @Test
     fun `a finished run wins over its transcript`() {

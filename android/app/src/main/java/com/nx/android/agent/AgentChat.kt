@@ -111,15 +111,24 @@ interface AgentChat {
      * 会话的真相在引擎那里——这是抽屉渲染历史的唯一来源。
      */
     suspend fun history(prefer: String? = null): Result<AgentHistory>
+
+    /**
+     * 这一局到现在花了多少：主会话的累计用量与成本。
+     *
+     * 引擎那本账上的数（含已被压缩掉的历史）——App 不自己累加，重开一次也不会少算。
+     */
+    suspend fun usage(): AgentTokenUsage = AgentTokenUsage()
 }
 
-/** 一段会话的历史（从引擎读回的形状）：消息、会话文件的路径、标题、上下文占用。 */
+/** 一段会话的历史（从引擎读回的形状）：消息、会话文件的路径、标题、上下文占用、用量。 */
 data class AgentHistory(
     val messages: List<AgentMessage>,
     val sessionFile: String,
     val title: String,
     val contextTokens: Long,
     val contextWindow: Long,
+    /** 这一局到读历史时为止的累计用量（引擎的账本）。 */
+    val usage: AgentTokenUsage = AgentTokenUsage(),
 )
 
 /** 引擎还没装：历史读不了，面板要引导安装，而不是显示一段空历史。 */

@@ -83,7 +83,7 @@ internal fun AgentRunCard(
         }
     }
     val duration = notification?.durationMs?.takeIf { it > 0 } ?: run?.durationMs
-    val tokens = notification?.totalTokens?.takeIf { it > 0 } ?: run?.tokens?.takeIf { it > 0 }
+    val tokens = notification?.totalTokens?.takeIf { it > 0 } ?: run?.usage?.total?.takeIf { it > 0 }
     Column(
         Modifier
             .fillMaxWidth()

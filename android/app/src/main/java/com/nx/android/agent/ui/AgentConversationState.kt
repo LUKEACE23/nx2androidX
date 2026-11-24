@@ -10,6 +10,7 @@ import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentSubagent
 import com.nx.android.agent.AgentSubagentCall
 import com.nx.android.agent.AgentTextBatch
+import com.nx.android.agent.AgentTokenUsage
 import com.nx.android.agent.needsConfirmBeforeSwitch
 import com.nx.android.data.Gamespec
 import com.nx.android.agent.env.PiHistoryMapper
@@ -63,13 +64,18 @@ data class AgentUiState(
 
     /** 历史正在从引擎读：对话区给加载态，占用区不给假数字。 */
     val loading: Boolean = false,
-
     /** 引擎还没装：抽屉引导安装，而不是显示一段空历史。 */
     val engineMissing: Boolean = false,
 
     /** The session's context occupancy and its model's window (the tool column's usage row). */
     val usageTokens: Long = 0L,
     val usageWindow: Long = 0L,
+
+    /** 主会话的累计用量：引擎那本账上的数（面板上那一栏）。 */
+    val sessionUsage: AgentTokenUsage = AgentTokenUsage(),
+
+    /** 这一局派生过的子 Agent 合计花了多少（各次运行自己的用量加起来）。 */
+    val subagentUsage: AgentTokenUsage = AgentTokenUsage(),
 
     /** The models the player configured: the chip's menu lists them. */
     val profiles: List<AgentModelProfile> = emptyList(),
@@ -150,6 +156,9 @@ class AgentConversationState @Inject constructor(
     @Volatile private var engineMissing = false
     @Volatile private var usageTokens = 0L
     @Volatile private var usageWindow = 0L
+
+    /** 主会话的累计用量：引擎那本账上的数。 */
+    @Volatile private var sessionUsage = AgentTokenUsage()
     @Volatile private var draft = ""
     @Volatile private var piRunning = false
     @Volatile private var piResult: String? = null
@@ -249,6 +258,9 @@ class AgentConversationState @Inject constructor(
             engineMissing = engineMissing,
             usageTokens = usageTokens,
             usageWindow = usageWindow,
+            sessionUsage = sessionUsage,
+            // 子代理那半是各次运行自己的用量加起来：数都是引擎写的，App 只做加法
+            subagentUsage = subagents.fold(AgentTokenUsage()) { acc, run -> acc + run.usage },
             profiles = profiles,
             activeProfileId = activeProfileId,
             streamingId = conversation.streamingId,
@@ -359,6 +371,7 @@ class AgentConversationState @Inject constructor(
                 markdownCache.clear()
                 usageTokens = history.contextTokens
                 usageWindow = history.contextWindow
+                sessionUsage = history.usage
                 activePath = history.sessionFile.ifBlank { null }
                 activeTitle = history.title
                 historyLoaded = true
@@ -379,6 +392,19 @@ class AgentConversationState @Inject constructor(
             val listed = withContext(Dispatchers.IO) { catalog.list() }
             sessions = listed
             if (activePath == null) activePath = sessionStore.activePath()
+            publish()
+        }
+    }
+
+    /**
+     * 拉一次主会话的累计用量：面板打开时来一下，拿到的是当下的数。
+     *
+     * 引擎那本账（`get_session_stats`）——App 不自己累加，重开一次也不会少算。
+     */
+    fun refreshUsage() {
+        scope.launch {
+            val usage = withContext(Dispatchers.IO) { chat.usage() }
+            sessionUsage = usage
             publish()
         }
     }

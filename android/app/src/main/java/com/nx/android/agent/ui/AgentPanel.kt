@@ -85,6 +85,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -221,6 +222,8 @@ fun AgentPanel(
     var agentsOpen by remember { mutableStateOf(false) }
     // 「贡献上游」的二次确认：导出前先问一句——玩家要拿这个包去上游提 issue
     var exportConfirm by remember { mutableStateOf(false) }
+    // 这一局的用量：点头部那个占用数字才弹出来
+    var usageOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val copiedWord = stringResource(R.string.agent_copied)
     val copyLabel = stringResource(R.string.agent_title)
@@ -416,7 +419,15 @@ fun AgentPanel(
                                 "…"
                             },
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = AgentPalette.Ink,
+                            // 它能点：颜色与下划线都告诉玩家这一点（点开看这一局的用量）
+                            color = AgentPalette.Accent,
+                            textDecoration = TextDecoration.Underline,
+                            modifier = Modifier
+                                .clickable {
+                                    usageOpen = true
+                                    conversation.refreshUsage()
+                                }
+                                .padding(horizontal = 4.dp, vertical = 4.dp),
                         )
                     }
                     // the model chip: what answers now; the menu lists the models the player configured
@@ -730,6 +741,17 @@ fun AgentPanel(
                 loadConversation = { subagent -> conversation.subagentConversation(subagent) },
                 onDismiss = { agentsOpen = false },
                 modifier = Modifier.matchParentSize(),
+            )
+        }
+        // 这一局的用量：上下文占用、主会话累计、子代理累计
+        if (usageOpen) {
+            AgentUsageDialog(
+                contextTokens = state.usageTokens,
+                contextWindow = state.usageWindow,
+                session = state.sessionUsage,
+                subagents = state.subagentUsage,
+                subagentRuns = state.subagents.size,
+                onDismiss = { usageOpen = false },
             )
         }
         // 切会话前的二次确认：有子代理在跑时，玩家先看一眼代价

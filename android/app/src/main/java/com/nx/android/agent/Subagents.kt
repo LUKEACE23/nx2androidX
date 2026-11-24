@@ -32,8 +32,8 @@ data class AgentSubagent(
     val sessionFile: String? = null,
     /** The task it was given, read out of its own conversation. */
     val prompt: String? = null,
-    /** What it generated on its own. */
-    val tokens: Long = 0L,
+    /** What it generated on its own: the tokens it spent. */
+    val usage: AgentTokenUsage = AgentTokenUsage(),
     /** While it runs: the step it is at right now ("bash · log_triage.py"). */
     val step: String? = null,
     /** While it runs: how many tool calls it has made (the work it has done so far). */

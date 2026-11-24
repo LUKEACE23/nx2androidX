@@ -721,6 +721,14 @@
     <string name="agent_switch_confirm_title">子 Agent 还在跑</string>
     <string name="agent_switch_confirm_text">当前会话还有 %1$d 个子 Agent 在跑。切过去会把它们中断——它们会停下，已经做过的部分会留着。</string>
     <string name="agent_switch_confirm_go">仍要切换</string>
+    <string name="agent_usage_title">这一局的用量</string>
+    <string name="agent_usage_context">上下文占用</string>
+    <string name="agent_usage_session">主会话</string>
+    <string name="agent_usage_subagents">子代理（%1$d 次）</string>
+    <string name="agent_usage_tokens">%1$s tokens</string>
+    <string name="agent_usage_tokens_cost">%1$s tokens · $%2$.2f</string>
+    <string name="agent_usage_split">入 %1$s · 出 %2$s · 缓存读 %3$s</string>
+    <string name="agent_usage_split_write">· 缓存写 %1$s</string>
     <string name="agent_run_running_for">已跑 %1$s</string>
     <string name="agent_case_fixed">已修好</string>
     <string name="agent_case_fixed_hint">这局修好了——跑一次看看</string>

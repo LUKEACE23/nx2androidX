@@ -2,6 +2,9 @@ package com.nx.android.agent.env
 
 import com.nx.android.agent.AgentSubagent
 import com.nx.android.agent.AgentSubagentCall
+import com.nx.android.agent.AgentTokenUsage
+import com.nx.android.agent.usageOfMessages
+import com.nx.android.agent.usageOfRunning
 import com.nx.android.app.AppProcess
 import com.nx.android.core.storage.AppPaths
 import java.io.File
@@ -21,7 +24,7 @@ class SubagentStore @Inject constructor(
 ) {
 
     /** What a finished run's own conversation said: the file's stamp and what was read out of it. */
-    private val details = mutableMapOf<String, Pair<Long, Pair<String?, Long>>>()
+    private val details = mutableMapOf<String, Pair<Long, Pair<String?, AgentTokenUsage>>>()
 
     /** 数 transcript 里有几轮：增量读，轮询时不会重读整份文件。 */
     private val counter = RunCounter()
@@ -65,12 +68,13 @@ class SubagentStore @Inject constructor(
      */
     fun list(sessionFile: String?, calls: List<AgentSubagentCall>): SubagentSnapshot {
         val records = records(sessionFile)
+        val sessionId = sessionIdOf(sessionFile)
         // 同一个 agent 的第几次运行：记录按开始时刻排好，序号就是它
         val perAgent = records.groupBy { it.id }
         val finished = records.map { record ->
             val index = perAgent[record.id]?.indexOf(record) ?: 0
-            val (prompt, tokens) = detailsOf(record, index)
-            record.copy(prompt = prompt, tokens = tokens)
+            val (prompt, usage) = detailsOf(record, index, sessionId)
+            record.copy(prompt = prompt, usage = usage)
         }
         val runs = SubagentRuns.merge(finished, live(sessionFile), calls)
         val link = SubagentRuns.link(calls, runs)
@@ -83,18 +87,26 @@ class SubagentStore @Inject constructor(
     }
 
     /**
-     * A finished run's own words: the task it was given, and what it generated.
+     * A finished run's own words: the task it was given, what it generated, and what that cost.
      *
      * Read out of its own session file, and remembered: the file does not change once the run is
      * over, and the list is read again and again while the player watches it.
      *
      * A resumed agent has one session file for all its runs: the task is the file's first user
      * message, and what a run generated is what came after its own user message.
+     *
+     * 被掐断的那一次运行没有自己的会话文件（引擎来不及写）：它的对话与用量在 transcript 里。
      */
-    private fun detailsOf(record: AgentSubagent, runIndex: Int): Pair<String?, Long> {
-        val path = record.sessionFile ?: return null to 0L
+    private fun detailsOf(
+        record: AgentSubagent,
+        runIndex: Int,
+        sessionId: String?,
+    ): Pair<String?, AgentTokenUsage> {
+        val path = record.sessionFile
+            ?: sessionId?.let { SubagentTranscripts.fileOf(paths.tmp, it, record.id)?.path }
+            ?: return null to AgentTokenUsage()
         val file = File(path)
-        if (!file.isFile) return null to 0L
+        if (!file.isFile) return null to AgentTokenUsage()
         val stamp = file.lastModified()
         // 缓存按「第几次运行」分：同一个 agent 的两次运行共用一份会话文件，产出各不相同
         val key = "$path#$runIndex"
@@ -104,10 +116,9 @@ class SubagentStore @Inject constructor(
         val prompt = messages.firstOrNull { it.optString("role") == "user" }
             ?.let { SubagentTranscripts.textOf(it) }
             ?.takeIf { it.isNotBlank() }
-        val tokens = messages.drop(startOfRun(messages, runIndex))
-            .filter { it.optString("role") == "assistant" }
-            .sumOf { it.optJSONObject("usage")?.optLong("output", 0L) ?: 0L }
-        val details = prompt to tokens
+        // 这一次运行自己的那些回答：它花了多少
+        val usage = usageOfMessages(messages.drop(startOfRun(messages, runIndex)))
+        val details = prompt to usage
         this.details[key] = stamp to details
         return details
     }
@@ -211,6 +222,8 @@ object SubagentRuns {
                 step = SubagentTranscripts.lastStep(transcript.messages),
                 // 它干了多少活：玩家不用发消息问「咋样」
                 toolUses = transcript.toolUses,
+                // 它到现在花了多少：尾巴里那些回答各自的用量
+                usage = usageOfRunning(transcript.messages),
             )
         }
         return (done + running).sortedBy { it.startedAt }
