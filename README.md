@@ -297,10 +297,10 @@ The phone app's frame generation ([nxnative/dm/android/lsfg/](nxnative/dm/androi
 
 This project is one branch of a family, and it stands on other people's work:
 
-- **[nx2android](https://github.com/shirai91/nx2android)** — the project this repository is built on: it ports a game on the PC and packages the APK; this repository is its phone side. Its maintainers and its contributors are the ones the assistant's knowledge base is made of: several hundred of their pull requests, read and distilled into a diagnosis that ships with the app.
+- **[nx2android](https://github.com/shirai91/nx2android)** — the project this repository is built on: it ports a game on the PC and packages the APK; this repository is its phone side. Its maintainers and contributors are where the assistant's knowledge base comes from: several hundred of their pull requests, distilled into a diagnosis that ships with the app.
 - **[seedds/nxnative](https://github.com/seedds/nxnative)** — the engine underneath it: the host that stands in for the console's services, the NVN-on-Vulkan replay, the shader translator, and the game profiles that many of these ports were brought up against. MIT licensed upstream; our fork of it, which lives in `nxnative/`, is GPL-3.0-or-later like the rest of this repository.
 - **The nxnative contributors** — for the engine, the tooling and the profiles.
-- **The maintainers of both upstreams** — for answering issues at odd hours, for reviewing patches from strangers, and for keeping the door open for a branch like this one.
+- **The maintainers of both upstreams** — for reviewing pull requests from strangers and keeping the door open for a branch like this one.
 - **[NX2Apple](https://github.com/LNPANDY/NX2Apple)** — the Apple route of the same engine: the macOS builder and the shared iPhone/iPad library. Thanks for keeping the line alive on Apple devices.
 - **[BananaNative](https://github.com/Raphix91/BananaNative)** — the branch that takes the engine to Android and runs a few Switch 2 games natively on a phone. Thanks for taking it further than we did.
 - **[Mesa](https://www.mesa3d.org/)** — for Turnip, the Vulkan driver the app can download for Adreno GPUs.
