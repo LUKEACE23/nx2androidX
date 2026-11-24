@@ -13,6 +13,7 @@ import com.nx.android.agent.runtime.AgentModelProfile
 import com.nx.android.agent.runtime.AgentModelStore
 import com.nx.android.agent.runtime.AgentSetup
 import com.nx.android.agent.env.PiModelList
+import com.nx.android.data.PrefsStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -32,6 +33,7 @@ class AgentSettingsViewModel @Inject constructor(
     private val engine: AgentEngineStore,
     private val models: AgentModelStore,
     private val modelList: PiModelList,
+    private val prefs: PrefsStore,
     @ApplicationContext private val ctx: Context,
 ) : ViewModel() {
 
@@ -42,6 +44,9 @@ class AgentSettingsViewModel @Inject constructor(
         val profiles: List<AgentModelProfile> = emptyList(),
         val activeProfileId: String = "",
 
+        /** The assistant's entry on the game screen: the slim handle on the right edge. */
+        val badgeInGame: Boolean = true,
+
         /** What went wrong with the model the player was editing (empty when nothing did). */
         val modelError: String = "",
     )
@@ -49,13 +54,22 @@ class AgentSettingsViewModel @Inject constructor(
     private var profiles by mutableStateOf(models.list())
     private var activeProfileId by mutableStateOf(models.activeId())
     private var modelError by mutableStateOf("")
+    // the in-game entry: on unless the player turned it off (the game's screen is the game's)
+    private var badgeShown by mutableStateOf(prefs.bool(PrefsStore.AGENT_BADGE, true))
 
     val uiState: StateFlow<UiState> = snapshotFlow {
         UiState(
             // the engine comes with the environment: what is in it is read fresh
-            setup.engineInstalled, engine.installedVersion(), profiles, activeProfileId, modelError,
+            setup.engineInstalled, engine.installedVersion(), profiles, activeProfileId,
+            badgeShown, modelError,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
+
+    /** Shows or hides the assistant's handle on the game screen. */
+    fun setBadgeInGame(on: Boolean) {
+        prefs.put(PrefsStore.AGENT_BADGE, on)
+        badgeShown = on
+    }
 
     /** Saves a model (a new one or an edited one) and makes it the default when it is the only one. */
     fun saveModel(profile: AgentModelProfile): Boolean {

@@ -8,6 +8,51 @@ players on the released version are not pushed onto an alpha.
 
 The release page has the APK and the full notes: <https://github.com/zFitness/nx2androidX/releases>.
 
+## v0.4.1-alpha02 - 2026-11-24
+
+### The app (the APK)
+
+#### Before you update · 更新之前(必读)
+
+- (EN) Your games keep the runtime they have and play exactly as before.
+  The fixes below take effect when you port a game again or press "Update
+  runtime" on a game's page. Nothing has to be imported for this.
+- (中文) 你的游戏继续用现在的运行库,体验和之前完全一样。下面的修复在你重新
+  移植游戏、或在游戏页面点"Update runtime"时生效。这一项不需要导入任何东西。
+- (EN) If a game of yours crashes at startup after you pressed "Update
+  runtime" on its page - the Unreal-engine games were the ones hit (FINAL
+  FANTASY RESONANCE, Octopath Traveler 0, DRAGON QUEST VII Reimagined) -
+  press it once more after updating: the rebuild carries the game's full
+  build data now, and the game starts. Your saves were never at risk.
+- (中文) 如果你之前在某游戏页面点过"Update runtime"之后游戏一启动就闪退
+  (中招的是虚幻引擎游戏:FF RESONANCE、勇气默示录 0、勇者斗恶龙 VII
+  Reimagined),更新后再点一次即可:重建现在会带上游戏的完整构建数据,游戏
+  就能启动。存档一直是安全的。
+
+#### Fixed
+
+- Porting some games stopped at the "GLSLC capture" stage with a build
+  error and produced nothing. Eastward and Tokyo Xanadu eX+ were reported;
+  every game that compiles its shaders at run time hit the same wall. The
+  capture builds again (a small piece of the engine was missing from the
+  headless host whenever the graphics backend was left out).
+- Pressing "Update runtime" on a game's page rebuilt the runtime without
+  the game's per-build tables, and Unreal-engine games crashed at startup
+  afterwards. The rebuild stages the game's whole profile now, so the
+  tables survive.
+- The build page's progress reads correctly, and installing a game no
+  longer retranslates every shader.
+
+### The game profiles (the package the player imports)
+
+No game changed in this release's package, so a re-import buys nothing:
+keep the one you have.
+
+### Community ports
+
+- **@mijuu** - the build page's progress, and no shader retranslation
+  after an install (#79).
+
 ## v0.4.1-alpha01 - 2026-11-24
 
 ### The app (the APK)

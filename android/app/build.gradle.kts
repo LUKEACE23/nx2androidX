@@ -85,8 +85,8 @@ android {
         targetSdk = 28
         // The version the release's tag carries, without the "v": v0.3.0-alpha02 -> 0.3.0-alpha02. The update
         // check compares the two, so the app can tell which release is newer than the one running.
-        versionCode = 21
-        versionName = "0.4.1-alpha01"
+        versionCode = 22
+        versionName = "0.4.1-alpha02"
         ndk { abiFilters += listOf("arm64-v8a") }
         // -PnxLsfg=false: the host the app builds is built without the frame generation (the lsfg/ folder): the host
         // is then smaller and the frame generation reports that it is not in this build. The default is the current
@@ -173,9 +173,13 @@ android {
         implementation("dev.chrisbanes.haze:haze:2.1.0")
         implementation("dev.chrisbanes.haze:haze-blur:2.1.0")
         implementation("androidx.activity:activity-compose:1.13.0")
-        implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
-        implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")
-        implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
+        // keep these at the version the runtime graph resolves anyway: androidx.core 1.19 brings
+        // lifecycle 2.11 in through the family's atomic group constraint, and the compile classpath
+        // has to follow. It has to: 2.11 turned ViewModelStore.put's key from String into Object, so
+        // a test compiled against 2.9 died with NoSuchMethodError against the 2.11 runtime
+        implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
+        implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
+        implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
         implementation("androidx.hilt:hilt-lifecycle-viewmodel-compose:1.3.0")
         implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
         implementation("com.google.dagger:hilt-android:2.60.1")

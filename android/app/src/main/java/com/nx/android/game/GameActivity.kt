@@ -237,6 +237,9 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var hudFields by mutableStateOf(HudField.DEFAULT)
     private var hudFahrenheit by mutableStateOf(false)
 
+    // 助手在游戏画面上的入口（右缘的那条把手）：玩家可以在设置里把它收走
+    private var agentBadge by mutableStateOf(true)
+
     /** 游戏要文字时（宿主的通知 3）：App 用系统输入法问玩家 */
     private data class TextReq(val title: String, val text: String, val max: Int)
     private var textReq by mutableStateOf<TextReq?>(null)
@@ -629,6 +632,8 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
         hudFields = HudField.of(prefs.str(PrefsStore.HUD_FIELDS, "").split(",").filter { it.isNotBlank() })
             .ifEmpty { HudField.DEFAULT }
         hudFahrenheit = prefs.bool(PrefsStore.HUD_TEMP_F, false)
+        // 助手的游戏内入口：默认在画面上，玩家可以在设置里收走
+        agentBadge = prefs.bool(PrefsStore.AGENT_BADGE, true)
         // 体感的两行也交给宿主：开不开（默认按设备有没有陀螺仪）与保留甩动方向（每个游戏各一份）
         val env = (fgSettings?.load()?.envLines(LosslessDll.ensure(this)?.absolutePath) ?: emptyArray()) +
             (motionSettings?.load(hasGyroscope(this))?.envLines() ?: emptyArray()) +
@@ -1003,7 +1008,8 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             )
             // 助手的徽标：右边缘垂直居中的一条小把手，点它就滑出助手抽屉。
             // 它排在设置抽屉之前——设置抽屉开着的时候，那块遮罩把它盖住。
-            if (!agentDrawerOpen) {
+            // 玩家可以在设置里收走它（那条把手是画面上的东西，游戏画面该是游戏的）。
+            if (agentBadge && !agentDrawerOpen) {
                 AgentEdgeBadge(
                     onClick = { openAgentDrawer() },
                     modifier = Modifier.align(Alignment.CenterEnd),

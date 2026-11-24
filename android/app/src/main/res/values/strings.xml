@@ -692,6 +692,8 @@
     <string name="agent_interrupted">Interrupted — the app closed during this turn</string>
     <string name="agent_loading_history">Reading the assistant\'s history…</string>
     <string name="agent_engine_missing_hint">The assistant engine is not in place yet — it comes with the environment. Prepare the environment and it shows up.</string>
+    <string name="agent_badge_title">In-game entry</string>
+    <string name="agent_badge_note">The slim handle on the game screen\'s right edge opens the assistant. Turn it off and the assistant stays in the app\'s own pages.</string>
     <string name="agent_go_settings">Open Settings</string>
     <string name="agent_error_no_key">Set up a model first</string>
     <string name="agent_error_bad_key">The key is invalid. Check it in the model settings.</string>
