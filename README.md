@@ -18,9 +18,9 @@ This repository is nx2androidX, built on nx2android — the PC tool that ports a
 
 The app is the whole tool on the phone: it ports the game on the device and plays the pack it makes. The game files it shows are the player's own.
 
-![Four screens of the app: starting a port on the Builds tab, a game entry in the library, the in-game drawer's frame generation, and the Settings tab](docs/images/app-screens.png)
+![Four screens of the app: starting a port on the Builds tab, the assistant answering beside the game library, the in-game drawer's frame generation, and the Settings tab](docs/images/app-screens.png)
 
-*Top left: starting a port on the Builds tab; top right: a game entry in the library; bottom left: the in-game drawer's frame generation; bottom right: the Settings tab (language, environment, keys, Vulkan drivers).*
+*Top left: starting a port on the Builds tab; top right: the assistant answering beside the library — Red Dead Redemption, the game it fixed, is in it; bottom left: the in-game drawer's frame generation; bottom right: the Settings tab (language, environment, keys, Vulkan drivers).*
 
 **This repository's releases hold the phone app itself** (the APK, its file named after the version). The PC tool is released upstream, by nx2android; both routes are in [For players](#for-players-port-a-game-without-programming).
 
