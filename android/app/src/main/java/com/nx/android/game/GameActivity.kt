@@ -583,7 +583,7 @@ class GameActivity : ComponentActivity(), SurfaceHolder.Callback {
             paths.nxHome,
             packTitleId.orEmpty(),
             Gamespec.REBUILD,
-            if (result.success) "运行库重建完成" else "运行库重建失败：${result.reason}",
+            if (result.success) "runtime rebuild done" else "runtime rebuild failed: ${result.reason}",
         )
         if (!result.success) return PrepareOutcome(reason = result.reason)
         return null

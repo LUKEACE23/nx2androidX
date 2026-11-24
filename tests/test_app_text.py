@@ -23,15 +23,20 @@ CHINESE = ROOT / 'android/app/src/main/res/values-zh/strings.xml'
 
 # the layout fixture: the fake game names are there to see the Chinese glyphs' width, and they are
 # behind a flag that is off (FAKE_DATA = false)
-# the agent's model-facing text: the system prompt, the tool descriptions and the tool results speak
-# Chinese on purpose in v0 (the FAQ they cite is Chinese-first, the BYOK models are the players' own);
-# the player-facing UI of the assistant is NOT here — feature/agent/ went through the tables like
-# everything else. Resource-ifying the model-facing axis is tracked as v0.1 (90-v0真机验收清单.md §5).
+# the agent's own text: the system prompt, the tool descriptions, the tool results and the engine's
+# diagnostics speak Chinese on purpose in v0 (the FAQ they cite is Chinese-first, the BYOK models are
+# the players' own); the player-facing UI of the assistant is NOT here — it went through the tables
+# like everything else. Resource-ifying the model-facing axis is tracked as v0.1
+# (90-v0真机验收清单.md §5).
+# (these are the agent package's own paths; it moved from data/agent/ to agent/.)
 EXEMPT = {
     'appstate/LibraryState.kt',
-    'data/agent/AgentChatImpl.kt',
-    'data/agent/tools/AgentTools.kt',
-    'data/agent/tools/FaqIndex.kt',
+    'agent/AgentChat.kt',
+    'agent/env/PiAgentChat.kt',
+    'agent/env/PiModelList.kt',
+    'agent/env/PiRunner.kt',
+    'agent/env/PiSessionCatalog.kt',
+    'agent/ui/AgentConversationState.kt',
 }
 
 STR = re.compile(r'<string name="([^"]+)"([^>]*)>(.*?)</string>', re.S)

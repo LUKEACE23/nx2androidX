@@ -490,7 +490,7 @@ class MainActivity : ComponentActivity() {
                         paths.nxHome,
                         player.currentTitleId(),
                         Gamespec.EXIT,
-                        "进程异常退出（${exits.first().reason}）",
+                        "process exited abnormally (${exits.first().reason})",
                     )
                 }
             }
