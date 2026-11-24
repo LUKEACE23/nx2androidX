@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nx.android.R
 import com.nx.android.agent.runtime.AgentModelProfile
 import com.nx.android.core.ui.components.InfoRow
+import com.nx.android.core.ui.components.SwitchRow
 import com.nx.android.core.ui.theme.NxPalette
 
 /**
@@ -57,6 +58,15 @@ fun AgentSettingsSection(viewModel: AgentSettingsViewModel) {
             state.engineVersion.isBlank() -> stringResource(R.string.agent_engine_ready)
             else -> state.engineVersion
         },
+    )
+
+    // the in-game entry: the handle on the game screen's right edge. The game owns that screen,
+    // so the player can take the handle away — the assistant stays in the app's own pages.
+    SwitchRow(
+        title = stringResource(R.string.agent_badge_title),
+        checked = state.badgeInGame,
+        note = stringResource(R.string.agent_badge_note),
+        onChange = { viewModel.setBadgeInGame(it) },
     )
 
     // the models: one row each. The row picks the model; the pencil edits it.

@@ -691,6 +691,8 @@
     <string name="agent_interrupted">已中断——这一轮中途 App 没了</string>
     <string name="agent_loading_history">正在读引擎里的历史…</string>
     <string name="agent_engine_missing_hint">助手引擎还没就位——它随环境一起来。准备好环境，它就在了。</string>
+    <string name="agent_badge_title">游戏内入口</string>
+    <string name="agent_badge_note">游戏画面右缘的那条小把手，点开助手抽屉。关掉后助手只在 App 自己的页面里。</string>
     <string name="agent_go_settings">去设置</string>
     <string name="agent_error_no_key">请先配置模型</string>
     <string name="agent_error_bad_key">key 无效，请到模型设置里检查。</string>
