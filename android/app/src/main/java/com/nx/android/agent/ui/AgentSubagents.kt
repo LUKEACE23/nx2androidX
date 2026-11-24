@@ -45,12 +45,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nx.android.R
 import com.nx.android.agent.AgentMessage
+import com.nx.android.agent.AgentCaseStatus
 import com.nx.android.agent.AgentNotification
 import com.nx.android.agent.AgentSubagent
 import com.nx.android.agent.AgentToolCard
 import com.nx.android.agent.AgentToolState
 import com.nx.android.core.ui.components.CapsuleButton
-import com.nx.android.data.Gamespec
 import kotlinx.coroutines.delay
 
 /**
@@ -296,26 +296,24 @@ private fun notificationStatus(status: String): String {
 }
 
 /**
- * 攻关档案的最新状态：该玩家上场了。
+ * 案例状态：助手自己说的那一条。
  *
- * 子 Agent 修完把档案里的状态改成已修——App 读出来就在这儿亮一张卡。玩家不必去聊天记录里翻
- * 那句「你现在可以做的」，也不必再问一次「接下来干嘛」。
+ * 助手在回答末尾写一个 nx-case 块，App 认这个格式就在这儿显示它——修好了就亮出「去跑一下」，
+ * 玩家不必去聊天记录里翻那句「你现在可以做的」。助手没写这个块，就什么也不显示。
  */
 @Composable
 internal fun CaseStatusCard(
-    status: String,
-    titleId: String?,
+    status: AgentCaseStatus,
     onRun: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    val (label, hint, canRun) = when (status) {
-        Gamespec.STATUS_FIXED ->
+    val (label, hint, canRun) = when (status.status) {
+        "fixed" ->
             Triple(stringResource(R.string.agent_case_fixed), stringResource(R.string.agent_case_fixed_hint), true)
-        Gamespec.STATUS_NOT_FIXED ->
+        "not-fixed" ->
             Triple(stringResource(R.string.agent_case_not_fixed), stringResource(R.string.agent_case_not_fixed_hint), false)
-        Gamespec.STATUS_OPEN ->
+        else ->
             Triple(stringResource(R.string.agent_case_open), stringResource(R.string.agent_case_open_hint), false)
-        else -> Triple(stringResource(R.string.agent_case_pending), stringResource(R.string.agent_case_pending_hint), false)
     }
     Column(
         modifier
@@ -336,10 +334,18 @@ internal fun CaseStatusCard(
             style = MaterialTheme.typography.bodySmall,
             color = AgentPalette.Ink2,
         )
-        if (canRun && onRun != null && !titleId.isNullOrBlank()) {
+        // 助手自己写的那句话（玩家自己的语言）：它比「修好了」三个字有用
+        if (status.summary.isNotBlank()) {
+            Text(
+                status.summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = AgentPalette.Ink,
+            )
+        }
+        if (canRun && onRun != null && status.ids.isNotBlank()) {
             CapsuleButton(
                 stringResource(R.string.agent_case_run),
-                { onRun(titleId) },
+                { onRun(status.ids) },
                 Modifier,
             )
         }

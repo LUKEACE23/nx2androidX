@@ -38,7 +38,7 @@ class AgentConversation {
 
     /** Another conversation answers from here on: the history is the new one. */
     fun load(history: List<AgentMessage>) {
-        messages = history
+        messages = history.map { withCaseStatus(it) }
         nextId = (history.maxOfOrNull { it.id } ?: 0L) + 1L
         running = false
         streamingId = null
@@ -96,11 +96,13 @@ class AgentConversation {
                 if (id != null) {
                     // 已经流出来的字留着；没流出来（App 刚起来）就用这一份完整的
                     update(id) { m ->
-                        m.copy(text = if (m.text.isBlank()) event.text else m.text, tokens = event.tokens)
+                        withCaseStatus(
+                            m.copy(text = if (m.text.isBlank()) event.text else m.text, tokens = event.tokens)
+                        )
                     }
                 } else if (event.text.isNotBlank()) {
-                    messages = messages + AgentMessage(
-                        nextId++, AgentRole.ASSISTANT, event.text, tokens = event.tokens,
+                    messages = messages + withCaseStatus(
+                        AgentMessage(nextId++, AgentRole.ASSISTANT, event.text, tokens = event.tokens),
                     )
                 }
                 followUpId = null
@@ -167,12 +169,25 @@ class AgentConversation {
         if (text.isNotEmpty()) {
             val last = messages.lastOrNull()
             if (last?.role == AgentRole.ASSISTANT) {
-                update(last.id) { it.copy(text = text, tokens = tokens) }
+                update(last.id) { withCaseStatus(it.copy(text = text, tokens = tokens)) }
             } else {
-                messages = messages + AgentMessage(nextId++, AgentRole.ASSISTANT, text, tokens = tokens)
+                messages = messages + withCaseStatus(
+                    AgentMessage(nextId++, AgentRole.ASSISTANT, text, tokens = tokens)
+                )
             }
         }
         end()
+    }
+
+    /**
+     * 助手自己发的案例状态：正文里那个块剥掉，状态挂在消息上。
+     *
+     * 只有助手的话里才有这个块——玩家的消息不动，助手的消息没有这个块就原样留着。
+     */
+    private fun withCaseStatus(message: AgentMessage): AgentMessage {
+        if (message.role != AgentRole.ASSISTANT || message.text.isBlank()) return message
+        val (text, status) = CaseStatusFormat.extract(message.text)
+        return message.copy(text = text, caseStatus = message.caseStatus ?: status)
     }
 
     private fun fail(reason: AgentFailure) {

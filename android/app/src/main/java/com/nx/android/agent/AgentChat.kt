@@ -39,6 +39,12 @@ data class AgentMessage(
     val pending: Boolean = false,
     /** 这一轮里，子 Agent 完成时回来的通知（一张卡片一张通知）。 */
     val notifications: List<AgentNotification> = emptyList(),
+    /**
+     * 助手自己发的案例状态（回答里的 nx-case 块）：没有就没有。
+     *
+     * 那是助手说的话，不是 App 猜的——App 只把它渲染出来。
+     */
+    val caseStatus: AgentCaseStatus? = null,
 )
 
 sealed interface AgentEvent {

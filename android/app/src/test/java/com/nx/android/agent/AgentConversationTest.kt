@@ -264,4 +264,54 @@ class AgentConversationTest {
         assertEquals(1, c.messages.size)
         assertEquals("查清了：跨 chunk 拷贝被丢弃。", c.messages[0].text)
     }
+
+    @Test
+    fun `the case status the assistant sends lands on its answer`() {
+        val c = AgentConversation()
+        c.begin()
+        c.apply(
+            AgentEvent.TurnDone(
+                """
+                修好了：第二个渲染器有自己的线程了。
+
+                ```nx-case
+                {"status": "fixed", "ids": "01007820196A6000", "summary": "片头后黑屏修好了"}
+                ```
+                """.trimIndent()
+            )
+        )
+
+        val answer = c.messages.last()
+        assertEquals("fixed", answer.caseStatus?.status)
+        assertEquals("01007820196A6000", answer.caseStatus?.ids)
+        assertEquals("片头后黑屏修好了", answer.caseStatus?.summary)
+        // 那个块不在正文里了：它变成了一张卡
+        assertTrue(!answer.text.contains("nx-case"))
+        assertTrue(answer.text.contains("修好了：第二个渲染器有自己的线程了。"))
+    }
+
+    @Test
+    fun `an answer without a case status has none`() {
+        val c = AgentConversation()
+        c.begin()
+        c.apply(AgentEvent.TurnDone("有什么功能？"))
+
+        assertNull(c.messages.last().caseStatus)
+    }
+
+    @Test
+    fun `the history keeps the case status it was written with`() {
+        val c = AgentConversation()
+        c.load(
+            listOf(
+                AgentMessage(
+                    1L, AgentRole.ASSISTANT,
+                    "修好了。\n\n```nx-case\n{\"status\": \"fixed\", \"ids\": \"0100E8B028B54000\"}\n```",
+                )
+            )
+        )
+
+        assertEquals("fixed", c.messages.first().caseStatus?.status)
+        assertTrue(!c.messages.first().text.contains("nx-case"))
+    }
 }

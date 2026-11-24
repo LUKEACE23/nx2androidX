@@ -43,6 +43,8 @@ class AgentMarkdownCache(
 
     private val lock = Any()
     private val parsed = LinkedHashMap<Long, MarkdownState>(0, 0.75f, true)
+    /** 每条备好的 AST 是从哪段文字来的：文字变了就得重备 */
+    private val parsedText = LinkedHashMap<Long, String>(0, 0.75f, true)
     private val inFlight = mutableSetOf<Long>()
     /** 解析不了的那几条（id → 那段文字）：同样的文字再试也是同样的结果，别一次次重试 */
     private val failed = LinkedHashMap<Long, String>()
@@ -71,7 +73,9 @@ class AgentMarkdownCache(
     fun ensure(id: Long, text: String) {
         if (text.isBlank()) return
         val gen = synchronized(lock) {
-            if (parsed.containsKey(id)) return
+            // 备过的：那段文字还是这一段，才算数。文字变了（助手发的案例状态块被剥掉）
+            // 就重备一份——否则屏幕上留着一个旧的 AST。
+            if (parsed.containsKey(id) && parsedText[id] == text) return
             if (failed[id] == text) return   // 这段文字解析不了：换个文字再来
             if (!inFlight.add(id)) return
             generation
@@ -88,9 +92,11 @@ class AgentMarkdownCache(
                 if (gen != generation) return@synchronized
                 if (ready != null) {
                     parsed[id] = ready
+                    parsedText[id] = text
                     while (parsed.size > KEEP) {
                         val oldest = parsed.keys.firstOrNull() ?: break
                         parsed.remove(oldest)
+                        parsedText.remove(oldest)
                     }
                 } else {
                     // 解析不了：记下这段文字，别在每次刷新时都重试一遍
@@ -116,6 +122,7 @@ class AgentMarkdownCache(
         synchronized(lock) {
             generation++
             parsed.clear()
+            parsedText.clear()
             failed.clear()
             inFlight.clear()
         }

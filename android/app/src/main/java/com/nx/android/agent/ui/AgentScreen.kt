@@ -90,7 +90,6 @@ import com.nx.android.agent.AgentModelConfig
 import com.nx.android.agent.AgentRole
 import com.nx.android.agent.AgentSubagent
 import com.nx.android.agent.AgentToolCard
-import com.nx.android.data.Gamespec
 import com.nx.android.agent.AgentToolState
 
 /**
@@ -228,22 +227,9 @@ fun AgentScreen(
                             subagents = state.subagents,
                             subagentRuns = state.subagentRuns,
                             caseProgress = state.caseProgress,
+                            onRunGame = onRunGame,
                         )
                     }
-                    // 修好了：该玩家上场了——按钮就在这儿，不用去聊天记录里翻那句话
-                    // （待确认的不用这张卡：方案在会话里等玩家回复确认）
-                    state.caseStatus
-                        ?.takeIf { it != Gamespec.PLAN_PENDING }
-                        ?.let { status ->
-                            item(key = "case-status") {
-                                CaseStatusCard(
-                                    status = status,
-                                    titleId = state.caseTitleId,
-                                    onRun = onRunGame,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
-                        }
                 }
                 AgentInputBar(
                     text = state.draft,
@@ -456,11 +442,15 @@ internal fun MessageRow(
     subagents: List<AgentSubagent> = emptyList(),
     subagentRuns: Map<String, AgentSubagent> = emptyMap(),
     caseProgress: String? = null,
+    onRunGame: (String) -> Unit = {},
 ) {
     if (message.role == AgentRole.USER) {
         UserBubbleText(message.text, message.pending, onCopy?.let { cb -> { cb(message) } })
     } else {
-        AssistantBlock(message, streaming, markdownState, onToolsClick, onCopy, subagents, subagentRuns, caseProgress)
+        AssistantBlock(
+            message, streaming, markdownState, onToolsClick, onCopy, subagents, subagentRuns,
+            caseProgress, onRunGame,
+        )
     }
 }
 
@@ -524,6 +514,7 @@ private fun AssistantBlock(
     subagents: List<AgentSubagent> = emptyList(),
     subagentRuns: Map<String, AgentSubagent> = emptyMap(),
     caseProgress: String? = null,
+    onRunGame: (String) -> Unit = {},
 ) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         // 思考过程：模型自己想的那一段，折起来放在最前面（玩家想看就点开）
@@ -565,6 +556,14 @@ private fun AssistantBlock(
             } else {
                 Markdown(message.text, typography = agentMarkdownTypography())
             }
+        }
+        // 助手自己发的案例状态：那条提示挂在这一条回答的下面（助手没发就没有）
+        message.caseStatus?.let { status ->
+            CaseStatusCard(
+                status = status,
+                onRun = onRunGame,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
         // 子 Agent 跑完的通知：一张卡片，不是那坨 XML
         message.notifications.forEach { notification ->

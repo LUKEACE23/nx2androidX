@@ -96,7 +96,6 @@ import com.nx.android.R
 import com.nx.android.agent.AgentMessage
 import com.nx.android.agent.AgentPresets
 import com.nx.android.agent.AgentRole
-import com.nx.android.data.Gamespec
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.HazeBlurStyle
@@ -349,22 +348,9 @@ fun AgentPanel(
                             subagents = state.subagents,
                             subagentRuns = state.subagentRuns,
                             caseProgress = state.caseProgress,
+                            onRunGame = onRunGame,
                         )
                     }
-                    // 修好了：该玩家上场了——按钮就在这儿，不用去聊天记录里翻那句话
-                    // （待确认的不用这张卡：确认门已经在那里了）
-                    state.caseStatus
-                        ?.takeIf { it != Gamespec.PLAN_PENDING }
-                        ?.let { status ->
-                            item(key = "case-status") {
-                                CaseStatusCard(
-                                    status = status,
-                                    titleId = state.caseTitleId,
-                                    onRun = onRunGame,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
-                        }
                 }
                 if (state.running) {
                     Row(

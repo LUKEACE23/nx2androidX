@@ -84,16 +84,11 @@ data class AgentUiState(
     val subagentRuns: Map<String, AgentSubagent> = emptyMap(),
 
     /**
-     * 那局档案里最新一条问题的状态（已修/待确认/未修/还开着）。
+     * 案例档案时间线上的最新一条：子代理自己记下的进展（在跑的卡片上亮出来）。
      *
-     * 修好了就该告诉玩家「该你上场了」——那句话不必埋在聊天记录里找。
+     * 那是一行文字，不是状态牌——案例的状态是助手自己说的（回答里的 nx-case 块），
+     * App 不去档案里猜。
      */
-    val caseStatus: String? = null,
-
-    /** 那一局的 title ID：修好了之后「去跑一下」要知道跑哪一局。 */
-    val caseTitleId: String? = null,
-
-    /** 案例档案时间线上的最新一条：子代理自己记下的进展（在跑的卡片上亮出来）。 */
     val caseProgress: String? = null,
 )
 
@@ -147,12 +142,6 @@ class AgentConversationState @Inject constructor(
     /** 哪次调用派出了哪一次运行（卡片与清单都要靠它对上） */
     @Volatile private var subagentRuns: Map<String, AgentSubagent> = emptyMap()
 
-    /** 那局档案里最新一条问题的状态（读档案，不写它） */
-    @Volatile private var caseStatus: String? = null
-
-    /** 那一局的 title ID：档案的目录名就是它（攻关档案在 gamespec/<title ID>/ 下） */
-    @Volatile private var caseTitleId: String? = null
-
     /** 档案时间线上的最新一条：子代理记下的进展 */
     @Volatile private var caseProgress: String? = null
 
@@ -193,9 +182,9 @@ class AgentConversationState @Inject constructor(
                     is AgentEvent.Notification -> {
                         flushBackground(batch)
                         conversation.followUp(event)
-                        // 子 Agent 刚跑完：清单跟上，档案里的状态可能刚变了
+                        // 子 Agent 刚跑完：清单跟上，档案里的进展可能刚变了
                         refreshSubagents()
-                        refreshCase()
+                        refreshCaseProgress()
                         publish()
                     }
                     is AgentEvent.Failed -> {
@@ -246,8 +235,6 @@ class AgentConversationState @Inject constructor(
             streamingId = conversation.streamingId,
             subagents = subagents,
             subagentRuns = subagentRuns,
-            caseStatus = caseStatus,
-            caseTitleId = caseTitleId,
             caseProgress = caseProgress,
         )
         // markdown 的 AST 在这里备：读到的历史一落地就开始解析，首开抽屉时高度已经是最终值。
@@ -344,7 +331,7 @@ class AgentConversationState @Inject constructor(
             subagents = listed.runs
             subagentRuns = listed.byCall
             // 子代理在跑的时候，档案上的进展也在变：两秒读一次，玩家看得见它干到哪了
-            withContext(Dispatchers.IO) { refreshCaseStatus(Gamespec.recentCaseDir(paths.nxHome)) }
+            readCaseProgress()
             publish()
         }
     }
@@ -364,7 +351,7 @@ class AgentConversationState @Inject constructor(
                 }
                 subagents = listed.runs
                 subagentRuns = listed.byCall
-                withContext(Dispatchers.IO) { refreshCaseStatus(Gamespec.recentCaseDir(paths.nxHome)) }
+                readCaseProgress()
                 publish()
                 if (listed.runs.none { it.running } && !conversation.running) break
             }
@@ -377,28 +364,22 @@ class AgentConversationState @Inject constructor(
     }
 
     /**
-     * 读档案的状态：最近动过的那一局，修好了没有、进展到哪。
+     * 档案时间线上的最新一条：子代理自己记下的进展（跑着的卡片上那一行字）。
      *
-     * 只读——档案是子 Agent 写的，app 不碰它。方案本身不进面板：助手在会话里讲给玩家，
-     * 玩家在会话里回复确认（约定写在 AGENTS.md 里）。
+     * 只读——档案是子 Agent 写的，app 不碰它。这里只有进展，没有状态：
+     * 案例的状态是助手自己说的（回答里的 nx-case 块），app 不去档案里猜。
      */
-    private fun refreshCase() {
-        scope.launch {
-            val dir = withContext(Dispatchers.IO) { Gamespec.recentCaseDir(paths.nxHome) }
-            refreshCaseStatus(dir)
-            publish()
-        }
+    private suspend fun readCaseProgress() {
+        val dir = withContext(Dispatchers.IO) { Gamespec.recentCaseDir(paths.nxHome) }
+        caseProgress = dir?.let { Gamespec.latestTimeline(it) }
     }
 
-    /**
-     * 档案里的两件事：最新一条问题的状态（修好了就该亮出「去跑一下」），和时间线上最新一条
-     * （子代理自己记下的进展——玩家看得见的进度通道）。
-     */
-    private fun refreshCaseStatus(dir: File?) {
-        caseStatus = dir?.let { Gamespec.latestStatus(it) }
-        // 哪一局：攻关档案的目录名就是 title ID
-        caseTitleId = dir?.name?.takeIf { it.isNotBlank() }
-        caseProgress = dir?.let { Gamespec.latestTimeline(it) }
+    /** 读一次档案的进展：回合结束时跟上。 */
+    private fun refreshCaseProgress() {
+        scope.launch {
+            readCaseProgress()
+            publish()
+        }
     }
 
     /** 子 Agent 的完整对话：它自己的会话文件（还在跑的就是它的 transcript）。 */
@@ -543,8 +524,8 @@ class AgentConversationState @Inject constructor(
         // 子 Agent 可能刚跑完：清单跟着更新
         if (event is AgentEvent.Notification || event is AgentEvent.TurnDone) {
             refreshSubagents()
-            // 档案里的状态可能刚变了：读一下
-            refreshCase()
+            // 档案里的进展可能刚变了：读一下
+            refreshCaseProgress()
         }
         publish()
     }

@@ -179,38 +179,6 @@ Proposed fix: merge upstream #2546
     }
 
     @Test
-    fun `the latest status of the case is read out of the document`() {
-        val spec = """### 2026-11-23 first problem (status: fixed)
-Cause: a
-
-### 2026-11-23 second problem (status: open)
-Cause: b
-"""
-        assertEquals(Gamespec.STATUS_OPEN, Gamespec.latestStatusOf(spec))
-    }
-
-    @Test
-    fun `a fixed case reads as fixed`() {
-        val spec = """### 2026-11-23 the crash (status: fixed)
-Cause: the driver
-"""
-        assertEquals(Gamespec.STATUS_FIXED, Gamespec.latestStatusOf(spec))
-    }
-
-    @Test
-    fun `a case that was not fixed is not mistaken for one that was`() {
-        val spec = """### 2026-11-23 the crash (status: not fixed)
-Cause: the driver
-"""
-        assertEquals(Gamespec.STATUS_NOT_FIXED, Gamespec.latestStatusOf(spec))
-    }
-
-    @Test
-    fun `a case without a document has no status`() {
-        assertNull(Gamespec.latestStatus(Gamespec.dir(folder.root, game)))
-    }
-
-    @Test
     fun `the latest line of the timeline is the case's progress`() {
         val spec = """## Timeline
 - 2026-11-23 19:18 the player reported a crash

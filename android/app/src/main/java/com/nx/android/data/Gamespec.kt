@@ -34,15 +34,6 @@ object Gamespec {
      */
     const val PLAN_PENDING = "(status: pending approval)"
 
-    /** 那一条修好了 */
-    const val STATUS_FIXED = "(status: fixed)"
-
-    /** 那一条没修好 */
-    const val STATUS_NOT_FIXED = "(status: not fixed)"
-
-    /** 那一条还开着（有绕法，没有能执行的修法） */
-    const val STATUS_OPEN = "(status: open)"
-
     /**
      * 玩家语言的那几行：档案里 `Player ` 开头的行。
      *
@@ -188,36 +179,6 @@ object Gamespec {
             )
         }
         return plan?.takeIf { it.headline.isNotBlank() }
-    }
-
-    /**
-     * 档案里最新一条问题的状态（已修/待确认/未修/还开着）。
-     *
-     * App 只读档案：子 Agent 改状态，app 照着显示——修好了就该告诉玩家「去跑一下」，
-     * 还开着就该说「还挂着一个问题」。
-     */
-    fun latestStatus(caseDir: File): String? {
-        val spec = File(caseDir, SPEC_FILE)
-        if (!spec.isFile) return null
-        val text = runCatching { spec.readText() }.getOrNull() ?: return null
-        return latestStatusOf(text)
-    }
-
-    /** 正文里最新一条问题的状态标记（没有就是没有）。 */
-    fun latestStatusOf(text: String): String? {
-        var status: String? = null
-        for (raw in text.lines()) {
-            val line = raw.trim()
-            if (!line.startsWith("### ")) continue
-            status = when {
-                line.contains(PLAN_PENDING) -> PLAN_PENDING
-                line.contains(STATUS_NOT_FIXED) -> STATUS_NOT_FIXED
-                line.contains(STATUS_FIXED) -> STATUS_FIXED
-                line.contains(STATUS_OPEN) -> STATUS_OPEN
-                else -> null
-            }
-        }
-        return status
     }
 
     /**

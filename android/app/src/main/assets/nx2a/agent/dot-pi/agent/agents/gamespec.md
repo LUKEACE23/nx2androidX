@@ -112,7 +112,15 @@ up; an answer that never comes cannot.
    A `#` line is a comment: the packer skips it when it reads the paths.
 5. Answer the main session with a summary: it starts with a digest in the player's language
    (the task says which one) - what changed, whether the verification passed, what the
-   player does next - and the English detail follows after it.
+   player does next - and the English detail follows after it. When the case reached a
+   state the player must act on (fixed, not fixed, still open), end the digest with one
+   block and nothing after it:
+   ```nx-case
+   {"status": "fixed", "ids": "<the title ID>", "summary": "<one line in the player's language>"}
+   ```
+   The status is "fixed", "not-fixed" or "open". The app shows that block as a small card
+   under the answer; without it the player is not told. A plan that waits for the player's
+   confirmation does not carry the block - that one goes through the confirmation gate.
 6. Leave the case the way the knowledge base can use it: add a "## Case index row" section
    to the case file, with one JSON object in it:
    ```json
