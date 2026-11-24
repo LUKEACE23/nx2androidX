@@ -78,6 +78,10 @@
         "a": "Turn on Settings → About → \"File manager access\". The system then mounts the app's directory (the runtime, the saves, the logs) as one root: the file manager can go into it, and you can copy things out of it. Switch it off and that root is gone."
       },
       {
+        "q": "Can I remove the assistant's handle on the game screen?",
+        "a": "Yes. Settings → Assistant → \"In-game entry\", turn it off, and the next game starts without the handle on the right edge. The assistant is still around: the ball at the bottom right of the library and builds pages, and the full chat page."
+      },
+      {
         "q": "How do I connect and set up a gamepad?",
         "a": "The gamepad icon in the top bar → Gamepad center: there you see how many are connected, rebind, calibrate, and open the Bluetooth settings. How the gamepad behaves inside a game is set in the drawer → Controls."
       },
