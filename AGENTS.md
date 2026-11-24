@@ -104,6 +104,11 @@ README 的 "For players" 一节讲桌面工具，那仍是真实存在的玩家�
   删 worktree 前先列出里面的链接，逐个单独删链接本身（**不要带 `-r` / `/s`**），再删 worktree。
 - **分支合并后**清理 worktree 并删掉已合并的分支（`git branch -d`）。
 - **一个核心改动只影响它真正修的游戏**；通用规则优先于游戏专属规则。
+- **手机上的引擎树不是版本库**：`files/tool/nxnative` 是一份会被整体刷新的复制件——上游同步会把它换掉，
+  里面的本地改动悄无声息地丢（2026-11-23 晚上就丢了三个修复：MGFX v10 读取器、在线 SDK opt-in、
+  compute warm-up）。改在手机上的引擎代码要**同时落到本仓库的分支上**，一个 case 一条
+  （`case/<title ID>-<slug>`）；子代理在手机上做的修复，至少要把 diff 写进该局的案例档案
+  （`gamespec/<title ID>/files/`）——那是玩家自己的数据，活过每一次更新。
 - **移植类改动必须有真机验证**（真机上的实况 / 截图 / 帧率数据），推理和推断不算验证。
 - **提交只在被要求时做**，用 checkout 自己的 git 身份；提交信息走 Conventional Commits（英文、小写），
   由 `.githooks/commit-msg` 校验。
