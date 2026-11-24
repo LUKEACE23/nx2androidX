@@ -501,10 +501,13 @@ fun AgentPanel(
                             DropdownMenuItem(
                                 text = {
                                     Text(
-                                        profile.label.ifBlank { profile.modelName } +
-                                            (if (profile.modelName.isNotBlank()) " · ${profile.modelName}" else ""),
+                                        // one name per row: the player's own name first, the model
+                                        // name when they gave none. A long name is cut, not squeezed.
+                                        profile.label.ifBlank { profile.modelName },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = AgentPalette.Ink,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
                                 },
                                 onClick = {
